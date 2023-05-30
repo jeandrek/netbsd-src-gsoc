@@ -1,0 +1,25 @@
+#	$NetBSD: Makefile.openssl,v 1.13 2023/05/07 16:24:28 christos Exp $
+
+.ifndef _MAKEFILE_OPENSSL_INCLUDED
+_MAKEFILE_OPENSSL_INCLUDED=1
+
+.include <bsd.own.mk>
+
+.if ${HAVE_OPENSSL} <= 11
+OSSL_ENGINESDIR=/usr/lib/openssl
+.else
+.	if defined(MLIBDIR)
+OSSL_LIBDIR=/usr/lib/${MLIBDIR}/openssl
+.	else
+OSSL_LIBDIR=/usr/lib/openssl
+.	endif
+OSSL_ENGINESDIR=${OSSL_LIBDIR}/engines
+OSSL_MODULESDIR=${OSSL_LIBDIR}/modules
+.endif
+
+OPENSSLSRC=	${CRYPTODIST}/external/bsd/${EXTERNAL_OPENSSL_SUBDIR}/dist
+CPPFLAGS+=	-DOPENSSLDIR=\"/etc/openssl\"
+CPPFLAGS+=	-DENGINESDIR=\"${OSSL_ENGINESDIR}\"
+CPPFLAGS+=	-DMODULESDIR=\"${OSSL_MODULESDIR}\"
+
+.endif

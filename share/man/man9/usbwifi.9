@@ -1,0 +1,491 @@
+.\"	$NetBSD: usbnet.9,v 1.13 2020/08/28 16:07:49 fcambus Exp $
+.\"
+.\" Copyright (c) 2021 Martin Husemann
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+.\" OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+.\" IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+.\" INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+.\" BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+.\" LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+.\" AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+.\" OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd August 21, 2021
+.Dt USBWIFI 9
+.Os
+.Sh NAME
+.Nm usbwifi
+.Nd common USB wlan driver framework
+.Sh SYNOPSIS
+.In dev/usb/usbwifi.h
+.Ss Functions offered by usbwifi.h
+.Ft void *
+.Fn usbwifi_softc "struct usbwifi *uw"
+.Ft "struct ieee80211com *"
+.Fn usbwifi_ic "struct usbwifi *"
+.Ft bool
+.Fn usbwifi_isdying "struct usbwifi *uw"
+.Ft void
+.Fn usbwifi_lock_ic "struct usbwifi *uw"
+.Ft void
+.Fn usbwifi_unlock_ic "struct usbwifi *uw"
+.Ft kmutex_t *
+.Fn usbwifi_mutex_ic "struct usbwifi *uw"
+.Ft void
+.Fn usbwifi_isowned_ic "struct usbwifi *uw"
+.Ft void
+.Fn usbwifi_enqueue "struct usbwifi *uw" "uint8_t *buf" "size_t buflen" "int rssi" "int csum_flags" "uint32_t csum_data" "int mbuf_flags"
+.Ft void
+.Fn usbwifi_attach "struct usbwifi *uw"
+.Ft void
+.Fn usbwifi_ic_attach "struct usbwifi *uw" "int num_tx_chains" "int num_rx_chains" "int num_tx_pipes" "int num_rx_pipes" "int flags"
+.Ft void
+.Fn usbwifi_attach_finalize "struct usbwifi *uw"
+.Ft int
+.Fn usbwifi_detach "device_t self" "int flags"
+.Ft int
+.Fn usbwifi_activate "device_t self" "devact_t act"
+.Ft void
+.Fn usbwifi_parent "struct ieee80211com *"
+.Sh DESCRIPTION
+The
+.Nm
+framework provides methods usable for USB wlan drivers.
+The framework has support for these features:
+.Bl -bullet -offset 8n
+.It
+Partial autoconf handling
+.It
+USB endpoint pipe handling
+.It
+Rx and Tx chain handling
+.It
+Generic handlers or support for several net80211 callbacks
+.It
+Network stack locking protocol
+.It
+Interrupt handling
+.El
+.Pp
+.Nm
+provides many or all of the traditional
+.Dq softc
+members inside
+.Va struct usbwifi ,
+which can be used directly as the device softc structure if
+no additional storage is required.
+A structure exists for receive and transmit chain management,
+.Va struct usbwifi_chain ,
+that tracks the metadata for each transfer descriptor available,
+minimum of one each for Rx and Tx slot, and will be passed
+to the Rx and Tx callbacks.
+.Pp
+There is a
+.Va struct usbwifi_ops
+structure that provides a number of optional and required callbacks
+that will be described below.
+.Pp
+For autoconfiguration the device attach routine is expected to
+ensure that this device's
+.Va struct usbwifi
+is the first member of the device softc, if it can not be used directly
+as the device softc, as well as set up the necessary structure members,
+find end-points, find the MAC address, call
+.Fn usbwifi_attach ,
+set up additional callbacks, call
+.Fn usbwifi_ic_attach ,
+complete softc setup and finally call
+.Fn usbwifi_attach_finalize .
+The device detach routine should free any resources allocated
+by attach and then call
+.Fn usbwifi_detach ,
+possibly directly using
+.Fn usbwifi_detach
+as most consumers have no additional resources not owned and
+released by the
+.Nm
+framework itself.
+The device activate function should be set to
+.Fn usbwifi_activate .
+.Pp
+.Pp
+To manage all Rx and Tx chains the
+.Dq uwo_init
+callback of
+.Va struct usbwifi_ops
+should perform any device specific initialization.
+See the
+.Sx RECEIVE AND SEND
+section for details on using the chains.
+For interface start, the
+.Dq uwo_tx_prepare
+callback must be used to convert
+an mbuf into a chain buffer ready for transmission.
+For interface stop, there is an optional
+.Dq uwo_stop
+callback to turn off any chipset specific values if required.
+.Pp
+As receive must handle the case of multiple packets in one buffer,
+the support is split between the driver and the framework.
+A
+.Dq uwo_rx_loop
+callback must be provided that loops over the incoming
+packet data found in a chain, performs necessary checking and passes
+the network frame up the stack via either
+.Fn usbwifi_enqueue .
+.Pp
+General accessor functions for
+.Fa struct usbwifi :
+.Bl -tag -width 4n
+.It Fn usbwifi_softc uw
+Returns pointer to this
+.Fa uw's
+device softc.
+.It Fn usbwifi_ic uw
+Returns a pointer to the ieee80211com strucuture of this
+.Fa uw .
+.It Fn usbwifi_isdying uw
+Returns true if device is dying (has been pulled or deactivated,
+pending detach.)
+.El
+.Pp
+Lock handling functions for
+.Fa struct usbwifi :
+.Pp
+.Bl -tag -width 4n -compact
+.It Fn usbwifi_lock_ic un
+.It Fn usbwifi_unlock_ic un
+.It Fn usbwifi_isowned_ic un
+These groups of three functions provide methods to lock,
+unlock, and assert ownership of the
+.Dq IEEE80211_LOCK
+of the
+.Vt struct ieee80211com
+in the
+.Vt struct usbwifi ) .
+.El
+.Pp
+Buffer enqueue handling for
+.Fa struct usbwifi :
+.Bl -tag -width 4n
+.It Fn usbwifi_enqueue uw buf buflen rssi csum_flags csum_data mbuf_flags
+Enqueue buffer
+.Fa buf
+for length
+.Fa buflen
+with higher layers, using the provided
+.Fa csum_flags ,
+and
+.Fa csum_data ,
+which are written directly to the mbuf packet header, and
+.Fa mbuf_flags ,
+which is or-ed into the mbuf flags for the created mbuf.
+.Fa rssi
+is the (driver specific) signal quality during reception of this buffer.
+.El
+.Pp
+Autoconfiguration handling for
+.Fa struct usbwifi .
+See the
+.Sx AUTOCONFIGURATION
+section for more details about these functions.
+.Bl -tag -width 4n
+.It Fn usbwifi_attach uw
+Initial stage attach of a usb wifi device.
+.It Fn usbwifi_ic_attach uw num_tx_chains num_rx_chains num_tx_pipes num_rx_pipes flags
+Second stage of the usb wifi attachment.
+This will connect the wifi chip to the ieee80211 stack and make the
+device known to the relevant sysctls.
+.Fa num_tx_chains
+is the number of Tx chains this radio provides.
+.Fa num_rx_chains
+is the number of Rx chains this radio may use.
+.Fa num_tx_pipes
+is the number of Tx priorities (USB endpoints) available, and
+.Fa num_rx_pipes
+is the number of Rx priorities (USB endpoints) available with this device.
+.Fa flags
+is used to initialize the
+.Va "struct ieee80211com"
+member
+.Va ic_flags .
+.It Fn usbwifi_attach_finalize uw
+Final state of attachment.
+.El
+.Sh AUTOCONFIGURATION
+The framework expects the usbwifi structure to have these members
+filled in with valid values or functions:
+.Bl -tag -width 6n
+.It uw_sc
+Real softc allocated by autoconf and provided to attach, should be
+set to the usbwifi structure if no device-specific softc is needed.
+.It uw_dev
+device_t saved in attach, used for messages mostly.
+.It uw_iface
+The USB iface handle for data interactions, see
+.Fn usbd_device2interface_handle
+for more details.
+.It uw_udev
+The struct usbd_device for this device, provided as the usb_attach_arg's
+.Va uaa_device
+member.
+.It uw_ops
+Points to a
+.Va struct usbwifi_ops
+structure which contains these members:
+.Bl -tag -width 4n
+.It Ft void Fn (*uwo_stop) "struct usbwifi *uw"
+Stop interface.
+.Pq Optional .
+Called with the ic lock held and with a busy reference.
+.It Ft void Fn (*uwo_init) "struct usbwifi *uw"
+Initialize (bring up) interface.
+.Pq Required .
+Called with the ic lock held.
+.It Ft void Fn (*uwo_rx_loop) "struct usbwifi *uw" "struct usbwifi_chain *chain" "uint32_t total_len"
+Prepare one or more chain for enqueue.
+.Pq Required .
+Called with the Rx lock held.
+.It Ft unsigned Fn (*uwo_tx_prepare) "struct usbwifi *uw" "struct usbwifi_chain *chain" "uint8_t qid"
+Prepare an mbuf for transmit.
+.Pq Required .
+Called with the Tx lock held.
+If the driver supports radiotap headers, the transmit header should be
+updated here (if needed).
+The transmit rate to use for this mbuf chain can be found from the
+target node uwc_ni which has a ni_txparms pointer pointing to a
+.Va const struct ieee80211_txparam .
+.El
+.It uw_intr
+Pointer to a
+.Va struct usbwifi_intr
+structure which should have these members set:
+.Bl -tag -width 4n
+.It uwi_intr_buf
+If
+.Pf non- Dv NULL ,
+points to a buffer passed to
+.Fn usbd_open_pipe_intr
+in the device init callback, along with the size and interval.
+.It uwi_intr_bufsz
+Size of interrupt pipe buffer.
+.It uwi_intr_interval
+Frequency of the interrupt in milliseconds.
+.It uwi_index
+Index into the endpoint array
+.Va uw_ep
+(see below) giving the endpoint to be used for the interrupt pipe.
+This should be the last valid entry in
+.Va uw_ep .
+.El
+.It uw_ed
+Array of endpoint descriptors.
+Upto
+.Va USBWIFI_ENDPT_MAX
+interface endpoints may be listed here, sorted by
+Tx endpoints first (with decreasing priority), followed by
+Rx endpoints.
+If an interrupt endpoint is used, it is the last entry and its index
+is stored in
+.Va uw_intr->uwi_index .
+All remaining entries in the array need to be zero.
+.It uw_ac2id
+Mapping of quality of service priorities to available transmit endpoints
+(and their mbuf queues).
+For each service level defined
+.Va ( WME_AC_BK , WM_AC_BE , WM_AC_VI , WME_AC_VO )
+this array holds the index into
+.Va uw_ep .
+.It uw_flags
+Device owned flags word.
+The
+.Nm
+framework will not touch this value.
+.It uw_rxpipes
+the number of receive endpoints on the USB interface.
+This value is set from the arguments to the
+.Fn usbwifi_ic_attach
+call.
+.It uw_txpipes
+the number of transmit endpoints (that is: priorities) on the USB interface.
+This value is set from the arguments to the
+.Fn usbwifi_ic_attach
+call.
+.It uw_rx_xfer_flags and uw_rx_xfer_timeout
+Passed to
+.Fn usbd_setup_xfer
+for receiving packets.
+Defaults for this are set in
+.Fn usbwifi_attach
+as
+.Va USBD_NO_TIMEOUT
+and
+.Va USBD_SHORT_XFER_OK .
+.It uw_tx_xfer_flags and uw_tx_xfer_timeout
+Passed to
+.Fn usbd_setup_xfer
+for sending packets.
+Defaults for this are set in
+.Fn usbwifi_attach
+as
+.Va USBD_NO_TIMEOUT
+and
+.Va USBD_FORCE_SHORT_XFER .
+.It uw_rx_list_cnt
+Number of chain elements to allocate for Rx (for each endpoint).
+.It uw_tx_list_cnt
+Number of chain elements to allocate for Tx (for each priority/endpoint).
+.It uw_rx_bufsz
+Rx buffer size.
+.It uw_tx_bufsz
+Tx buffer size.
+.El
+.Pp
+The overall attachement happens in three phases.
+First the USB device is identified and
+.Fn usbwifi_attach
+is called.
+This will fill in default values for callbacks and the USB transfer
+related values.
+The driver can ovveride these setting after the call.
+Then the device is configured and all endpoint/chain related parameters
+are filled in.
+Also radio capabilities are queried.
+With that done
+.Fn usbwifi_ic_attach
+is called.
+After this any overrides (e.g. for functions in
+.Va uw_ic )
+are set.
+Also, if the device supports radiotap, the template radiotap
+headers ared filled and
+.Va uw_ic->ic_rh
+and
+.Va uw_ic->ic_th
+points are set to the Rx and Tx header.
+When all is ready,
+.Fn usbwifi_attach_finalize
+is called.
+.Pp
+The detach callback can often be set directly to
+.Fn usbwifi_detach .
+Similarily the activate callback can be set to
+.Fn usbwifi_activate .
+.Sh
+.Sh RECEIVE AND SEND
+Receive and send routines are structured around a the
+.Va usbwifi_chain
+structure, the
+.Dv uw_ed ,
+.Dv uw_rx_xfer_flags ,
+and
+.Dv uw_tx_xfer_flags
+members, and the
+.Fn uwo_stop ,
+.Fn uwo_init ,
+.Fn uwo_tx_prepare ,
+and
+.Fn uwo_rx_loop
+callbacks of
+.Va usbwifi_ops .
+.Pp
+Typically, the device attach routine will fill in members of the
+.Va usbwifi
+structure, as listed in
+.Sx AUTOCONFIGURATION .
+.Pp
+The optional
+.Fn uwo_stop
+callback performs device-specific operations to shutdown the
+transmit or receive handling.
+.Fn uwo_stop
+will be called with the usbnet lock held.
+.Pp
+The
+.Fn uwo_init
+callback performs device-specific enablement.
+All USB transfer setup is handled internally to the framework, and
+the driver callbacks merely copy data in or out of a chain entry using
+what is typically a device-specific method.
+.Pp
+The
+.Fn uwo_rx_loop
+callback converts the provided
+.Va usbwifi_chain
+data and length into a series (one or more) of packets that are
+enqueued with the higher layers using 
+.Fn usbwifi_enqueue
+The Rx lock will be held during this call, see
+.Fn usbwifi_lock_rx
+and
+.Fn usbwifi_unlock_rx .
+.Pp
+The
+.Fn uwo_tx_prepare
+callback must convert the
+.Va struct mbuf
+provided in the
+.Va struct usbwifi_chain
+as
+.Va uwc_mbuf
+member for the target node
+.Va uwc_ni
+using priority
+.Va qid 
+(which is the raw QOS priority, one of the WME_AC_* constants),
+performing any device-specific padding, checksum, header or other.
+Note that this callback must check that it is not attempting to copy
+more than the chain buffer size, as set in the
+.Va usbwifi
+.Dq uw_tx_bufsz
+member.
+This callback is only called once per packet.
+The Tx lock will be held during this call, see
+.Fn usbwifi_lock_tx
+and
+.Fn usbwifi_unlock_tx .
+.Pp
+The
+.Fa struct usbwifi_chain
+structure which contains a
+.Dq uwc_buf
+member which has the chain buffer allocated where data should be
+copied to or from for receive or transmit operations.
+It also contains pointers back to the owning
+.Fa struct usbwifi ,
+and the
+.Va struct usbd_xfer
+associated with this transfer.
+Furthermore it has a priority index
+.Va uwc_index
+which holds the index of the endpoint this transfer belongs to,
+as index into
+.Va uw_ed .
+.Sh SEE ALSO
+.Xr usb 4 ,
+.Xr driver 9 ,
+.Xr usbd_status 9 ,
+.Xr usbdi 9
+.Sh HISTORY
+This
+.Nm
+interface first appeared in
+.Nx 11.0 .
+The design is cloned from
+.Xr usbwifi 9 .
+.Sh AUTHORS
+.An Martin Husemann Aq Mt martin@NetBSD.org

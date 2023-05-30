@@ -1,0 +1,145 @@
+For: end for 1
+For: loop body:
+.  info ${:U!"#$%&'()*+,-./0-9\:;<=>?@A-Z[\\]_^a-z{|\}~}
+make: Unclosed variable expression, expecting '}' for modifier "U!"" of variable "" with value "!""
+make: "directive-for-escape.mk" line 21: !"
+For: end for 1
+For: loop body:
+.  info ${:U!"\\\\#$%&'()*+,-./0-9\:;<=>?@A-Z[\\]_^a-z{|\}~}
+make: Unclosed variable expression, expecting '}' for modifier "U!"\\\\" of variable "" with value "!"\\"
+make: "directive-for-escape.mk" line 32: !"\\
+For: end for 1
+For: loop body:
+.  info ${:U\$}
+make: "directive-for-escape.mk" line 47: $
+For: loop body:
+.  info ${:U${V}}
+make: "directive-for-escape.mk" line 47: value
+For: loop body:
+.  info ${:U${V:=-with-modifier}}
+make: "directive-for-escape.mk" line 47: value-with-modifier
+For: loop body:
+.  info ${:U$(V)}
+make: "directive-for-escape.mk" line 47: value
+For: loop body:
+.  info ${:U$(V:=-with-modifier)}
+make: "directive-for-escape.mk" line 47: value-with-modifier
+For: end for 1
+For: loop body:
+# ${:U\${UNDEF\:U\\$\\$}
+For: loop body:
+# ${:U{{\}\}}
+For: loop body:
+# ${:Uend\}}
+For: end for 1
+For: loop body:
+.  info ${:U\${UNDEF\:U\\$\\$}
+make: "directive-for-escape.mk" line 101: ${UNDEF:U\backslash$
+For: loop body:
+.  info ${:U{{\}\}}
+make: "directive-for-escape.mk" line 101: {{}}
+For: loop body:
+.  info ${:Uend\}}
+make: "directive-for-escape.mk" line 101: end}
+For: end for 1
+For: loop body:
+.  info ${:Ubegin<${UNDEF:Ufallback:N{{{}}}}>end}
+make: "directive-for-escape.mk" line 122: begin<fallback>end
+For: end for 1
+For: loop body:
+.  info ${:U\$}
+make: "directive-for-escape.mk" line 131: $
+make: "directive-for-escape.mk" line 140: invalid character ':' in .for loop variable name
+For: end for 1
+make: "directive-for-escape.mk" line 150: invalid character '}' in .for loop variable name
+For: end for 1
+For: end for 1
+For: loop body:
+.  info .        $$i: ${:Uinner}
+.  info .      $${i}: ${:Uinner}
+.  info .   $${i:M*}: ${:Uinner:M*}
+.  info .      $$(i): $(:Uinner)
+.  info .   $$(i:M*): $(:Uinner:M*)
+.  info . $${i$${:U}}: ${i${:U}}
+.  info .    $${i\}}: ${:Uinner\}}	# XXX: unclear why ForLoop_SubstVarLong needs this
+.  info .     $${i2}: ${i2}
+.  info .     $${i,}: ${i,}
+.  info .  adjacent: ${:Uinner}${:Uinner}${:Uinner:M*}${:Uinner}
+make: "directive-for-escape.mk" line 159: .        $i: inner
+make: "directive-for-escape.mk" line 160: .      ${i}: inner
+make: "directive-for-escape.mk" line 161: .   ${i:M*}: inner
+make: "directive-for-escape.mk" line 162: .      $(i): inner
+make: "directive-for-escape.mk" line 163: .   $(i:M*): inner
+make: "directive-for-escape.mk" line 164: . ${i${:U}}: outer
+make: "directive-for-escape.mk" line 165: .    ${i\}}: inner}
+make: "directive-for-escape.mk" line 166: .     ${i2}: two
+make: "directive-for-escape.mk" line 167: .     ${i,}: comma
+make: "directive-for-escape.mk" line 168: .  adjacent: innerinnerinnerinner
+make: "directive-for-escape.mk" line 187: invalid character '$' in .for loop variable name
+For: end for 1
+make: "directive-for-escape.mk" line 199: eight  and no cents.
+For: end for 1
+make: "directive-for-escape.mk" line 212: newline in .for value
+make: "directive-for-escape.mk" line 212: newline in .for value
+For: loop body:
+.  info short: ${:U" "}
+.  info long: ${:U" "}
+make: "directive-for-escape.mk" line 213: short: " "
+make: "directive-for-escape.mk" line 214: long: " "
+For: end for 1
+For: loop body:
+For: end for 1
+Parse_PushInput: .for loop in directive-for-escape.mk, line 230
+make: "directive-for-escape.mk" line 230: newline in .for value
+	in .for loop from directive-for-escape.mk:230 with i = "
+"
+For: loop body:
+: ${:U" "}
+SetFilenameVars: ${.PARSEDIR} = <some-dir> ${.PARSEFILE} = `directive-for-escape.mk'
+Parsing line 231: : ${:U" "}
+ParseDependency(: " ")
+ParseEOF: returning to file directive-for-escape.mk, line 233
+SetFilenameVars: ${.PARSEDIR} = <some-dir> ${.PARSEFILE} = `directive-for-escape.mk'
+Parsing line 233: .MAKEFLAGS: -d0
+ParseDependency(.MAKEFLAGS: -d0)
+For: end for 1
+For: loop body:
+# ${:U#}
+For: loop body:
+# ${:U\\\\#}
+For: end for 1
+For: loop body:
+# ${:U\$}
+For: loop body:
+# ${:U$i}
+For: loop body:
+# ${:U$(i)}
+For: loop body:
+# ${:U${i}}
+For: loop body:
+# ${:U$$}
+For: loop body:
+# ${:U$$$$}
+For: loop body:
+# ${:U${:U\$\$}}
+For: end for 1
+For: loop body:
+# ${:U${.TARGET}}
+For: loop body:
+# ${:U${.TARGET}}
+For: loop body:
+# ${:U$${.TARGET\}}
+For: loop body:
+# ${:U$${.TARGET\}}
+For: end for 1
+For: loop body:
+# ${:U(((}
+For: loop body:
+# ${:U{{{}
+For: loop body:
+# ${:U)))}
+For: loop body:
+# ${:U\}\}\}}
+make: Fatal errors encountered -- cannot continue
+make: stopped in unit-tests
+exit status 1

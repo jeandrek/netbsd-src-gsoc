@@ -1,0 +1,105 @@
+# LIST OF CHANGES FROM LAST RELEASE:			<$Revision: 1.2966 $>
+#
+#
+# [Note: This file does not mention every change made to the NetBSD source tree.
+# For an exhaustive list, please subscribe to the `source-changes' mailing list,
+# or see the mailing list archives.  For more information, send a message
+# containing just the word `help' to `majordomo@NetBSD.org'.]
+#
+# ----------------------------------------------------------------------------
+# PLEASE USE THE FOLLOWING STYLE WHEN ADDING ITEMS:
+#
+#	theme: Content ...
+#		more content ...
+#		more content. [developer DATE-FORMAT]
+#
+# That's it, one tab to start an item, and two tabs to indent the content.
+# Also please start the content with a capital and end it with a dot.
+#
+# This is very important for the www scripts, otherwise it won't be able to
+# parse the file and the HTML output will be mangled.
+#
+# See htutils/changes/changes2html script for more details.
+#
+# ----------------------------------------------------------------------------
+
+Changes from NetBSD 10.0 to NetBSD 11.0:
+	amdsmn(4): added trivial power management support [reinoud 20221218]
+	amdccp(4): added trivial power management support [reinoud 20221218]
+	libc: Update Unicode tables to Unicode 13.0.0. [wiz 20221220]
+	libc: Update Unicode tables to Unicode 14.0.0. [wiz 20221220]
+	ppp(4): Remove several non-functioning ioctls. [chs 20221221]
+	libc: Update Unicode tables to Unicode 15.0.0. [wiz 20221221]
+	dse(4): Added Dayna SCSI/Link ethernet driver. [nat 20221222]
+	binutils: Updated to FSF binutils 2.39. [christos 20221224]
+	sdhc(4): Add quirk for some Intel eMMC devices (like
+		GIGABYTE MA10-ST0) to allow the driver to attach
+		successfully. [msaitoh 20230105]
+	cribbage(6): Add -y option to keep playing without asking
+		(from Greywolf in PR 57164) [christos 20230106]
+	x86: Enable the -z separate-code security feature by default in
+		ld(1). Reduces the default max page size from 2M to
+		4K on amd64. [christos 20230106]
+	bind: Import version 9.16.37. [christos 20230125]
+	xfwp(1): remove. [wiz 20230204]
+	wscons(4): Ignore nonsense tab stops in vt100 emulation.
+		[riastradh 20230223]
+	nvmm(4): Filter CR4 bits on x86 SVM (AMD). In particular,
+		prohibit PKE, Protection Key Enable, which requires
+		some additional management of CPU state by nvmm. 
+		[riastradh 20230223]
+	ftp(1): Add option sslnoverify to control validation of SSL
+		certificates. Certificate validation is now enabled
+		by default. [mlelstv 20230225]
+	ftp(1): Add netrc processing to fetch-mode (URL on command line) to
+		enable options and autologin via netrc. [mlelstv 20230225]
+	aarch64: Audit use of curcpu(9). [riastradh 20230225]
+	xen: Memory barrier audit. Reduce unnecessary membars.
+		[riastradh 20230225]
+	x86: Mitigate MXCSR Configuration Dependent Timing CPU security
+		flaw in kernel FPU use. [riastradh 20230225]
+	kernel: Optimization: Omit needless membar when triggering softint
+		in various ports. [riastradh 20230301]
+	sh(1): Adjust tilde expansion to comply with upcoming POSIX
+		Issue 8 requirements. [kre 20230306]
+	libm: Add more long double transcendental functions (as aliases of
+		double functions) from C99. [riastradh 20230313]
+	tzdata: updated to 2023a (using the 2023agtz fork) [kre 20230323]
+	tzdata: updated to 2023b (using the 2023bgtz fork) [kre 20230324]
+	xen: Allow a PVH dom0 to use VGA as console. [bouyer 20230324]
+	vioscsi(4), viornd(4), viomb(4): Mark VirtIO drivers as MPSAFE.
+		[mlelstv 20230325]
+	amiga: Fix bootblocks for Kickstart 3.2. [abs 20230325]
+	libc: Add __atomic_is_lock_free to help stdatomic.h usage with
+		GCC. [riastradh 20230330]
+	tzdata: updated to 2023c (using the 2023cgtz fork) [kre 20230331]
+	tprof(8): Add Intel Comet Lake support. [msaitoh 20230410]
+	vacation(1): Check 'Auto-Submitted:' header in addition to
+		'Precedence:', and set 'Precedence:' in addition to
+		'Auto-Submitted:'.  [hauke 20230411]
+	ichsmb(4), tco(4): Add support for TCO on newer Intel chipsets.
+		[riastradh 20230412]
+	audiorecord(1): Add support for recording 24-bit wav files.
+		[mlelstv 20230415]
+	lua: Import version 5.4.4.
+		Bumped shlib major because of incompatible API/ABI changes.
+		[nikita 20230416]
+	evbarm: Install a boot.cfg file for the EFI bootloader by default.
+		[brook 20230419]
+	dhcpcd: Import version 10.0.1. [roy 20230421]
+	evbarm: Enable rkv1crypto driver on Rock64. [mrg 20230424]
+	worms(6): Add a little bit of optional colour, code and
+		ideas from RVP. [kre 20230426]
+	amiga: Add driver for the MNT ZZ9000 Zorro board - submitted by
+		Alain Runa. [phx 20230503]
+	evbarm: Experimental IMX6SX support - tested on the UDOO Neo Full board.
+		[bouyer 20230504]
+	chown(8): Add a -d flag to avoid changing a file's owner/group to the
+		current value.  This avoids some unnecessary operations on the
+		file. [pgoyette 20230504]
+	ftp(1): Add timeout for SSL connection setup, defaulting to 60 seconds.
+		[lukem 20230505]
+	riscv: Add RISC-V support that works on QEMU with a single hart.
+		[skrll 20230507]
+	riscv: Add Google Goldfish RTC driver. [skrll 20230508]
+	OpenSSL: Imported 3.0.8. [christos 20230510]
