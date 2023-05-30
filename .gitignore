@@ -1,0 +1,4 @@
+.hg
+*.orig
+*~
+sys/arch/i386/conf/GENERIC.local
