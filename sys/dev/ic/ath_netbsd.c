@@ -268,7 +268,7 @@ ath_sysctl_tpscale(SYSCTLFN_ARGS)
 		return error;
 	return !ath_hal_settpscale(sc->sc_ah, scale)
 	    ? EINVAL
-	    : ath_reset(&sc->sc_if);
+	  : 0 /*ath_reset(&sc->sc_if)*/;
 }
 
 static int

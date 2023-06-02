@@ -176,6 +176,13 @@ struct ath_txq {
 		(_tq)->axq_timer = 0; \
 } while (0)
 
+struct ath_vap {
+	struct ieee80211vap av_vap;	/* base class */
+	int		(*av_newstate)(struct ieee80211vap *,
+				       enum ieee80211_state, int);
+};
+#define ATH_VAP(vap)	((struct ath_vap *)(vap))
+
 struct taskqueue;
 struct ath_tx99;
 
@@ -186,6 +193,7 @@ struct ath_softc {
 	struct ethercom		sc_ec;		/* interface common */
 	struct ath_stats	sc_stats;	/* interface statistics */
 	struct ieee80211com	sc_ic;		/* IEEE 802.11 common */
+	struct ifqueue		sc_sendq;
 	void			(*sc_power)(struct ath_softc *, int);
 	int			sc_regdomain;
 	int			sc_countrycode;
@@ -221,7 +229,9 @@ struct ath_softc {
 	const HAL_RATE_TABLE	*sc_currates;	/* current rate table */
 	enum ieee80211_phymode	sc_curmode;	/* current phy mode */
 	u_int16_t		sc_curtxpow;	/* current tx power limit */
+	u_int16_t		sc_curaid;	/* current association id */
 	HAL_CHANNEL		sc_curchan;	/* current h/w channel */
+	u_int8_t		sc_curbssid[IEEE80211_ADDR_LEN];
 	u_int8_t		sc_rixmap[256];	/* IEEE to h/w rate table ix */
 	struct {
 		u_int8_t	ieeerate;	/* IEEE rate */
@@ -310,6 +320,8 @@ struct ath_softc {
 
 #define	ATH_ATTACHED		0x0001		/* attach has succeeded */
 #define	ATH_KEY_UPDATING	0x0002		/* key change in progress */
+#define ATH_WMETKIPMIC		0x0004
+#define ATH_OACTIVE		0x0008
 
 #define	ATH_TXQ_SETUP(sc, i)	((sc)->sc_txqsetup & (1<<i))
 

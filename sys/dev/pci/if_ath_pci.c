@@ -78,6 +78,7 @@ __KERNEL_RCSID(0, "$NetBSD: if_ath_pci.c,v 1.50 2018/12/09 10:38:53 jdolecek Exp
 
 #include <external/isc/atheros_hal/dist/ah.h>
 
+#include <net80211/ieee80211_netbsd.h>
 #include <dev/ic/ath_netbsd.h>
 #include <dev/ic/athvar.h>
 

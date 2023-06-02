@@ -36,6 +36,7 @@ typedef struct ath_task {
 
 #define ATH_CALLOUT_INIT(__ch, __mpsafe) callout_init((__ch), 0)
 
+#undef TASK_INIT
 #define TASK_INIT(__task, __zero, __func, __context)	\
 	do {						\
 		(__task)->t_soft_ih = 			\
@@ -78,6 +79,7 @@ typedef kmutex_t ath_txbuf_lock_t;
 	    CTLTYPE_INT, #__name, SYSCTL_DESCR(__descr), NULL, 0,	\
 	    __PFX(&__pfx, __name), 0, CTL_CREATE, CTL_EOL)
 
+#undef SYSCTL_INT
 #define	SYSCTL_INT(__rw, __name, __descr)				\
 	SYSCTL_PFX_INT(sc->sc_, __rw, __name, __descr)
 

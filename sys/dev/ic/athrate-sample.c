@@ -120,7 +120,9 @@ enum {
 #define STALE_FAILURE_TIMEOUT_MS 10000
 #define MIN_SWITCH_MS 1000
 
+#if 0
 static void	ath_rate_ctl_reset(struct ath_softc *, struct ieee80211_node *);
+#endif
 
 static inline int
 size_to_bin(int size) 
@@ -632,6 +634,7 @@ ath_rate_tx_complete(struct ath_softc *sc, struct ath_node *an,
 	}
 }
 
+#if 0
 void
 ath_rate_newassoc(struct ath_softc *sc, struct ath_node *an, int isnew)
 {
@@ -748,6 +751,7 @@ rate_cb(void *arg, struct ieee80211_node *ni)
 
 	ath_rate_newassoc(sc, ATH_NODE(ni), 1);
 }
+#endif
 
 /*
  * Reset the rate control state for each 802.11 state transition.
@@ -755,6 +759,7 @@ rate_cb(void *arg, struct ieee80211_node *ni)
 void
 ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
 {
+#if 0
 	struct ieee80211com *ic = &sc->sc_ic;
 
 	if (state == IEEE80211_S_RUN) {
@@ -766,6 +771,7 @@ ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
 		}
 		ath_rate_newassoc(sc, ATH_NODE(ic->ic_bss), 1);
 	}
+#endif
 }
 
 static void

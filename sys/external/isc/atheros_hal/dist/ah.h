@@ -462,10 +462,12 @@ typedef struct {
 typedef uint16_t HAL_CTRY_CODE;		/* country code */
 typedef uint16_t HAL_REG_DOMAIN;		/* regulatory domain code */
 
+#ifndef _NET80211_IEEE80211_REGDOMAIN_H_
 enum {
 	CTRY_DEBUG	= 0x1ff,		/* debug country code */
 	CTRY_DEFAULT	= 0			/* default country code */
 };
+#endif
 
 enum {
 	HAL_MODE_11A	= 0x001,		/* 11a channels */
