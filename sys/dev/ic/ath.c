@@ -1423,7 +1423,7 @@ ath_start(struct ath_softc *sc)
 			}
 		}
 #endif
-		/*ifp->if_opackets++;*/
+		if_statinc(ni->ni_vap->iv_ifp, if_opackets);
 		/*
 		 * Encapsulate the packet in prep for transmission.
 		 */
@@ -1464,7 +1464,7 @@ ath_start(struct ath_softc *sc)
 		next = m->m_nextpkt;
 		if (ath_tx_start(sc, ni, bf, m)) {
 	bad:
-			/*ifp->if_oerrors++;*/
+			if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
 	reclaim:
 			bf->bf_m = NULL;
 			bf->bf_node = NULL;
