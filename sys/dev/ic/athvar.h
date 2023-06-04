@@ -179,7 +179,11 @@ struct ath_txq {
 struct ath_vap {
 	struct ieee80211vap av_vap;	/* base class */
 	int		(*av_newstate)(struct ieee80211vap *,
-				       enum ieee80211_state, int);
+				enum ieee80211_state, int);
+	void		(*av_recv_mgmt)(struct ieee80211_node *,
+				struct mbuf *m, int,
+				const struct ieee80211_rx_stats *,
+				int, int);
 };
 #define ATH_VAP(vap)	((struct ath_vap *)(vap))
 
@@ -281,6 +285,7 @@ struct ath_softc {
 	u_int8_t		sc_defant;	/* current default antenna */
 	u_int8_t		sc_rxotherant;	/* rx's on non-default antenna*/
 	u_int64_t		sc_lastrx;	/* tsf of last rx'd frame */
+	struct ath_rx_status	*sc_lastrs;	/* h/w status of last rx */
 
 	struct ath_descdma	sc_txdma;	/* TX descriptors */
 	ath_bufhead		sc_txbuf;	/* transmit buffer */

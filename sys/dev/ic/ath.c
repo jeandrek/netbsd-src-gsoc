@@ -170,11 +170,9 @@ static void	ath_node_free(struct ieee80211_node *);
 static u_int8_t	ath_node_getrssi(const struct ieee80211_node *);
 #endif
 static int	ath_rxbuf_init(struct ath_softc *, struct ath_buf *);
-#if 0
-static void	ath_recv_mgmt(struct ieee80211com *ic, struct mbuf *m,
-			struct ieee80211_node *ni,
-			int subtype, int rssi, u_int32_t rstamp);
-#endif
+static void	ath_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m,
+			int subtype, const struct ieee80211_rx_stats *,
+			int rssi, int nf);
 static void	ath_setdefantenna(struct ath_softc *, u_int);
 static void	ath_rx_proc(void *, int);
 static struct ath_txq *ath_txq_setup(struct ath_softc*, int qtype, int subtype);
@@ -695,6 +693,8 @@ ath_vap_create(struct ieee80211com *ic,
 	/* override various methods */
 	avp->av_newstate = vap->iv_newstate;
 	vap->iv_newstate = ath_newstate;
+	avp->av_recv_mgmt = vap->iv_recv_mgmt;
+	vap->iv_recv_mgmt = ath_recv_mgmt;
 
 	ieee80211_vap_attach(vap, ieee80211_media_change,
 			     ieee80211_media_status, macaddr);
@@ -3214,25 +3214,27 @@ ath_extend_tsf(u_int32_t rstamp, u_int64_t tsf)
  * Intercept management frames to collect beacon rssi data
  * and to do ibss merges.
  */
-#if 0
 static void
-ath_recv_mgmt(struct ieee80211com *ic, struct mbuf *m,
-	struct ieee80211_node *ni,
-	int subtype, int rssi, u_int32_t rstamp)
+ath_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m,
+	int subtype, const struct ieee80211_rx_stats *rxs,
+	int rssi, int nf)
 {
+	struct ieee80211vap *vap = ni->ni_vap;
+	struct ieee80211com *ic = vap->iv_ic;
 	struct ath_softc *sc = ic->ic_softc;
+	struct ath_vap *av = ATH_VAP(vap);
 
 	/*
 	 * Call up first so subsequent work can use information
 	 * potentially stored in the node (e.g. for ibss merge).
 	 */
-	sc->sc_recv_mgmt(ic, m, ni, subtype, rssi, rstamp);
+	av->av_recv_mgmt(ni, m, subtype, rxs, rssi, nf);
 	switch (subtype) {
 	case IEEE80211_FC0_SUBTYPE_BEACON:
 		/* update rssi statistics for use by the hal */
 		ATH_RSSI_LPF(sc->sc_halstats.ns_avgbrssi, rssi);
 		if (sc->sc_syncbeacon &&
-		    ni == ic->ic_bss && ic->ic_state == IEEE80211_S_RUN) {
+		    ni == vap->iv_bss && vap->iv_state == IEEE80211_S_RUN) {
 			/*
 			 * Resync beacon timers using the tsf of the beacon
 			 * frame we just received.
@@ -3242,7 +3244,8 @@ ath_recv_mgmt(struct ieee80211com *ic, struct mbuf *m,
 		/* fall thru... */
 	case IEEE80211_FC0_SUBTYPE_PROBE_RESP:
 		if (ic->ic_opmode == IEEE80211_M_IBSS &&
-		    ic->ic_state == IEEE80211_S_RUN) {
+		    vap->iv_state == IEEE80211_S_RUN) {
+			u_int32_t rstamp = sc->sc_lastrs->rs_tstamp;
 			u_int64_t tsf = ath_extend_tsf(rstamp,
 				ath_hal_gettsf64(sc->sc_ah));
 
@@ -3267,7 +3270,6 @@ ath_recv_mgmt(struct ieee80211com *ic, struct mbuf *m,
 		break;
 	}
 }
-#endif
 
 /*
  * Set the default antenna.
@@ -3526,6 +3528,7 @@ rx_accept:
 			mtod(m, const struct ieee80211_frame_min *),
 			ds->ds_rxstat.rs_keyix == HAL_RXKEYIX_INVALID ?
 				IEEE80211_KEYIX_NONE : ds->ds_rxstat.rs_keyix);
+		sc->sc_lastrs = &ds->ds_rxstat;
 		/*
 		 * Track rx rssi and do any rx antenna management.
 		 */
