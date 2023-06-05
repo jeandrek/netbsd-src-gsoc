@@ -198,8 +198,8 @@ static void	ath_set_channel(struct ieee80211com *);
 static int	ath_newstate(struct ieee80211vap *, enum ieee80211_state, int);
 static void	ath_setup_stationkey(struct ieee80211_node *);
 static void	ath_newassoc(struct ieee80211_node *, int);
-static int	ath_getchannels(struct ath_softc *, u_int cc,
-			HAL_BOOL outdoor, HAL_BOOL xchanmode);
+static void	ath_get_radiocaps(struct ieee80211com *, int, int *,
+			struct ieee80211_channel []);
 static void	ath_led_event(struct ath_softc *, int);
 static void	ath_update_txpow(struct ath_softc *);
 static void	ath_freetx(struct mbuf *);
@@ -378,10 +378,8 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	 * is resposible for filtering this list based on settings
 	 * like the phy mode.
 	 */
-	error = ath_getchannels(sc, ath_countrycode,
-			ath_outdoor, ath_xchanmode);
-	if (error != 0)
-		goto bad;
+	ath_get_radiocaps(ic, IEEE80211_CHAN_MAX,
+		&ic->ic_nchans, ic->ic_channels);
 
 	/*
 	 * Setup rate tables for all potential media types.
@@ -591,6 +589,7 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	 */
 	if (ath_hal_hasbursting(ah))
 		ic->ic_caps |= IEEE80211_C_BURST;
+	ic->ic_caps |= IEEE80211_C_WPA;
 
 	/*
 	 * Indicate we need the 802.11 header padded to a
@@ -613,21 +612,6 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	ath_hal_getmac(ah, ic->ic_macaddr);
 
 	/* call MI attach routine. */
-	{
-		uint8_t bands[IEEE80211_MODE_BYTES];
-
-		/*
-		 * XXX not right & presumably belongs in function currently named
-		 * ath_getchannels
-		 */
-		memset(bands, 0, sizeof(bands));
-		setbit(bands, IEEE80211_MODE_11A);
-		setbit(bands, IEEE80211_MODE_11B);
-		setbit(bands, IEEE80211_MODE_11G);
-		setbit(bands, IEEE80211_MODE_TURBO_A);
-		setbit(bands, IEEE80211_MODE_TURBO_G);
-		ieee80211_add_channels_default_2ghz(ic->ic_channels, IEEE80211_CHAN_MAX, &ic->ic_nchans, bands, 0);
-	}
 	ieee80211_ifattach(ic);
 
 	/* override default methods */
@@ -645,6 +629,7 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	ic->ic_scan_start = ath_scan_start;
 	ic->ic_scan_end = ath_scan_end;
 	ic->ic_set_channel = ath_set_channel;
+	ic->ic_getradiocaps = ath_get_radiocaps;
 	if (0) ath_bpfattach(sc);
 
 	/*
@@ -5078,36 +5063,47 @@ ath_newassoc(struct ieee80211_node *ni, int isnew)
 	}
 }
 
-static int
-ath_getchannels(struct ath_softc *sc, u_int cc,
-	HAL_BOOL outdoor, HAL_BOOL xchanmode)
+static void
+ath_get_radiocaps(struct ieee80211com *ic,
+	int maxchans, int *nchans, struct ieee80211_channel chans[])
 {
-#define	COMPAT	(CHANNEL_ALL_NOTURBO|CHANNEL_PASSIVE)
-	struct ieee80211com *ic = &sc->sc_ic;
-	struct ath_hal *ah = sc->sc_ah;
-	HAL_CHANNEL *chans;
-	int i, ix, nchan;
+	uint8_t bands_bg[IEEE80211_MODE_BYTES];
+	uint8_t bands_b[IEEE80211_MODE_BYTES];
 
-	chans = malloc(IEEE80211_CHAN_MAX * sizeof(HAL_CHANNEL),
+	/* XXX other modes! */
+	memset(bands_bg, 0, sizeof(bands_bg));
+	setbit(bands_bg, IEEE80211_MODE_11B);
+	setbit(bands_bg, IEEE80211_MODE_11G);
+	memset(bands_b, 0, sizeof(bands_b));
+	setbit(bands_b, IEEE80211_MODE_11B);
+
+#define	COMPAT	(CHANNEL_ALL_NOTURBO|CHANNEL_PASSIVE)
+	struct ath_softc *sc = ic->ic_softc;
+	struct ath_hal *ah = sc->sc_ah;
+	HAL_CHANNEL *hchans;
+	int i, ix, nhchans;
+
+	hchans = malloc(IEEE80211_CHAN_MAX * sizeof(HAL_CHANNEL),
 			M_TEMP, M_WAITOK);
-	if (!ath_hal_init_channels(ah, chans, IEEE80211_CHAN_MAX, &nchan,
+	if (!ath_hal_init_channels(ah, hchans, IEEE80211_CHAN_MAX, &nhchans,
 	    NULL, 0, NULL,
-	    cc, HAL_MODE_ALL, outdoor, xchanmode)) {
+	    ath_countrycode, HAL_MODE_ALL, ath_outdoor, ath_xchanmode)) {
 		u_int32_t rd;
 
 		(void)ath_hal_getregdomain(ah, &rd);
 		device_printf(sc->sc_dev, "unable to collect channel list from hal; "
-			"regdomain likely %u country code %u\n", rd, cc);
+			"regdomain likely %u country code %u\n", rd,
+			ath_countrycode);
 		free(chans, M_TEMP);
-		return EINVAL;
+		return; /* XXX return error? */
 	}
 
 	/*
 	 * Convert HAL channels to ieee80211 ones and insert
 	 * them in the table according to their channel number.
 	 */
-	for (i = 0; i < nchan; i++) {
-		HAL_CHANNEL *c = &chans[i];
+	for (i = 0; i < nhchans; i++) {
+		HAL_CHANNEL *c = &hchans[i];
 		u_int16_t flags;
 
 		ix = ath_hal_mhz2ieee(ah, c->channel, c->channelFlags);
@@ -5133,6 +5129,10 @@ ath_getchannels(struct ath_softc *sc, u_int cc,
 		flags = c->channelFlags & COMPAT;
 		if (c->channelFlags & CHANNEL_STURBO)
 			flags |= IEEE80211_CHAN_TURBO;
+
+		ieee80211_add_channel(chans, maxchans, nchans, ix, c->channel,
+				0, flags, ix == 14 ? bands_b : bands_bg);
+#if 0
 		if (ic->ic_channels[ix].ic_freq == 0) {
 			ic->ic_channels[ix].ic_freq = c->channel;
 			ic->ic_channels[ix].ic_flags = flags;
@@ -5140,9 +5140,9 @@ ath_getchannels(struct ath_softc *sc, u_int cc,
 			/* channels overlap; e.g. 11g and 11b */
 			ic->ic_channels[ix].ic_flags |= flags;
 		}
+#endif
 	}
-	free(chans, M_TEMP);
-	return 0;
+	free(hchans, M_TEMP);
 #undef COMPAT
 }
 
