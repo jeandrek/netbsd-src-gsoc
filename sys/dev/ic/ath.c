@@ -5102,7 +5102,7 @@ ath_get_radiocaps(struct ieee80211com *ic,
 	 * Convert HAL channels to ieee80211 ones and insert
 	 * them in the table according to their channel number.
 	 */
-	for (i = 0; i < nhchans; i++) {
+	for (i = 0; i < nhchans && *nchans < maxchans; i++) {
 		HAL_CHANNEL *c = &hchans[i];
 		u_int16_t flags;
 
