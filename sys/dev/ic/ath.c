@@ -1171,7 +1171,6 @@ ath_init(struct ath_softc *sc)
 done:
 	splx(s);
 	return error;
-	return 0;
 }
 
 static void
@@ -1363,7 +1362,6 @@ ath_txfrag_setup(struct ath_softc *sc, ath_bufhead *frags,
 static void
 ath_start(struct ath_softc *sc)
 {
-#if 1
 	/* adapted from FreeBSD commit b032f27c365b992e9d8e42214183b39acfb8c6ac */
 	struct ieee80211_node *ni;
 	struct ath_buf *bf;
@@ -1505,188 +1503,6 @@ ath_start(struct ath_softc *sc)
 			ath_ff_stageq_flush(sc, txq, ath_ff_ageflushtestdone);
 #endif
 	}
-#endif
-
-#if 0
-	struct ath_hal *ah = sc->sc_ah;
-	struct ieee80211com *ic = &sc->sc_ic;
-	struct ieee80211_node *ni;
-	struct ath_buf *bf;
-	struct mbuf *m, *next;
-	struct ieee80211_frame *wh;
-	struct ether_header *eh;
-	ath_bufhead frags;
-
-	/*if ((ifp->if_flags & IFF_RUNNING) == 0 ||
-	    !device_is_active(sc->sc_dev))
-		return;*/
-
-	if (sc->sc_flags & ATH_KEY_UPDATING)
-		return;
-
-	for (;;) {
-		/*
-		 * Grab a TX buffer and associated resources.
-		 */
-		ATH_TXBUF_LOCK(sc);
-		bf = STAILQ_FIRST(&sc->sc_txbuf);
-		if (bf != NULL)
-			STAILQ_REMOVE_HEAD(&sc->sc_txbuf, bf_list);
-		ATH_TXBUF_UNLOCK(sc);
-		if (bf == NULL) {
-			DPRINTF(sc, ATH_DEBUG_XMIT, "%s: out of xmit buffers\n",
-				__func__);
-			sc->sc_stats.ast_tx_qstop++;
-			/* ifp->if_flags |= IFF_OACTIVE; */
-			sc->sc_flags |= ATH_OACTIVE;
-			break;
-		}
-		/*
-		 * Poll the management queue for frames; they
-		 * have priority over normal data frames.
-		 */
-		IF_DEQUEUE(&ic->ic_mgtq, m);
-		if (m == NULL) {
-			/*
-			 * No data frames go out unless we're associated.
-			 */
-			if (ic->ic_state != IEEE80211_S_RUN) {
-				DPRINTF(sc, ATH_DEBUG_XMIT,
-				    "%s: discard data packet, state %s\n",
-				    __func__,
-				    ieee80211_state_name[ic->ic_state]);
-				sc->sc_stats.ast_tx_discard++;
-				ATH_TXBUF_LOCK(sc);
-				STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
-				ATH_TXBUF_UNLOCK(sc);
-				break;
-			}
-			/* IFQ_DEQUEUE(&ifp->if_snd, m); */	/* XXX: LOCK */
-			if (m == NULL) {
-				ATH_TXBUF_LOCK(sc);
-				STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
-				ATH_TXBUF_UNLOCK(sc);
-				break;
-			}
-			STAILQ_INIT(&frags);
-			/*
-			 * Find the node for the destination so we can do
-			 * things like power save and fast frames aggregation.
-			 */
-			if (m->m_len < sizeof(struct ether_header) &&
-			   (m = m_pullup(m, sizeof(struct ether_header))) == NULL) {
-				ic->ic_stats.is_tx_nobuf++;	/* XXX */
-				ni = NULL;
-				goto bad;
-			}
-			eh = mtod(m, struct ether_header *);
-			ni = ieee80211_find_txnode(ic, eh->ether_dhost);
-			if (ni == NULL) {
-				/* NB: ieee80211_find_txnode does stat+msg */
-				m_freem(m);
-				goto bad;
-			}
-			if ((ni->ni_flags & IEEE80211_NODE_PWR_MGT) &&
-			    (m->m_flags & M_PWR_SAV) == 0) {
-				/*
-				 * Station in power save mode; pass the frame
-				 * to the 802.11 layer and continue.  We'll get
-				 * the frame back when the time is right.
-				 */
-				ieee80211_pwrsave(ic, ni, m);
-				goto reclaim;
-			}
-			/* calculate priority so we can find the tx queue */
-			if (ieee80211_classify(ic, m, ni)) {
-				DPRINTF(sc, ATH_DEBUG_XMIT,
-					"%s: discard, classification failure\n",
-					__func__);
-				m_freem(m);
-				goto bad;
-			}
-			/* if_statinc(ifp, if_opackets); */
-
-			/* bpf_mtap(ifp, m, BPF_D_OUT); */
-			/*
-			 * Encapsulate the packet in prep for transmission.
-			 */
-			m = ieee80211_encap(ic, m, ni);
-			if (m == NULL) {
-				DPRINTF(sc, ATH_DEBUG_XMIT,
-					"%s: encapsulation failure\n",
-					__func__);
-				sc->sc_stats.ast_tx_encap++;
-				goto bad;
-			}
-			/*
-			 * Check for fragmentation.  If this has frame
-			 * has been broken up verify we have enough
-			 * buffers to send all the fragments so all
-			 * go out or none...
-			 */
-			if ((m->m_flags & M_FRAG) &&
-			    !ath_txfrag_setup(sc, &frags, m, ni)) {
-				DPRINTF(sc, ATH_DEBUG_ANY,
-				    "%s: out of txfrag buffers\n", __func__);
-				ic->ic_stats.is_tx_nobuf++;	/* XXX */
-				ath_freetx(m);
-				goto bad;
-			}
-		} else {
-			/*
-			 * Hack!  The referenced node pointer is in the
-			 * rcvif field of the packet header.  This is
-			 * placed there by ieee80211_mgmt_output because
-			 * we need to hold the reference with the frame
-			 * and there's no other way (other than packet
-			 * tags which we consider too expensive to use)
-			 * to pass it along.
-			 */
-			ni = M_GETCTX(m, struct ieee80211_node *);
-			M_CLEARCTX(m);
-
-			wh = mtod(m, struct ieee80211_frame *);
-			if ((wh->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK) ==
-			    IEEE80211_FC0_SUBTYPE_PROBE_RESP) {
-				/* fill time stamp */
-				u_int64_t tsf;
-				u_int32_t *tstamp;
-
-				tsf = ath_hal_gettsf64(ah);
-				/* XXX: adjust 100us delay to xmit */
-				tsf += 100;
-				tstamp = (u_int32_t *)&wh[1];
-				tstamp[0] = htole32(tsf & 0xffffffff);
-				tstamp[1] = htole32(tsf >> 32);
-			}
-			sc->sc_stats.ast_tx_mgmt++;
-		}
-
-	nextfrag:
-		next = m->m_nextpkt;
-		if (ath_tx_start(sc, ni, bf, m)) {
-	bad:
-			/* if_statinc(ifp, if_oerrors); */
-	reclaim:
-			ATH_TXBUF_LOCK(sc);
-			STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
-			ath_txfrag_cleanup(sc, &frags, ni);
-			ATH_TXBUF_UNLOCK(sc);
-			if (ni != NULL)
-				ieee80211_free_node(ni);
-			continue;
-		}
-		if (next != NULL) {
-			m = next;
-			bf = STAILQ_FIRST(&frags);
-			KASSERTMSG(bf != NULL, "no buf for txfrag");
-			STAILQ_REMOVE_HEAD(&frags, bf_list);
-			goto nextfrag;
-		}
-
-		/* ifp->if_timer = 1;*/
-	}
-#endif
 }
 
 static int
@@ -1726,25 +1542,6 @@ ath_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 
 	return ath_tx_start(sc, ni, bf, m);
 }
-
-#if 0
-static int
-ath_media_change(struct ifnet *ifp)
-{
-#define	IS_UP(ifp) \
-	((ifp->if_flags & IFF_UP) && (ifp->if_flags & IFF_RUNNING))
-	int error;
-
-	error = ieee80211_media_change(ifp);
-	if (error == ENETRESET) {
-		if (IS_UP(ifp))
-			ath_init(ifp->if_softc);	/* XXX lose error */
-		error = 0;
-	}
-	return error;
-#undef IS_UP
-}
-#endif
 
 #ifdef AR_DEBUG
 static void

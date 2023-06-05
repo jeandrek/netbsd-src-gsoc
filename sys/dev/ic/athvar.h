@@ -203,12 +203,6 @@ struct ath_softc {
 	int			sc_countrycode;
 	int			sc_debug;
 	struct sysctllog	*sc_sysctllog;
-	void			(*sc_recv_mgmt)(struct ieee80211com *,
-					struct mbuf *,
-					struct ieee80211_node *,
-					int, int, u_int32_t);
-	int			(*sc_newstate)(struct ieee80211com *,
-					enum ieee80211_state, int);
 	void 			(*sc_node_free)(struct ieee80211_node *);
 	HAL_BUS_TAG		sc_st;		/* bus space tag */
 	HAL_BUS_HANDLE		sc_sh;		/* bus space handle */
