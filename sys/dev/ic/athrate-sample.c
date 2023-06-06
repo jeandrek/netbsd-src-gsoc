@@ -120,9 +120,7 @@ enum {
 #define STALE_FAILURE_TIMEOUT_MS 10000
 #define MIN_SWITCH_MS 1000
 
-#if 0
 static void	ath_rate_ctl_reset(struct ath_softc *, struct ieee80211_node *);
-#endif
 
 static inline int
 size_to_bin(int size) 
@@ -634,7 +632,6 @@ ath_rate_tx_complete(struct ath_softc *sc, struct ath_node *an,
 	}
 }
 
-#if 0
 void
 ath_rate_newassoc(struct ath_softc *sc, struct ath_node *an, int isnew)
 {
@@ -651,14 +648,14 @@ static void
 ath_rate_ctl_reset(struct ath_softc *sc, struct ieee80211_node *ni)
 {
 #define	RATE(_ix)	(ni->ni_rates.rs_rates[(_ix)] & IEEE80211_RATE_VAL)
-	struct ieee80211com *ic = &sc->sc_ic;
 	struct ath_node *an = ATH_NODE(ni);
 	struct sample_node *sn = ATH_NODE_SAMPLE(an);
 	const HAL_RATE_TABLE *rt = sc->sc_currates;
-	int x, y, srate;
+	int x, y;
 
 	KASSERTMSG(rt != NULL, "no rate table, mode %u", sc->sc_curmode);
         sn->static_rate_ndx = -1;
+#if 0
 	if (ic->ic_fixed_rate != IEEE80211_FIXED_RATE_NONE) {
 		/*
 		 * A fixed rate is to be used; ic_fixed_rate is an
@@ -678,6 +675,7 @@ ath_rate_ctl_reset(struct ath_softc *sc, struct ieee80211_node *ni)
 			"fixed rate %d not in rate set", ic->ic_fixed_rate);
                 sn->static_rate_ndx = srate;
 	}
+#endif
 
         DPRINTF(sc, "%s: %s size 1600 rate/tt", __func__, ether_sprintf(ni->ni_macaddr));
 
@@ -751,16 +749,15 @@ rate_cb(void *arg, struct ieee80211_node *ni)
 
 	ath_rate_newassoc(sc, ATH_NODE(ni), 1);
 }
-#endif
 
 /*
  * Reset the rate control state for each 802.11 state transition.
  */
 void
-ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
+ath_rate_newstate(struct ieee80211vap *vap, enum ieee80211_state state)
 {
-#if 0
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = vap->iv_ic;
+	struct ath_softc *sc = ic->ic_softc;
 
 	if (state == IEEE80211_S_RUN) {
 		if (ic->ic_opmode != IEEE80211_M_STA) {
@@ -769,9 +766,8 @@ ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
 			 */
 			ieee80211_iterate_nodes(&ic->ic_sta, rate_cb, sc);
 		}
-		ath_rate_newassoc(sc, ATH_NODE(ic->ic_bss), 1);
+		ath_rate_newassoc(sc, ATH_NODE(vap->iv_bss), 1);
 	}
-#endif
 }
 
 static void

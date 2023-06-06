@@ -4878,7 +4878,7 @@ ath_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		/*
 		 * Notify the rate control algorithm.
 		 */
-		ath_rate_newstate(sc, nstate);
+		ath_rate_newstate(vap, nstate);
 		goto done;
 	}
 	ni = vap->iv_bss;
@@ -4910,7 +4910,7 @@ ath_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	 * Notify the rate control algorithm so rates
 	 * are setup should ath_beacon_alloc be called.
 	 */
-	ath_rate_newstate(sc, nstate);
+	ath_rate_newstate(vap, nstate);
 
 	if (ic->ic_opmode == IEEE80211_M_MONITOR) {
 		/* nothing to do */;
@@ -5053,7 +5053,7 @@ ath_newassoc(struct ieee80211_node *ni, int isnew)
 	struct ieee80211com *ic = ni->ni_ic;
 	struct ath_softc *sc = ic->ic_softc;
 
-	/* ath_rate_newassoc(sc, ATH_NODE(ni), isnew); */
+	ath_rate_newassoc(sc, ATH_NODE(ni), isnew);
 	if (isnew &&
 	    (ic->ic_flags & IEEE80211_F_PRIVACY) == 0 && sc->sc_hasclrkey) {
 		KASSERTMSG(ni->ni_ucastkey.wk_keyix == IEEE80211_KEYIX_NONE,
