@@ -319,8 +319,8 @@ struct ath_softc {
 
 #define	ATH_ATTACHED		0x0001		/* attach has succeeded */
 #define	ATH_KEY_UPDATING	0x0002		/* key change in progress */
-#define ATH_WMETKIPMIC		0x0004
-#define ATH_OACTIVE		0x0008
+#define	ATH_WMETKIPMIC		0x0004
+#define	ATH_OACTIVE		0x0008
 
 #define	ATH_TXQ_SETUP(sc, i)	((sc)->sc_txqsetup & (1<<i))
 
@@ -330,7 +330,7 @@ int	ath_activate(device_t, enum devact);
 bool	ath_resume(struct ath_softc *);
 void	ath_suspend(struct ath_softc *);
 int	ath_intr(void *);
-int	ath_reset(struct ifnet *);
+int	ath_reset(struct ath_softc *);
 void	ath_sysctlattach(struct ath_softc *);
 
 extern int ath_dwelltime;

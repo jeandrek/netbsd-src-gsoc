@@ -126,7 +126,7 @@ static struct ieee80211vap *ath_vap_create(struct ieee80211com *,
 			const char [IFNAMSIZ], int, enum ieee80211_opmode, int,
 			const uint8_t [IEEE80211_ADDR_LEN],
 			const uint8_t [IEEE80211_ADDR_LEN]);
-/*static void	ath_vap_delete(struct ieee80211vap *);*/
+static void	ath_vap_delete(struct ieee80211vap *);
 static void	ath_parent(struct ieee80211com *);
 static int	ath_init(struct ath_softc *);
 static void	ath_stop_locked(struct ath_softc *, int);
@@ -616,6 +616,7 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 
 	/* override default methods */
 	ic->ic_vap_create = ath_vap_create;
+	ic->ic_vap_delete = ath_vap_delete;
 	ic->ic_parent = ath_parent;
 	ic->ic_transmit = ath_transmit;
 	ic->ic_raw_xmit = ath_raw_xmit;
@@ -686,6 +687,17 @@ ath_vap_create(struct ieee80211com *ic,
 	ic->ic_opmode = opmode;
 	return vap;
 }
+
+static void
+ath_vap_delete(struct ieee80211vap *vap)
+{
+	struct ath_vap *avp = ATH_VAP(vap);
+
+	/* bpf_detach(ifp); */
+	ieee80211_vap_detach(vap);
+	kmem_free(avp, sizeof(*avp));
+}
+
 
 static void
 ath_parent(struct ieee80211com *ic)
@@ -924,7 +936,7 @@ ath_fatal_proc(void *arg, int pending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	/*ath_reset(ifp);*/
+	ath_reset(sc);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -942,7 +954,7 @@ ath_rxorn_proc(void *arg, int pending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	/*ath_reset(ifp);*/
+	ath_reset(sc);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -1025,16 +1037,6 @@ ath_chan2flags(struct ieee80211com *ic, struct ieee80211_channel *chan)
 	return modeflags[mode];
 #undef N
 }
-
-#if 0
-static int
-ath_ifinit(struct ifnet *ifp)
-{
-	struct ath_softc *sc = (struct ath_softc *)ifp->if_softc;
-
-	return ath_init(sc);
-}
-#endif
 
 static void
 ath_settkipmic(struct ath_softc *sc)
@@ -1245,11 +1247,9 @@ ath_restore_diversity(struct ath_softc *sc)
  * operational state.  Used to recover from various errors and
  * to reset or reload hardware state.
  */
-#if 0
 int
-ath_reset(struct ifnet *ifp)
+ath_reset(struct ath_softc *sc)
 {
-	struct ath_softc *sc = ifp->if_softc;
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ath_hal *ah = sc->sc_ah;
 	struct ieee80211_channel *c;
@@ -1283,14 +1283,16 @@ ath_reset(struct ifnet *ifp)
 	 * might change as a result.
 	 */
 	ath_chan_change(sc, c);
+#if 0
+	/* XXX */
 	if (ic->ic_state == IEEE80211_S_RUN)
 		ath_beacon_config(sc);	/* restart beacons */
+#endif
 	ath_hal_intrset(ah, sc->sc_imask);
 
-	ath_start(ifp);			/* restart xmit */
+	ath_start(sc);			/* restart xmit */
 	return 0;
 }
-#endif
 
 /*
  * Cleanup driver resources when we run out of buffers
@@ -1308,7 +1310,7 @@ ath_txfrag_cleanup(struct ath_softc *sc,
 	while ((bf = STAILQ_FIRST(frags)) != NULL) {
 		STAILQ_REMOVE_HEAD(frags, bf_list);
 		STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
-		sc->sc_if.if_flags &= ~IFF_OACTIVE;
+		sc->sc_flags &= ~ATH_OACTIVE;
 		ieee80211_node_decref(ni);
 	}
 }
@@ -1331,7 +1333,7 @@ ath_txfrag_setup(struct ath_softc *sc, ath_bufhead *frags,
 		if (bf == NULL) {	/* out of buffers, cleanup */
 			DPRINTF(sc, ATH_DEBUG_XMIT, "%s: out of xmit buffers\n",
 				__func__);
-			sc->sc_if.if_flags |= IFF_OACTIVE;
+			sc->sc_flags |= ATH_OACTIVE;
 			ath_txfrag_cleanup(sc, frags, ni);
 			break;
 		}
@@ -1353,8 +1355,9 @@ ath_start(struct ath_softc *sc)
 	struct mbuf *m, *next;
 	ath_bufhead frags;
 
-	/*if ((ifp->if_drv_flags & IFF_DRV_RUNNING) == 0 || sc->sc_invalid)
-		return;*/
+	if (sc->sc_flags & ATH_KEY_UPDATING || sc->sc_flags & ATH_OACTIVE)
+		return;
+
 	for (;;) {
 		/*
 		 * Grab a TX buffer and associated resources.
@@ -1368,7 +1371,6 @@ ath_start(struct ath_softc *sc)
 			DPRINTF(sc, ATH_DEBUG_XMIT, "%s: out of xmit buffers\n",
 				__func__);
 			sc->sc_stats.ast_tx_qstop++;
-			/* ifp->if_drv_flags |= IFF_DRV_OACTIVE; */
 			sc->sc_flags |= ATH_OACTIVE;
 			break;
 		}
@@ -2388,7 +2390,7 @@ ath_beacon_proc(void *arg, int pending)
 		error = bus_dmamap_load_mbuf(sc->sc_dmat, bf->bf_dmamap, m,
 					     BUS_DMA_NOWAIT);
 		if (error != 0) {
-			if_printf(&sc->sc_if,
+			device_printf(sc->sc_dev,
 			    "%s: bus_dmamap_load_mbuf failed, error %u\n",
 			    __func__, error);
 			return;
@@ -2468,7 +2470,7 @@ ath_bstuck_proc(void *arg, int pending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	/*ath_reset(ifp);*/
+	ath_reset(sc);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4430,7 +4432,7 @@ ath_tx_draintxq(struct ath_softc *sc, struct ath_txq *txq)
 		}
 		ATH_TXBUF_LOCK(sc);
 		STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
-		sc->sc_if.if_flags &= ~IFF_OACTIVE;
+		sc->sc_flags &= ATH_OACTIVE;
 		ATH_TXBUF_UNLOCK(sc);
 	}
 }
@@ -4587,7 +4589,7 @@ ath_dfswait(void *arg)
 
 	ath_hal_radar_wait(ah, &hchan);
 	if (hchan.privFlags & CHANNEL_INTERFERENCE) {
-		if_printf(&sc->sc_if,
+		device_printf(sc->sc_dev,
 		    "channel %u/0x%x/0x%x has interference\n",
 		    hchan.channel, hchan.channelFlags, hchan.privFlags);
 		return;
@@ -4598,8 +4600,8 @@ ath_dfswait(void *arg)
 	}
 	if (hchan.privFlags & CHANNEL_DFS_CLEAR) {
 		sc->sc_curchan.privFlags |= CHANNEL_DFS_CLEAR;
-		sc->sc_if.if_flags &= ~IFF_OACTIVE;
-		if_printf(&sc->sc_if,
+		sc->sc_flags &= ATH_OACTIVE;
+		device_printf(sc->sc_dev,
 		    "channel %u/0x%x/0x%x marked clear\n",
 		    hchan.channel, hchan.channelFlags, hchan.privFlags);
 	} else
@@ -4666,7 +4668,7 @@ ath_chan_set(struct ath_softc *sc, struct ieee80211_channel *chan)
 		 * Re-enable rx framework.
 		 */
 		if (ath_startrecv(sc) != 0) {
-			if_printf(&sc->sc_if,
+			device_printf(sc->sc_dev,
 				"%s: unable to restart recv logic\n", __func__);
 			return EIO;
 		}
@@ -4687,10 +4689,10 @@ ath_chan_set(struct ath_softc *sc, struct ieee80211_channel *chan)
 #define	DFS_AND_NOT_CLEAR(_c) \
 	(((_c)->privFlags & (CHANNEL_DFS | CHANNEL_DFS_CLEAR)) == CHANNEL_DFS)
 			if (DFS_AND_NOT_CLEAR(&sc->sc_curchan)) {
-				if_printf(&sc->sc_if,
+				device_printf(sc->sc_dev,
 					"wait for DFS clear channel signal\n");
 				/* XXX stop sndq */
-				sc->sc_if.if_flags |= IFF_OACTIVE;
+				sc->sc_flags |= ATH_OACTIVE;
 				callout_reset(&sc->sc_dfs_ch,
 					2 * hz, ath_dfswait, sc);
 			} else
@@ -4748,7 +4750,7 @@ ath_calibrate(void *arg)
 		DPRINTF(sc, ATH_DEBUG_CALIBRATE,
 			"%s: rfgain change\n", __func__);
 		sc->sc_stats.ast_per_rfgain++;
-		/*ath_reset(&sc->sc_if);*/
+		ath_reset(sc);
 	}
 	if (!ath_hal_calibrate(ah, &sc->sc_curchan, &iqCalDone)) {
 		DPRINTF(sc, ATH_DEBUG_ANY,
