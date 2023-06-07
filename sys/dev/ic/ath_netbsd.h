@@ -36,14 +36,13 @@ typedef struct ath_task {
 
 #define ATH_CALLOUT_INIT(__ch, __mpsafe) callout_init((__ch), 0)
 
-#undef TASK_INIT
-#define TASK_INIT(__task, __zero, __func, __context)	\
-	do {						\
-		(__task)->t_soft_ih = 			\
-		    softint_establish(SOFTINT_NET,	\
-		      __CONCAT(__func, _si),		\
-		      (__context));			\
-		KASSERT((__task)->t_soft_ih);		\
+#define ATH_TASK_INIT(__task, __zero, __func, __context)	\
+	do {							\
+		(__task)->t_soft_ih = 				\
+		    softint_establish(SOFTINT_NET,		\
+		      __CONCAT(__func, _si),			\
+		      (__context));				\
+		KASSERT((__task)->t_soft_ih);			\
 	} while (0)
 
 #define TASK_RUN_OR_ENQUEUE(__task)	\
@@ -67,7 +66,7 @@ typedef kmutex_t ath_txbuf_lock_t;
 #define	NET_LOCK_GIANT()		s = splnet()
 #define	NET_UNLOCK_GIANT()		splx(s)
 
-#define	SYSCTL_INT_SUBR(__rw, __name, __descr)				     \
+#define	ATH_SYSCTL_INT_SUBR(__rw, __name, __descr)			     \
 	sysctl_createv(log, 0, &rnode, &cnode, CTLFLAG_PERMANENT|(__rw),     \
 	    CTLTYPE_INT, #__name, SYSCTL_DESCR(__descr), ath_sysctl_##__name,\
 	    0, (void *)sc, 0, CTL_CREATE, CTL_EOL)
@@ -79,8 +78,7 @@ typedef kmutex_t ath_txbuf_lock_t;
 	    CTLTYPE_INT, #__name, SYSCTL_DESCR(__descr), NULL, 0,	\
 	    __PFX(&__pfx, __name), 0, CTL_CREATE, CTL_EOL)
 
-#undef SYSCTL_INT
-#define	SYSCTL_INT(__rw, __name, __descr)				\
+#define	ATH_SYSCTL_INT(__rw, __name, __descr)				\
 	SYSCTL_PFX_INT(sc->sc_, __rw, __name, __descr)
 
 #define	SYSCTL_GLOBAL_INT(__rw, __name, __descr, __var)			\

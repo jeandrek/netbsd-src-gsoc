@@ -409,12 +409,12 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 
 	ATH_TXBUF_LOCK_INIT(sc);
 
-	TASK_INIT(&sc->sc_rxtask, 0, ath_rx_proc, sc);
-	TASK_INIT(&sc->sc_rxorntask, 0, ath_rxorn_proc, sc);
-	TASK_INIT(&sc->sc_fataltask, 0, ath_fatal_proc, sc);
-	TASK_INIT(&sc->sc_bmisstask, 0, ath_bmiss_proc, sc);
-	TASK_INIT(&sc->sc_bstucktask,0, ath_bstuck_proc, sc);
-	TASK_INIT(&sc->sc_radartask, 0, ath_radar_proc, sc);
+	ATH_TASK_INIT(&sc->sc_rxtask, 0, ath_rx_proc, sc);
+	ATH_TASK_INIT(&sc->sc_rxorntask, 0, ath_rxorn_proc, sc);
+	ATH_TASK_INIT(&sc->sc_fataltask, 0, ath_fatal_proc, sc);
+	ATH_TASK_INIT(&sc->sc_bmisstask, 0, ath_bmiss_proc, sc);
+	ATH_TASK_INIT(&sc->sc_bstucktask,0, ath_bstuck_proc, sc);
+	ATH_TASK_INIT(&sc->sc_radartask, 0, ath_radar_proc, sc);
 
 	/*
 	 * Allocate hardware transmit queues: one queue for
@@ -471,13 +471,13 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	 */
 	switch (sc->sc_txqsetup &~ (1<<sc->sc_cabq->axq_qnum)) {
 	case 0x01:
-		TASK_INIT(&sc->sc_txtask, 0, ath_tx_proc_q0, sc);
+		ATH_TASK_INIT(&sc->sc_txtask, 0, ath_tx_proc_q0, sc);
 		break;
 	case 0x0f:
-		TASK_INIT(&sc->sc_txtask, 0, ath_tx_proc_q0123, sc);
+		ATH_TASK_INIT(&sc->sc_txtask, 0, ath_tx_proc_q0123, sc);
 		break;
 	default:
-		TASK_INIT(&sc->sc_txtask, 0, ath_tx_proc, sc);
+		ATH_TASK_INIT(&sc->sc_txtask, 0, ath_tx_proc, sc);
 		break;
 	}
 

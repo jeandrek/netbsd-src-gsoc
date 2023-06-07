@@ -431,81 +431,81 @@ ath_sysctlattach(struct ath_softc *sc)
 	if ((rnode = ath_sysctl_instance(device_xname(sc->sc_dev), log)) == NULL)
 		return;
 
-	if ((rc = SYSCTL_INT(0, countrycode, "EEPROM country code")) != 0)
+	if ((rc = ATH_SYSCTL_INT(0, countrycode, "EEPROM country code")) != 0)
 		goto err;
 
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, debug,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, debug,
 	    "control debugging printfs")) != 0)
 		goto err;
 
 #if 0
 	/* channel dwell time (ms) for AP/station scanning */
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, dwell,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, dwell,
 	    "Channel dwell time (ms) for scanning")) != 0)
 		goto err;
 #endif
 
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, slottime,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, slottime,
 	    "802.11 slot time (us)")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, acktimeout,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, acktimeout,
 	    "802.11 ACK timeout (us)")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, ctstimeout,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, ctstimeout,
 	    "802.11 CTS timeout (us)")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, softled,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, softled,
 	    "enable/disable software LED support")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, ledpin,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, ledpin,
 	    "GPIO pin connected to LED")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, ledon,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, ledon,
 	    "setting to turn LED on")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, ledidle,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, ledidle,
 	    "idle time for inactivity LED (ticks)")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, txantenna,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, txantenna,
 	    "tx antenna (0=auto)")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, rxantenna,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, rxantenna,
 	    "default/rx antenna")) != 0)
 		goto err;
 	if (ath_hal_hasdiversity(sc->sc_ah)) {
-		if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, diversity,
+		if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, diversity,
 		    "antenna diversity")) != 0)
 			goto err;
 	}
-	if ((rc = SYSCTL_INT(CTLFLAG_READWRITE, txintrperiod,
+	if ((rc = ATH_SYSCTL_INT(CTLFLAG_READWRITE, txintrperiod,
 	    "tx descriptor batching")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, diag,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, diag,
 	    "h/w diagnostic control")) != 0)
 		goto err;
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpscale,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpscale,
 	    "tx power scaling")) != 0)
 		goto err;
 	if (ath_hal_hastpc(sc->sc_ah)) {
-		if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpc,
+		if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpc,
 		    "enable/disable per-packet TPC")) != 0)
 			goto err;
-		if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpack,
+		if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpack,
 		    "tx power for ack frames")) != 0)
 			goto err;
-		if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpcts,
+		if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, tpcts,
 		    "tx power for cts frames")) != 0)
 			goto err;
 	}
 	if (ath_hal_hasrfsilent(sc->sc_ah)) {
-		if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, rfsilent,
+		if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, rfsilent,
 		    "h/w RF silent config")) != 0)
 			goto err;
-		if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, rfkill,
+		if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, rfkill,
 		    "enable/disable RF kill switch")) != 0)
 			goto err;
 	}
-	if ((rc = SYSCTL_INT_SUBR(CTLFLAG_READWRITE, regdomain,
+	if ((rc = ATH_SYSCTL_INT_SUBR(CTLFLAG_READWRITE, regdomain,
 	    "EEPROM regdomain code")) != 0)
 		goto err;
 	return;
