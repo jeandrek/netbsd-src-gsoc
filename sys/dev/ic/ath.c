@@ -5069,17 +5069,8 @@ static void
 ath_get_radiocaps(struct ieee80211com *ic,
 	int maxchans, int *nchans, struct ieee80211_channel chans[])
 {
-	uint8_t bands_bg[IEEE80211_MODE_BYTES];
-	uint8_t bands_b[IEEE80211_MODE_BYTES];
-
-	/* XXX other modes! */
-	memset(bands_bg, 0, sizeof(bands_bg));
-	setbit(bands_bg, IEEE80211_MODE_11B);
-	setbit(bands_bg, IEEE80211_MODE_11G);
-	memset(bands_b, 0, sizeof(bands_b));
-	setbit(bands_b, IEEE80211_MODE_11B);
-
 #define	COMPAT	(CHANNEL_ALL_NOTURBO|CHANNEL_PASSIVE)
+	uint8_t bands[IEEE80211_MODE_BYTES];
 	struct ath_softc *sc = ic->ic_softc;
 	struct ath_hal *ah = sc->sc_ah;
 	HAL_CHANNEL *hchans;
@@ -5102,7 +5093,7 @@ ath_get_radiocaps(struct ieee80211com *ic,
 
 	/*
 	 * Convert HAL channels to ieee80211 ones and insert
-	 * them in the table according to their channel number.
+	 * them in the table.
 	 */
 	for (i = 0; i < nhchans && *nchans < maxchans; i++) {
 		HAL_CHANNEL *c = &hchans[i];
@@ -5128,12 +5119,38 @@ ath_get_radiocaps(struct ieee80211com *ic,
 		 * conversion can be removed once net80211 is updated
 		 * to understand static vs. dynamic turbo.
 		 */
-		flags = c->channelFlags & COMPAT;
+		flags = c->channelFlags & COMPAT;	/* Still needed? */
+#if 0
 		if (c->channelFlags & CHANNEL_STURBO)
 			flags |= IEEE80211_CHAN_TURBO;
+#endif
+
+		memset(bands, 0, sizeof(bands));
+		if ((c->channelFlags & IEEE80211_CHAN_A)
+		    == IEEE80211_CHAN_A) {
+			if (c->channelFlags & IEEE80211_CHAN_TURBO
+			    || c->channelFlags & CHANNEL_STURBO)
+				setbit(bands, IEEE80211_MODE_TURBO_A);
+			else
+				setbit(bands, IEEE80211_MODE_11A);
+		} else if ((c->channelFlags & IEEE80211_CHAN_B)
+		    == IEEE80211_CHAN_B)
+			setbit(bands, IEEE80211_MODE_11B);
+		if ((c->channelFlags & IEEE80211_CHAN_G)
+		    == IEEE80211_CHAN_G
+		    || (c->channelFlags & IEEE80211_CHAN_PUREG)
+		    == IEEE80211_CHAN_PUREG) {
+			if (c->channelFlags & IEEE80211_CHAN_TURBO
+			    || c->channelFlags & CHANNEL_STURBO)
+				setbit(bands, IEEE80211_MODE_TURBO_G);
+			else if (c->channelFlags & IEEE80211_CHAN_HT20)
+				setbit(bands, IEEE80211_MODE_11NG);
+			else
+				setbit(bands, IEEE80211_MODE_11G);
+		}
 
 		ieee80211_add_channel(chans, maxchans, nchans, ix, c->channel,
-				0, flags, ix == 14 ? bands_b : bands_bg);
+			0, flags, bands);
 #if 0
 		if (ic->ic_channels[ix].ic_freq == 0) {
 			ic->ic_channels[ix].ic_freq = c->channel;
