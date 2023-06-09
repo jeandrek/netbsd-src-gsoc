@@ -669,6 +669,8 @@ ath_vap_create(struct ieee80211com *ic,
 		return NULL;
 	}
 
+	vap->iv_ifp->if_percpuq = if_percpuq_create(vap->iv_ifp);
+
 	/* h/w crypto support */
 	vap->iv_key_alloc = ath_key_alloc;
 	vap->iv_key_delete = ath_key_delete;
@@ -683,7 +685,7 @@ ath_vap_create(struct ieee80211com *ic,
 	vap->iv_recv_mgmt = ath_recv_mgmt;
 
 	ieee80211_vap_attach(vap, ieee80211_media_change,
-			     ieee80211_media_status, macaddr);
+		ieee80211_media_status, macaddr);
 	ic->ic_opmode = opmode;
 	return vap;
 }
@@ -1384,6 +1386,7 @@ ath_start(struct ath_softc *sc)
 		}
 		STAILQ_INIT(&frags);
 		ni = M_GETCTX(m, struct ieee80211_node *);
+		M_CLEARCTX(m);
 #if 0
 		pri = M_WME_GETAC(m);
 		txq = sc->sc_ac2q[pri];
@@ -3100,7 +3103,7 @@ ath_rx_proc(void *arg, int npending)
 	struct mbuf *m;
 	struct ieee80211_node *ni;
 	struct ath_node *an;
-	int len, ngood, type;
+	int len, ngood;
 	u_int phyerr;
 	HAL_STATUS status;
 	int16_t nf;
@@ -3241,7 +3244,6 @@ rx_accept:
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
 		bf->bf_m = NULL;
 
-		/*m_set_rcvif(m, ifp);*/
 		len = ds->ds_rxstat.rs_datalen;
 		m->m_pkthdr.len = m->m_len = len;
 
@@ -3320,16 +3322,12 @@ rx_accept:
 		if (ni != NULL) {
 			an = ATH_NODE(ni);
 			ATH_RSSI_LPF(an->an_avgrssi, ds->ds_rxstat.rs_rssi);
-			/*
-			 * Send frame up for processing.
-			 */
-			type = ieee80211_input(ni, m,
-				ds->ds_rxstat.rs_rssi, ds->ds_rxstat.rs_tstamp);
-			ieee80211_free_node(ni);
-		} else {
-			type = ieee80211_input_all(ic, m,
-				ds->ds_rxstat.rs_rssi, nf); /* FreeBSD */
 		}
+		/*
+		 * Send frame up for processing.
+		 */
+		ieee80211_rx_enqueue(ic, m, ds->ds_rxstat.rs_rssi);
+
 		if (sc->sc_diversity) {
 			/*
 			 * When using fast diversity, change the default rx
@@ -3350,11 +3348,15 @@ rx_accept:
 			 * is mainly for station mode where we depend on
 			 * periodic beacon frames to trigger the poll event.
 			 */
+#if 0
 			if (type == IEEE80211_FC0_TYPE_DATA) {
+#endif
 				sc->sc_rxrate = ds->ds_rxstat.rs_rate;
 				ath_led_event(sc, ATH_LED_RX);
+#if 0
 			} else if (ticks - sc->sc_ledevent >= sc->sc_ledidle)
 				ath_led_event(sc, ATH_LED_POLL);
+#endif
 		}
 		/*
 		 * Arrange to update the last rx timestamp only for
