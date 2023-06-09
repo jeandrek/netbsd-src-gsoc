@@ -1411,7 +1411,7 @@ ath_start(struct ath_softc *sc)
 			}
 		}
 #endif
-		if_statinc(ni->ni_vap->iv_ifp, if_opackets);
+		if_statinc(ni->ni_vap->iv_ifp, if_opackets); /* XXX ieee80211_tx_complete */
 		/*
 		 * Encapsulate the packet in prep for transmission.
 		 */
@@ -1452,7 +1452,7 @@ ath_start(struct ath_softc *sc)
 		next = m->m_nextpkt;
 		if (ath_tx_start(sc, ni, bf, m)) {
 	bad:
-			if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
+			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
 	reclaim:
 			bf->bf_m = NULL;
 			bf->bf_node = NULL;
@@ -3221,7 +3221,7 @@ ath_rx_proc(void *arg, int npending)
 						ds->ds_rxstat.rs_keyix-32 : ds->ds_rxstat.rs_keyix);
 				}
 			}
-			/* if_statinc(ifp, if_ierrors); */
+			ieee80211_stat_add(&ic->ic_ierrors, 1);
 			/*
 			 * Reject error frames, we normally don't want
 			 * to see them in monitor mode (in monitor mode
