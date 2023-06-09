@@ -136,8 +136,7 @@ static int	ath_transmit(struct ieee80211com *, struct mbuf *);
 static int	ath_raw_xmit(struct ieee80211_node *, struct mbuf *,
 			const struct ieee80211_bpf_params *);
 static void	ath_update_mcast(struct ieee80211com *);
-
-
+static void	ath_watchdog(void *);
 static void	ath_fatal_proc(void *, int);
 static void	ath_rxorn_proc(void *, int);
 static void	ath_bmiss_proc(void *, int);
@@ -406,6 +405,7 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 #if 0
 	ATH_CALLOUT_INIT(&sc->sc_dfs_ch, CALLOUT_MPSAFE);
 #endif
+	ATH_CALLOUT_INIT(&sc->sc_watchdog_ch, CALLOUT_MPSAFE);
 
 	ATH_TXBUF_LOCK_INIT(sc);
 
@@ -1484,7 +1484,8 @@ ath_start(struct ath_softc *sc)
 			goto nextfrag;
 		}
 
-		/*ifp->if_timer = 5;*/
+		callout_reset(&sc->sc_watchdog_ch, 5*hz,
+			ath_watchdog, sc);
 #if 0
 		/*
 		 * Flush stale frames from the fast-frame staging queue.
@@ -4871,6 +4872,7 @@ ath_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 #if 0
 	callout_stop(&sc->sc_dfs_ch);
 #endif
+	callout_stop(&sc->sc_watchdog_ch);
 	ath_hal_setledstate(ah, leds[nstate]);	/* set LED */
 
 	if (nstate == IEEE80211_S_INIT) {
@@ -5423,19 +5425,13 @@ ath_printtxbuf(struct ath_buf *bf, int done)
 }
 #endif	/* AR_DEBUG */
 
-#if 0
 static void
-ath_watchdog(struct ifnet *ifp)
+ath_watchdog(void *arg)
 {
-	struct ath_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ath_softc *sc = arg;
 	struct ath_txq *axq;
 	int i;
 
-	ifp->if_timer = 0;
-	if ((ifp->if_flags & IFF_RUNNING) == 0 ||
-	    !device_is_active(sc->sc_dev))
-		return;
 	for (i = 0; i < HAL_NUM_TX_QUEUES; i++) {
 		if (!ATH_TXQ_SETUP(sc, i))
 			continue;
@@ -5449,17 +5445,16 @@ ath_watchdog(struct ifnet *ifp)
 			    "txintrperiod %d)\n", i, sc->sc_txintrperiod);
 			if (sc->sc_txintrperiod > 1)
 				sc->sc_txintrperiod--;
-			ath_reset(ifp);
-			if_statinc(ifp, if_oerrors);
+			ath_reset(sc);
+			/*if_statinc(ifp, if_oerrors);*/
 			sc->sc_stats.ast_watchdog++;
 			break;
 		} else
-			ifp->if_timer = 1;
+			callout_reset(&sc->sc_watchdog_ch,
+				2*hz, ath_watchdog, sc);
 		ATH_TXQ_UNLOCK(axq);
 	}
-	ieee80211_watchdog(ic);
 }
-#endif
 
 #if 0
 /*

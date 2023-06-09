@@ -311,6 +311,7 @@ struct ath_softc {
 	HAL_NODE_STATS		sc_halstats;	/* station-mode rssi stats */
 	struct callout		sc_scan_ch;	/* callout handle for scan */
 	struct callout		sc_dfs_ch;	/* callout handle for dfs */
+	struct callout		sc_watchdog_ch;	/* callout for watchdog */
 	u_int			sc_flags;	/* misc flags */
 };
 #define	sc_if			sc_ec.ec_if
