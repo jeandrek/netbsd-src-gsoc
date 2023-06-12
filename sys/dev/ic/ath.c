@@ -1165,55 +1165,45 @@ done:
 static void
 ath_stop_locked(struct ath_softc *sc, int disable)
 {
-	/*struct ath_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;*/
 	struct ath_hal *ah = sc->sc_ah;
 
-	/*DPRINTF(sc, ATH_DEBUG_ANY, "%s: invalid %d if_flags 0x%x\n",
-	  __func__, !device_is_enabled(sc->sc_dev), ifp->if_flags);*/
 
 	/* KASSERT() IPL_NET */
-	if (1 /*ifp->if_flags & IFF_RUNNING*/) {
-		/*
-		 * Shutdown the hardware and driver:
-		 *    reset 802.11 state machine
-		 *    turn off timers
-		 *    disable interrupts
-		 *    turn off the radio
-		 *    clear transmit machinery
-		 *    clear receive machinery
-		 *    drain and release tx queues
-		 *    reclaim beacon resources
-		 *    power down hardware
-		 *
-		 * Note that some of this work is not possible if the
-		 * hardware is gone (invalid).
-		 */
+	/*
+	 * Shutdown the hardware and driver:
+	 *    reset 802.11 state machine
+	 *    turn off timers
+	 *    disable interrupts
+	 *    turn off the radio
+	 *    clear transmit machinery
+	 *    clear receive machinery
+	 *    drain and release tx queues
+	 *    reclaim beacon resources
+	 *    power down hardware
+	 *
+	 * Note that some of this work is not possible if the
+	 * hardware is gone (invalid).
+	 */
 #ifdef ATH_TX99_DIAG
-		if (sc->sc_tx99 != NULL)
-			sc->sc_tx99->stop(sc->sc_tx99);
+	if (sc->sc_tx99 != NULL)
+		sc->sc_tx99->stop(sc->sc_tx99);
 #endif
-		/* ieee80211_new_state(ic, IEEE80211_S_INIT, -1); */
-		/*ifp->if_flags &= ~IFF_RUNNING;
-		  ifp->if_timer = 0;*/
-		if (device_is_enabled(sc->sc_dev)) {
-			if (sc->sc_softled) {
-				callout_stop(&sc->sc_ledtimer);
-				ath_hal_gpioset(ah, sc->sc_ledpin,
+	if (device_is_enabled(sc->sc_dev)) {
+		if (sc->sc_softled) {
+			callout_stop(&sc->sc_ledtimer);
+			ath_hal_gpioset(ah, sc->sc_ledpin,
 					!sc->sc_ledon);
-				sc->sc_blinking = 0;
-			}
-			ath_hal_intrset(ah, 0);
+			sc->sc_blinking = 0;
 		}
-		ath_draintxq(sc);
-		if (device_is_enabled(sc->sc_dev)) {
-			ath_stoprecv(sc);
-			ath_hal_phydisable(ah);
-		} else
-			sc->sc_rxlink = NULL;
-		/*IF_PURGE(&ifp->if_snd);*/
-		ath_beacon_free(sc);
+		ath_hal_intrset(ah, 0);
 	}
+	ath_draintxq(sc);
+	if (device_is_enabled(sc->sc_dev)) {
+		ath_stoprecv(sc);
+		ath_hal_phydisable(ah);
+	} else
+		sc->sc_rxlink = NULL;
+	ath_beacon_free(sc);
 	if (disable)
 		pmf_device_suspend(sc->sc_dev, &sc->sc_qual);
 }
@@ -3379,14 +3369,6 @@ rx_next:
 #endif
 	if (ngood)
 		sc->sc_lastrx = tsf;
-
-#if 0
-#ifdef __NetBSD__
-	/* XXX Why isn't this necessary in FreeBSD? */
-	if ((ifp->if_flags & IFF_OACTIVE) == 0 && !IFQ_IS_EMPTY(&ifp->if_snd))
-		ath_start(ifp);
-#endif /* __NetBSD__ */
-#endif
 
 	NET_UNLOCK_GIANT();		/* XXX */
 #undef PA2DESC
