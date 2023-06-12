@@ -2032,7 +2032,7 @@ ath_update_mcast(struct ieee80211com *ic)
 #if 0
 	ifp->if_flags &= ~IFF_ALLMULTI;
 #endif
-	mfilt[0] = mfilt[1] = 0;
+	mfilt[0] = mfilt[1] = ~0;
 #if 0
 	ETHER_LOCK(ec);
 	ETHER_FIRST_MULTI(estep, ec, enm);
