@@ -1400,7 +1400,6 @@ ath_start(struct ath_softc *sc)
 			}
 		}
 #endif
-		if_statinc(ni->ni_vap->iv_ifp, if_opackets); /* XXX ieee80211_tx_complete */
 		/*
 		 * Encapsulate the packet in prep for transmission.
 		 */
@@ -4236,19 +4235,11 @@ ath_tx_processq(struct ath_softc *sc, struct ath_txq *txq)
 					nacked++;
 				ath_rate_tx_complete(sc, an, ds, ds0);
 			}
-			/*
-			 * Reclaim reference to node.
-			 *
-			 * NB: the node may be reclaimed here if, for example
-			 *     this is a DEAUTH message that was sent and the
-			 *     node was timed out due to inactivity.
-			 */
-			ieee80211_free_node(ni);
 		}
 		bus_dmamap_sync(sc->sc_dmat, bf->bf_dmamap, 0,
 		    bf->bf_dmamap->dm_mapsize, BUS_DMASYNC_POSTWRITE);
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
-		m_freem(bf->bf_m);
+		ieee80211_tx_complete(ni, bf->bf_m, 0);
 		bf->bf_m = NULL;
 		bf->bf_node = NULL;
 
@@ -4404,16 +4395,10 @@ ath_tx_draintxq(struct ath_softc *sc, struct ath_txq *txq)
 				ath_hal_txprocdesc(ah, bf->bf_desc,
 					&ds->ds_txstat) == HAL_OK);
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
-		m_freem(bf->bf_m);
-		bf->bf_m = NULL;
 		ni = bf->bf_node;
 		bf->bf_node = NULL;
-		if (ni != NULL) {
-			/*
-			 * Reclaim node reference.
-			 */
-			ieee80211_free_node(ni);
-		}
+		ieee80211_tx_complete(ni, bf->bf_m, 0);
+		bf->bf_m = NULL;
 		ATH_TXBUF_LOCK(sc);
 		STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
 		sc->sc_flags &= ATH_OACTIVE;
