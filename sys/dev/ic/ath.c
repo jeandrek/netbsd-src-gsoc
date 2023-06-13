@@ -664,7 +664,7 @@ ath_vap_create(struct ieee80211com *ic,
 	avp = kmem_zalloc(sizeof(*avp), KM_SLEEP);
 	vap = &avp->av_vap;
 	if (ieee80211_vap_setup(ic, vap, name, unit, opmode,
-				flags | IEEE80211_CLONE_NOBEACONS, bssid) != 0) {
+		flags | IEEE80211_CLONE_NOBEACONS, bssid) != 0) {
 		kmem_free(vap, sizeof(*vap));
 		return NULL;
 	}
@@ -1004,7 +1004,6 @@ ath_radar_proc(void *arg, int pending)
 {
 #if 0
 	struct ath_softc *sc = arg;
-	struct ifnet *ifp = &sc->sc_if;
 	struct ath_hal *ah = sc->sc_ah;
 	HAL_CHANNEL hchan;
 
@@ -1341,7 +1340,7 @@ ath_txfrag_setup(struct ath_softc *sc, ath_bufhead *frags,
 static void
 ath_start(struct ath_softc *sc)
 {
-	/* adapted from FreeBSD commit b032f27c365b992e9d8e42214183b39acfb8c6ac */
+	/* adapted from FreeBSD commit b032f27 */
 	struct ieee80211_node *ni;
 	struct ath_buf *bf;
 	struct mbuf *m, *next;
@@ -4526,8 +4525,6 @@ ath_startrecv(struct ath_softc *sc)
 static void
 ath_chan_change(struct ath_softc *sc, struct ieee80211_channel *chan)
 {
-#if 0
-	struct ieee80211com *ic = &sc->sc_ic;
 	enum ieee80211_phymode mode;
 	u_int16_t flags;
 
@@ -4535,7 +4532,7 @@ ath_chan_change(struct ath_softc *sc, struct ieee80211_channel *chan)
 	 * Change channels and update the h/w rate map
 	 * if we're switching; e.g. 11a to 11b/g.
 	 */
-	mode = ieee80211_chan2mode(ic, chan);
+	mode = ieee80211_chan2mode(chan);
 	if (mode != sc->sc_curmode)
 		ath_setcurmode(sc, mode);
 	/*
@@ -4550,13 +4547,13 @@ ath_chan_change(struct ath_softc *sc, struct ieee80211_channel *chan)
 		flags = IEEE80211_CHAN_G;
 	else
 		flags = IEEE80211_CHAN_B;
-	if (IEEE80211_IS_CHAN_T(chan))
+	if (chan->ic_flags & IEEE80211_CHAN_TURBO
+	    || chan->ic_flags & IEEE80211_CHAN_STURBO) /* ? */
 		flags |= IEEE80211_CHAN_TURBO;
 	sc->sc_tx_th.wt_chan_freq = sc->sc_rx_th.wr_chan_freq =
 		htole16(chan->ic_freq);
 	sc->sc_tx_th.wt_chan_flags = sc->sc_rx_th.wr_chan_flags =
 		htole16(flags);
-#endif
 }
 
 #if 0
