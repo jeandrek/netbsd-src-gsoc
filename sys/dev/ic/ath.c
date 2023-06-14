@@ -1132,9 +1132,6 @@ ath_init(struct ath_softc *sc)
 		sc->sc_imask |= HAL_INT_MIB;
 	ath_hal_intrset(ah, sc->sc_imask);
 
-	/* ifp->if_flags |= IFF_RUNNING; */
-	/* ic->ic_state = IEEE80211_S_INIT; */
-
 	/*
 	 * The hardware should be ready to go now so it's safe
 	 * to kick the 802.11 state machine as it's likely to
@@ -1145,13 +1142,6 @@ ath_init(struct ath_softc *sc)
 	if (sc->sc_tx99 != NULL)
 		sc->sc_tx99->start(sc->sc_tx99);
 	else
-#endif
-#if 0
-	if (ic->ic_opmode != IEEE80211_M_MONITOR) {
-		if (ic->ic_roaming != IEEE80211_ROAMING_MANUAL)
-			ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
-	} else
-		ieee80211_new_state(ic, IEEE80211_S_RUN, -1);
 #endif
 done:
 	splx(s);
@@ -1993,13 +1983,11 @@ ath_calcrxfilter(struct ath_softc *sc)
 	      | HAL_RX_FILTER_UCAST | HAL_RX_FILTER_BCAST | HAL_RX_FILTER_MCAST;
 	if (ic->ic_opmode != IEEE80211_M_STA)
 		rfilt |= HAL_RX_FILTER_PROBEREQ;
-#if 0
 	if (ic->ic_opmode != IEEE80211_M_HOSTAP &&
-	    (ifp->if_flags & IFF_PROMISC))
+	    (ic->ic_promisc > 0))
 		rfilt |= HAL_RX_FILTER_PROM;
-	if (ifp->if_flags & IFF_PROMISC)
+	if (ic->ic_promisc > 0)
 		rfilt |= HAL_RX_FILTER_CONTROL | HAL_RX_FILTER_PROBEREQ;
-#endif
 	if (ic->ic_opmode == IEEE80211_M_STA ||
 	    ic->ic_opmode == IEEE80211_M_IBSS ||
 	    ic->ic_flags & IEEE80211_F_SCAN)
@@ -3079,12 +3067,12 @@ ath_rx_proc(void *arg, int npending)
 	NET_LOCK_GIANT();		/* XXX */
 
 	rxerr_tap =
-	    /* (ifp->if_flags & IFF_PROMISC) ? HAL_RXERR_CRC|HAL_RXERR_PHY : */ 0;
+	    (ic->ic_promisc > 0) ? HAL_RXERR_CRC|HAL_RXERR_PHY : 0;
 
 	if (sc->sc_ic.ic_opmode == IEEE80211_M_MONITOR)
 		rxerr_mon = HAL_RXERR_DECRYPT|HAL_RXERR_MIC;
-	/*else if (ifp->if_flags & IFF_PROMISC)
-		rxerr_tap |= HAL_RXERR_DECRYPT|HAL_RXERR_MIC;*/
+	else if (ic->ic_promisc > 0)
+		rxerr_tap |= HAL_RXERR_DECRYPT|HAL_RXERR_MIC;
 
 	DPRINTF(sc, ATH_DEBUG_RX_PROC, "%s: pending %u\n", __func__, npending);
 	ngood = 0;
