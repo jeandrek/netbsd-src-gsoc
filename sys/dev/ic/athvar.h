@@ -95,7 +95,6 @@ typedef unsigned int ath_keyix_t;
 /* driver-specific node state */
 struct ath_node {
 	struct ieee80211_node an_node;	/* base class */
-	u_int32_t	an_avgrssi;	/* average rssi over all rx frames */
 	/* variable-length rate control state follows */
 };
 #define	ATH_NODE(ni)	((struct ath_node *)(ni))

@@ -165,9 +165,6 @@ static void	ath_desc_free(struct ath_softc *);
 static struct ieee80211_node *ath_node_alloc(struct ieee80211vap *,
 			const uint8_t [IEEE80211_ADDR_LEN]);
 static void	ath_node_free(struct ieee80211_node *);
-#if 0
-static u_int8_t	ath_node_getrssi(const struct ieee80211_node *);
-#endif
 static int	ath_rxbuf_init(struct ath_softc *, struct ath_buf *);
 static void	ath_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m,
 			int subtype, const struct ieee80211_rx_stats *,
@@ -1416,7 +1413,7 @@ ath_start(struct ath_softc *sc)
 		 * buffers to send all the fragments so all
 		 * go out or none...
 		 */
-		if ((m->m_flags & M_FRAG) && 
+		if ((m->m_flags & M_FRAG) &&
 		    !ath_txfrag_setup(sc, &frags, m, ni)) {
 			DPRINTF(sc, ATH_DEBUG_XMIT,
 			    "%s: out of txfrag buffers\n", __func__);
@@ -2013,15 +2010,19 @@ ath_calcrxfilter(struct ath_softc *sc)
 static void
 ath_update_mcast(struct ieee80211com *ic)
 {
+#if 0
 	struct ath_softc *sc = ic->ic_softc;
+	struct ethercom *ec = &sc->sc_ec;
 	struct ath_hal *ah = sc->sc_ah;
-	u_int32_t mfilt[2];
+	struct ether_multi *enm;
+	struct ether_multistep estep;
+	u_int32_t mfilt[2], val;
+	uint8_t pos;
 
 #if 0
 	ifp->if_flags &= ~IFF_ALLMULTI;
 #endif
-	mfilt[0] = mfilt[1] = ~0;
-#if 0
+	mfilt[0] = mfilt[1] = 0;
 	ETHER_LOCK(ec);
 	ETHER_FIRST_MULTI(estep, ec, enm);
 	while (enm != NULL) {
@@ -2043,6 +2044,12 @@ ath_update_mcast(struct ieee80211com *ic)
 		ETHER_NEXT_MULTI(estep, enm);
 	}
 	ETHER_UNLOCK(ec);
+#else
+	struct ath_softc *sc = ic->ic_softc;
+	struct ath_hal *ah = sc->sc_ah;
+	u_int32_t mfilt[2];
+
+	mfilt[0] = mfilt[1] = ~0;
 #endif
 
 	ath_hal_setmcastfilter(ah, mfilt[0], mfilt[1]);
@@ -2053,15 +2060,9 @@ ath_update_mcast(struct ieee80211com *ic)
 static void
 ath_mode_init(struct ath_softc *sc)
 {
-	/* struct ethercom *ec = &sc->sc_ec; */
-	/*struct ifnet *ifp = &sc->sc_if;*/
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ath_hal *ah = sc->sc_ah;
-	/*struct ether_multi *enm;
-	  struct ether_multistep estep;*/
-	u_int32_t rfilt/*, mfilt[2], val*/;
-	/*int i;
-	uint8_t pos;*/
+	u_int32_t rfilt;
 
 	/* configure rx filter */
 	rfilt = ath_calcrxfilter(sc);
@@ -2860,7 +2861,6 @@ ath_node_alloc(struct ieee80211vap *vap, const uint8_t mac[IEEE80211_ADDR_LEN])
 		/* XXX stat+msg */
 		return NULL;
 	}
-	an->an_avgrssi = ATH_RSSI_DUMMY_MARKER;
 	ath_rate_node_init(sc, an);
 
 	DPRINTF(sc, ATH_DEBUG_NODE, "%s: an %p\n", __func__, an);
@@ -2878,28 +2878,6 @@ ath_node_free(struct ieee80211_node *ni)
 	ath_rate_node_cleanup(sc, ATH_NODE(ni));
 	sc->sc_node_free(ni);
 }
-
-#if 0
-static u_int8_t
-ath_node_getrssi(const struct ieee80211_node *ni)
-{
-#define	HAL_EP_RND(x, mul) \
-	((((x)%(mul)) >= ((mul)/2)) ? ((x) + ((mul) - 1)) / (mul) : (x)/(mul))
-	u_int32_t avgrssi = ATH_NODE_CONST(ni)->an_avgrssi;
-	int32_t rssi;
-
-	/*
-	 * When only one frame is received there will be no state in
-	 * avgrssi so fallback on the value recorded by the 802.11 layer.
-	 */
-	/*if (avgrssi != ATH_RSSI_DUMMY_MARKER)*/
-		rssi = HAL_EP_RND(avgrssi, HAL_RSSI_EP_MULTIPLIER);
-	/*else
-		rssi = ni->ni_rssi;*/
-	return rssi < 0 ? 0 : rssi > 127 ? 127 : rssi;
-#undef HAL_EP_RND
-}
-#endif
 
 static int
 ath_rxbuf_init(struct ath_softc *sc, struct ath_buf *bf)
@@ -3090,8 +3068,6 @@ ath_rx_proc(void *arg, int npending)
 	struct ath_hal *ah = sc->sc_ah;
 	struct ath_desc *ds;
 	struct mbuf *m;
-	struct ieee80211_node *ni;
-	struct ath_node *an;
 	int len, ngood;
 	u_int phyerr;
 	HAL_STATUS status;
@@ -3295,23 +3271,13 @@ rx_accept:
 		m_adj(m, -IEEE80211_CRC_LEN);
 
 		/*
-		 * Locate the node for sender, track state, and then
-		 * pass the (referenced) node up to the 802.11 layer
-		 * for its use.
+		 * Track state.
 		 */
-		ni = ieee80211_find_rxnode_withkey(ic,
-			mtod(m, const struct ieee80211_frame_min *),
-			ds->ds_rxstat.rs_keyix == HAL_RXKEYIX_INVALID ?
-				IEEE80211_KEYIX_NONE : ds->ds_rxstat.rs_keyix);
 		sc->sc_lastrs = &ds->ds_rxstat;
 		/*
 		 * Track rx rssi and do any rx antenna management.
 		 */
 		ATH_RSSI_LPF(sc->sc_halstats.ns_avgrssi, ds->ds_rxstat.rs_rssi);
-		if (ni != NULL) {
-			an = ATH_NODE(ni);
-			ATH_RSSI_LPF(an->an_avgrssi, ds->ds_rxstat.rs_rssi);
-		}
 		/*
 		 * Send frame up for processing.
 		 */
