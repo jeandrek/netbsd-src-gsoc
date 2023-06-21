@@ -4188,9 +4188,9 @@ ath_tx_proc_q0(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	IEEE80211_TX_LOCK(sc->sc_ic);
+	IEEE80211_TX_LOCK(&sc->sc_ic);
 	ath_start(sc);
-	IEEE80211_TX_UNLOCK(sc->sc_ic);
+	IEEE80211_TX_UNLOCK(&sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4233,9 +4233,9 @@ ath_tx_proc_q0123(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	IEEE80211_TX_LOCK(sc->sc_ic);
+	IEEE80211_TX_LOCK(&sc->sc_ic);
 	ath_start(sc);
-	IEEE80211_TX_UNLOCK(sc->sc_ic);
+	IEEE80211_TX_UNLOCK(&sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4270,9 +4270,9 @@ ath_tx_proc(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	IEEE80211_TX_LOCK(sc->sc_ic);
+	IEEE80211_TX_LOCK(&sc->sc_ic);
 	ath_start(sc);
-	IEEE80211_TX_UNLOCK(sc->sc_ic);
+	IEEE80211_TX_UNLOCK(&sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
