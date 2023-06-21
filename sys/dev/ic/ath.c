@@ -1327,13 +1327,12 @@ ath_txfrag_setup(struct ath_softc *sc, ath_bufhead *frags,
 static void
 ath_start(struct ath_softc *sc)
 {
-	/* adapted from FreeBSD commit b032f27 */
 	struct ieee80211_node *ni;
 	struct ath_buf *bf;
 	struct mbuf *m, *next;
 	ath_bufhead frags;
 
-	if (sc->sc_flags & ATH_KEY_UPDATING || sc->sc_flags & ATH_OACTIVE)
+	if (sc->sc_flags & ATH_KEY_UPDATING)
 		return;
 
 	for (;;) {
@@ -1361,76 +1360,45 @@ ath_start(struct ath_softc *sc)
 			break;
 		}
 		STAILQ_INIT(&frags);
+		/*
+		 * Hack!  The referenced node pointer is in the
+		 * rcvif field of the packet header.  This is
+		 * placed there by ieee80211_mgmt_output because
+		 * we need to hold the reference with the frame
+		 * and there's no other way (other than packet
+		 * tags which we consider too expensive to use)
+		 * to pass it along.
+		 */
 		ni = M_GETCTX(m, struct ieee80211_node *);
 		M_CLEARCTX(m);
-#if 0
-		pri = M_WME_GETAC(m);
-		txq = sc->sc_ac2q[pri];
-		if (ni->ni_ath_flags & IEEE80211_NODE_FF) {
-			/*
-			 * Check queue length; if too deep drop this
-			 * frame (tail drop considered good).
-			 */
-			if (txq->axq_depth >= sc->sc_fftxqmax) {
-				DPRINTF(sc, ATH_DEBUG_FF,
-				    "[%s] tail drop on q %u depth %u\n",
-				    ether_sprintf(ni->ni_macaddr),
-				    txq->axq_qnum, txq->axq_depth);
-				sc->sc_stats.ast_tx_qfull++;
-				m_freem(m);
-				goto reclaim;
-			}
-			m = ath_ff_check(sc, txq, bf, m, ni);
-			if (m == NULL) {
-				/* NB: ni ref & bf held on stageq */
-				continue;
-			}
-		}
-#endif
-		/*
-		 * Encapsulate the packet in prep for transmission.
-		 */
+
+		/* if_statinc(ifp, if_opackets); */
+
+		/* bpf_mtap(ifp, m, BPF_D_OUT); */
+
 		m = ieee80211_encap(ni->ni_vap, ni, m);
-		if (m == NULL) {
-			DPRINTF(sc, ATH_DEBUG_XMIT,
-			    "%s: encapsulation failure\n", __func__);
-			sc->sc_stats.ast_tx_encap++;
-			goto bad;
-		}
+		if (m == NULL) goto bad;
+
 		/*
-		 * Check for fragmentation.  If this frame
+		 * Check for fragmentation.  If this has frame
 		 * has been broken up verify we have enough
 		 * buffers to send all the fragments so all
 		 * go out or none...
 		 */
 		if ((m->m_flags & M_FRAG) &&
 		    !ath_txfrag_setup(sc, &frags, m, ni)) {
-			DPRINTF(sc, ATH_DEBUG_XMIT,
-			    "%s: out of txfrag buffers\n", __func__);
+			DPRINTF(sc, ATH_DEBUG_ANY,
+				"%s: out of txfrag buffers\n", __func__);
 			/* ic->ic_stats.is_tx_nobuf++; */	/* XXX */
 			ath_freetx(m);
 			goto bad;
 		}
+
 	nextfrag:
-		/*
-		 * Pass the frame to the h/w for transmission.
-		 * Fragmented frames have each frag chained together
-		 * with m_nextpkt.  We know there are sufficient ath_buf's
-		 * to send all the frags because of work done by
-		 * ath_txfrag_setup.  We leave m_nextpkt set while
-		 * calling ath_tx_start so it can use it to extend the
-		 * the tx duration to cover the subsequent frag and
-		 * so it can reclaim all the mbufs in case of an error;
-		 * ath_tx_start clears m_nextpkt once it commits to
-		 * handing the frame to the hardware.
-		 */
 		next = m->m_nextpkt;
 		if (ath_tx_start(sc, ni, bf, m)) {
 	bad:
-			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
-	reclaim:
-			bf->bf_m = NULL;
-			bf->bf_node = NULL;
+			/* if_statinc(ifp, if_oerrors); */
 			ATH_TXBUF_LOCK(sc);
 			STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
 			ath_txfrag_cleanup(sc, &frags, ni);
@@ -1440,18 +1408,6 @@ ath_start(struct ath_softc *sc)
 			continue;
 		}
 		if (next != NULL) {
-			/*
-			 * Beware of state changing between frags.
-			 * XXX check sta power-save state?
-			 */
-			if (ni->ni_vap->iv_state != IEEE80211_S_RUN) {
-				DPRINTF(sc, ATH_DEBUG_XMIT,
-				    "%s: flush fragmented packet, state %s\n",
-				    __func__,
-				    ieee80211_state_name[ni->ni_vap->iv_state]);
-				ath_freetx(next);
-				goto reclaim;
-			}
 			m = next;
 			bf = STAILQ_FIRST(&frags);
 			KASSERTMSG(bf != NULL, "no buf for txfrag");
@@ -1459,15 +1415,9 @@ ath_start(struct ath_softc *sc)
 			goto nextfrag;
 		}
 
-		callout_reset(&sc->sc_watchdog_ch, 5*hz,
+		callout_reset(&sc->sc_watchdog_ch, 1*hz,
 			ath_watchdog, sc);
-#if 0
-		/*
-		 * Flush stale frames from the fast-frame staging queue.
-		 */
-		if (ic->ic_opmode != IEEE80211_M_STA)
-			ath_ff_stageq_flush(sc, txq, ath_ff_ageflushtestdone);
-#endif
+
 	}
 }
 
@@ -1481,8 +1431,9 @@ ath_transmit(struct ieee80211com *ic, struct mbuf *m)
 	IF_ENQUEUE(&sc->sc_sendq, m);
 	splx(s);
 
-	if (!(sc->sc_flags & ATH_OACTIVE))
+	if (!(sc->sc_flags & ATH_OACTIVE)) {
 		ath_start(sc);
+	}
 
 	return 0;
 }
@@ -4237,7 +4188,9 @@ ath_tx_proc_q0(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
+	IEEE80211_TX_LOCK(sc->sc_ic);
 	ath_start(sc);
+	IEEE80211_TX_UNLOCK(sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4280,7 +4233,9 @@ ath_tx_proc_q0123(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
+	IEEE80211_TX_LOCK(sc->sc_ic);
 	ath_start(sc);
+	IEEE80211_TX_UNLOCK(sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4315,7 +4270,9 @@ ath_tx_proc(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
+	IEEE80211_TX_LOCK(sc->sc_ic);
 	ath_start(sc);
+	IEEE80211_TX_UNLOCK(sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4355,7 +4312,7 @@ ath_tx_draintxq(struct ath_softc *sc, struct ath_txq *txq)
 		bf->bf_m = NULL;
 		ATH_TXBUF_LOCK(sc);
 		STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
-		sc->sc_flags &= ATH_OACTIVE;
+		sc->sc_flags &= ~ATH_OACTIVE;
 		ATH_TXBUF_UNLOCK(sc);
 	}
 }
@@ -4521,7 +4478,7 @@ ath_dfswait(void *arg)
 	}
 	if (hchan.privFlags & CHANNEL_DFS_CLEAR) {
 		sc->sc_curchan.privFlags |= CHANNEL_DFS_CLEAR;
-		sc->sc_flags &= ATH_OACTIVE;
+		sc->sc_flags &= ~ATH_OACTIVE;
 		device_printf(sc->sc_dev,
 		    "channel %u/0x%x/0x%x marked clear\n",
 		    hchan.channel, hchan.channelFlags, hchan.privFlags);
@@ -4945,11 +4902,11 @@ static void
 ath_setup_stationkey(struct ieee80211_node *ni)
 {
 #if 0
-	struct ieee80211com *ic = ni->ni_ic;
-	struct ath_softc *sc = ic->ic_softc;
+	struct ieee80211vap *vap = ni->ni_vap;
+	struct ath_softc *sc = vap->iv_ic->ic_softc;
 	ieee80211_keyix keyix, rxkeyix;
 
-	if (!ath_key_alloc(ic, &ni->ni_ucastkey, &keyix, &rxkeyix)) {
+	if (!ath_key_alloc(vap, &ni->ni_ucastkey, &keyix, &rxkeyix)) {
 		/*
 		 * Key cache is full; we'll fall back to doing
 		 * the more expensive lookup in software.  Note
@@ -4961,7 +4918,7 @@ ath_setup_stationkey(struct ieee80211_node *ni)
 		ni->ni_ucastkey.wk_keyix = keyix;
 		ni->ni_ucastkey.wk_rxkeyix = rxkeyix;
 		/* NB: this will create a pass-thru key entry */
-		ath_keyset(sc, &ni->ni_ucastkey, ni->ni_macaddr, ic->ic_bss);
+		ath_keyset(sc, &ni->ni_ucastkey, ni->ni_macaddr, vap->iv_bss);
 	}
 #endif
 }
