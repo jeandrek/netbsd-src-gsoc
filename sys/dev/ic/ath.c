@@ -553,6 +553,7 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 		if (ath_hal_haswmetkipmic(ah))
 			sc->sc_flags |= ATH_WMETKIPMIC;
 	}
+	ic->ic_cryptocaps = 0; /* XXX doesn't work otherwise */
 
 	sc->sc_hasclrkey = ath_hal_ciphersupported(ah, HAL_CIPHER_CLR);
 	sc->sc_mcastkey = ath_hal_getmcastkeysearch(ah);
