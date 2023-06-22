@@ -512,26 +512,30 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	ic->ic_phytype = IEEE80211_T_OFDM;
 	ic->ic_opmode = IEEE80211_M_STA;
 
+	ic->ic_caps =
+		IEEE80211_C_STA |
+		IEEE80211_C_WPA;
+
 	/*
 	 * Query the hal to figure out h/w crypto support.
 	 */
 	if (ath_hal_ciphersupported(ah, HAL_CIPHER_WEP))
-		ic->ic_caps |= IEEE80211_CRYPTO_WEP;
+		ic->ic_cryptocaps |= IEEE80211_CRYPTO_WEP;
 	if (ath_hal_ciphersupported(ah, HAL_CIPHER_AES_OCB))
-		ic->ic_caps |= IEEE80211_CRYPTO_AES_OCB;
+		ic->ic_cryptocaps |= IEEE80211_CRYPTO_AES_OCB;
 	if (ath_hal_ciphersupported(ah, HAL_CIPHER_AES_CCM))
-		ic->ic_caps |= IEEE80211_CRYPTO_AES_CCM;
+		ic->ic_cryptocaps |= IEEE80211_CRYPTO_AES_CCM;
 	if (ath_hal_ciphersupported(ah, HAL_CIPHER_CKIP))
-		ic->ic_caps |= IEEE80211_CRYPTO_CKIP;
+		ic->ic_cryptocaps |= IEEE80211_CRYPTO_CKIP;
 	if (ath_hal_ciphersupported(ah, HAL_CIPHER_TKIP)) {
-		ic->ic_caps |= IEEE80211_CRYPTO_TKIP;
+		ic->ic_cryptocaps |= IEEE80211_CRYPTO_TKIP;
 		/*
 		 * Check if h/w does the MIC and/or whether the
 		 * separate key cache entries are required to
 		 * handle both tx+rx MIC keys.
 		 */
 		if (ath_hal_ciphersupported(ah, HAL_CIPHER_MIC))
-			ic->ic_caps |= IEEE80211_CRYPTO_TKIPMIC;
+			ic->ic_cryptocaps |= IEEE80211_CRYPTO_TKIPMIC;
 
 		/*
 		 * If the h/w supports storing tx+rx MIC keys
@@ -586,7 +590,6 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	 */
 	if (ath_hal_hasbursting(ah))
 		ic->ic_caps |= IEEE80211_C_BURST;
-	ic->ic_caps |= IEEE80211_C_WPA;
 
 	/*
 	 * Indicate we need the 802.11 header padded to a
@@ -1046,10 +1049,10 @@ ath_settkipmic(struct ath_softc *sc)
 	    !(sc->sc_flags & ATH_WMETKIPMIC)) {
 		if (ic->ic_flags & IEEE80211_F_WME) {
 			(void)ath_hal_settkipmic(ah, AH_FALSE);
-			ic->ic_caps &= ~IEEE80211_CRYPTO_TKIPMIC;
+			ic->ic_cryptocaps &= ~IEEE80211_CRYPTO_TKIPMIC;
 		} else {
 			(void)ath_hal_settkipmic(ah, AH_TRUE);
-			ic->ic_caps |= IEEE80211_CRYPTO_TKIPMIC;
+			ic->ic_cryptocaps |= IEEE80211_CRYPTO_TKIPMIC;
 		}
 	}
 }
@@ -1375,9 +1378,6 @@ ath_start(struct ath_softc *sc)
 		/* if_statinc(ifp, if_opackets); */
 
 		/* bpf_mtap(ifp, m, BPF_D_OUT); */
-
-		m = ieee80211_encap(ni->ni_vap, ni, m);
-		if (m == NULL) goto bad;
 
 		/*
 		 * Check for fragmentation.  If this has frame
@@ -4188,9 +4188,7 @@ ath_tx_proc_q0(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	IEEE80211_TX_LOCK(&sc->sc_ic);
 	ath_start(sc);
-	IEEE80211_TX_UNLOCK(&sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4233,9 +4231,7 @@ ath_tx_proc_q0123(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	IEEE80211_TX_LOCK(&sc->sc_ic);
 	ath_start(sc);
-	IEEE80211_TX_UNLOCK(&sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
@@ -4270,9 +4266,7 @@ ath_tx_proc(void *arg, int npending)
 #ifdef __NetBSD__
 	s = splnet();
 #endif
-	IEEE80211_TX_LOCK(&sc->sc_ic);
 	ath_start(sc);
-	IEEE80211_TX_UNLOCK(&sc->sc_ic);
 #ifdef __NetBSD__
 	splx(s);
 #endif
