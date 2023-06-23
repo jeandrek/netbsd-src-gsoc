@@ -204,7 +204,9 @@ static void	ath_restore_diversity(struct ath_softc *);
 static int	ath_rate_setup(struct ath_softc *, u_int mode);
 static void	ath_setcurmode(struct ath_softc *, enum ieee80211_phymode);
 
+#if 0
 static void	ath_bpfattach(struct ath_softc *);
+#endif
 static void	ath_announce(struct ath_softc *);
 
 #ifdef __NetBSD__
@@ -514,6 +516,7 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 
 	ic->ic_caps =
 		IEEE80211_C_STA |
+		IEEE80211_C_MONITOR |
 		IEEE80211_C_WPA;
 
 	/*
@@ -632,7 +635,6 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	ic->ic_scan_end = ath_scan_end;
 	ic->ic_set_channel = ath_set_channel;
 	ic->ic_getradiocaps = ath_get_radiocaps;
-	if (0) ath_bpfattach(sc);
 
 	/*
 	 * Setup dynamic sysctl's now that country code and
@@ -696,7 +698,7 @@ ath_vap_delete(struct ieee80211vap *vap)
 {
 	struct ath_vap *avp = ATH_VAP(vap);
 
-	/* bpf_detach(ifp); */
+	bpf_detach(vap->iv_ifp);
 	ieee80211_vap_detach(vap);
 	kmem_free(avp, sizeof(*avp));
 }
@@ -1375,8 +1377,6 @@ ath_start(struct ath_softc *sc)
 		 */
 		ni = M_GETCTX(m, struct ieee80211_node *);
 		M_CLEARCTX(m);
-
-		/* bpf_mtap(ifp, m, BPF_D_OUT); */
 
 		/*
 		 * Check for fragmentation.  If this frame
@@ -5473,6 +5473,7 @@ ath_ioctl(struct ifnet *ifp, u_long cmd, void *data)
 }
 #endif
 
+#if 0
 static void
 ath_bpfattach(struct ath_softc *sc)
 {
@@ -5499,6 +5500,7 @@ ath_bpfattach(struct ath_softc *sc)
 	sc->sc_rx_th.wr_ihdr.it_len = htole16(sc->sc_rx_th_len);
 	sc->sc_rx_th.wr_ihdr.it_present = htole32(ATH_RX_RADIOTAP_PRESENT);
 }
+#endif
 
 /*
  * Announce various information on device/driver attach.
