@@ -1367,21 +1367,19 @@ ath_start(struct ath_softc *sc)
 		/*
 		 * Hack!  The referenced node pointer is in the
 		 * rcvif field of the packet header.  This is
-		 * placed there by ieee80211_mgmt_output because
-		 * we need to hold the reference with the frame
-		 * and there's no other way (other than packet
-		 * tags which we consider too expensive to use)
-		 * to pass it along.
+		 * placed there by ieee80211_vap_pkt_send_dest
+		 * because we need to hold the reference with the
+		 * frame and there's no other way (other than
+		 * packet tags which we consider too expensive to
+		 * use) to pass it along.
 		 */
 		ni = M_GETCTX(m, struct ieee80211_node *);
 		M_CLEARCTX(m);
 
-		/* if_statinc(ifp, if_opackets); */
-
 		/* bpf_mtap(ifp, m, BPF_D_OUT); */
 
 		/*
-		 * Check for fragmentation.  If this has frame
+		 * Check for fragmentation.  If this frame
 		 * has been broken up verify we have enough
 		 * buffers to send all the fragments so all
 		 * go out or none...
@@ -1399,7 +1397,7 @@ ath_start(struct ath_softc *sc)
 		next = m->m_nextpkt;
 		if (ath_tx_start(sc, ni, bf, m)) {
 	bad:
-			/* if_statinc(ifp, if_oerrors); */
+			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
 			ATH_TXBUF_LOCK(sc);
 			STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
 			ath_txfrag_cleanup(sc, &frags, ni);
