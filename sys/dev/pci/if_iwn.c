@@ -268,6 +268,11 @@ static int	iwn_raw_xmit(struct ieee80211_node *, struct mbuf *,
 static void	iwn4965_print_power_group(struct iwn_softc *, int);
 #endif
 static void	iwn5000_read_eeprom(struct iwn_softc *);
+static uint32_t iwn_eeprom_channel_flags(struct iwn_eeprom_chan *);
+static void	iwn_read_eeprom_band(struct iwn_softc *, int, int, int *,
+		    struct ieee80211_channel[]);
+static void	iwn_read_eeprom_ht40(struct iwn_softc *, int, int, int *,
+		    struct ieee80211_channel[]);
 static void	iwn_read_eeprom_channels(struct iwn_softc *, int, uint32_t);
 static void	iwn_read_eeprom_enhinfo(struct iwn_softc *);
 static void	iwn_newassoc(struct ieee80211_node *, int);
@@ -463,26 +468,13 @@ iwn_get_radiocaps(struct ieee80211com *ic,
     int maxchans, int *nchans, struct ieee80211_channel chans[])
 {
 	struct iwn_softc *sc = ic->ic_softc;
-        uint8_t bands[IEEE80211_MODE_BYTES];
+	int i;
 
-        /*
-         * NNN Should be able to do something based on chip if
-         * a chip has more bands .... eg. N ... but for the future.
-         */
-
-        memset(bands, 0, sizeof(bands));
-	if (sc->sc_flags & IWN_FLAG_HAS_5GHZ)
-        	setbit(bands, IEEE80211_MODE_11A);
-        setbit(bands, IEEE80211_MODE_11B);
-        setbit(bands, IEEE80211_MODE_11G);
-#ifndef IEEE80211_NO_HT
-	setbit(bands, IEEE80211_MODE_11NG);
-	if (sc->sc_flags & IWN_FLAG_HAS_5GHZ)
-		setbit(bands, IEEE80211_MODE_11NA);
-#endif
-	/* XXX is it still safe to use NULL here as ic channels are populated
-	   when firmware is read */
-        ieee80211_init_channels(ic, NULL, bands);
+	/* Parse the list of authorized channels. */
+	for (i = 0; i < 5 && *nchans < maxchans; i++)
+		iwn_read_eeprom_band(sc, i, maxchans, nchans, chans);
+	for (i = 5; i < IWN_NBANDS - 1 && *nchans < maxchans; i++)
+		iwn_read_eeprom_ht40(sc, i, maxchans, nchans, chans);
 }
 
 static void
@@ -706,6 +698,10 @@ iwn_config_complete(device_t self)
 	ic->ic_phytype = IEEE80211_T_OFDM;	/* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA;	/* default to BSS mode */
 
+	/* init radio send queue */
+	IFQ_SET_MAXLEN(&sc->sc_sendq, IFQ_MAXLEN);
+	IFQ_LOCK_INIT(&sc->sc_sendq);
+
 	/*
 	 * Set device capabilities.
 	 * XXX OpenBSD has IEEE80211_C_WEP, IEEE80211_C_RSN, and
@@ -726,9 +722,14 @@ iwn_config_complete(device_t self)
 		/* Set HT capabilities. */
 		ic->ic_htcaps =
 	    	    IEEE80211_HTC_HT |
+#ifdef notyet
+	    	    IEEE80211_HTC_AMPDU |
+	    	    IEEE80211_HTC_AMSDU |		/* A-MSDU tx */
 #if IWN_RBUF_SIZE == 8192
 		    IEEE80211_HTCAP_AMSDU7935 |
 #endif
+#endif
+		    IEEE80211_HTCAP_SMPS_OFF |
 	    	    IEEE80211_HTCAP_SHORTGI20 |		/* short GI in 20MHz */
 	    	    IEEE80211_HTCAP_CHWIDTH40 |		/* 40 MHz channel width */
 	    	    IEEE80211_HTCAP_SHORTGI40;		/* short GI in 40MHz */
@@ -740,7 +741,6 @@ iwn_config_complete(device_t self)
 		else
 			ic->ic_htcaps |= IEEE80211_HTCAP_SMPS_DIS;
 #endif
-
 	}
 #endif	/* !IEEE80211_NO_HT */
 
@@ -774,7 +774,6 @@ iwn_config_complete(device_t self)
 	iwn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,
 	    ic->ic_channels);
 
-	//ifp->if_percpuq = if_percpuq_create(ifp);
 	ieee80211_ifattach(ic);
 
 	ic->ic_vap_create = iwn_vap_create;
@@ -1014,16 +1013,21 @@ iwn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 	/* Local setup */
 	vap->vap.iv_reset = iwn_reset;
 
-	/* Finish setup */
-	ieee80211_vap_attach(&vap->vap, iwn_media_change,
-	    ieee80211_media_status, macaddr);
+	/* Use common softint-based if_input */
+	vap->vap.iv_ifp->if_percpuq = if_percpuq_create(vap->vap.iv_ifp);
 
 	/* Override state transition machine. */
 	/* NNN --- many possible newstate machines ... issue! */
 	vap->newstate = vap->vap.iv_newstate;
 	vap->vap.iv_newstate = iwn_newstate;
+	vap->vap.iv_ifp->if_start = iwn_start;
+	vap->vap.iv_ifp->if_extflags |= IFEF_MPSAFE;
 
 	ic->ic_opmode = opmode;
+
+	/* Finish setup */
+	ieee80211_vap_attach(&vap->vap, iwn_media_change,
+	    ieee80211_media_status, macaddr);
 
 	return &vap->vap;
 }
@@ -2074,12 +2078,145 @@ iwn5000_read_eeprom(struct iwn_softc *sc)
 	}
 }
 
+/*
+ * Translate EEPROM flags to net80211.
+ */
+static uint32_t
+iwn_eeprom_channel_flags(struct iwn_eeprom_chan *channel)
+{
+	uint32_t nflags;
+
+	nflags = 0;
+	if ((channel->flags & IWN_EEPROM_CHAN_ACTIVE) == 0)
+		nflags |= IEEE80211_CHAN_PASSIVE;
+	if ((channel->flags & IWN_EEPROM_CHAN_IBSS) == 0)
+		nflags |= IEEE80211_CHAN_NOADHOC;
+	if (channel->flags & IWN_EEPROM_CHAN_RADAR) {
+		nflags |= IEEE80211_CHAN_DFS;
+		/* XXX apparently IBSS may still be marked */
+		nflags |= IEEE80211_CHAN_NOADHOC;
+	}
+
+	return nflags;
+}
+
+static void
+iwn_read_eeprom_band(struct iwn_softc *sc, int n, int maxchans, int *nchans,
+    struct ieee80211_channel chans[])
+{
+	struct iwn_eeprom_chan *channels = &sc->eeprom_channels[n];
+	const struct iwn_chan_band *band = &iwn_bands[n];
+	uint8_t bands[IEEE80211_MODE_BYTES];
+	uint8_t chan;
+	int i, error, nflags;
+
+	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s begin\n", __func__));
+
+	memset(bands, 0, sizeof(bands));
+	if (n == 0) {
+		setbit(bands, IEEE80211_MODE_11B);
+		setbit(bands, IEEE80211_MODE_11G);
+		if (sc->sc_flags & IWN_FLAG_HAS_11N)
+			setbit(bands, IEEE80211_MODE_11NG);
+	} else {
+		setbit(bands, IEEE80211_MODE_11A);
+		if (sc->sc_flags & IWN_FLAG_HAS_11N)
+			setbit(bands, IEEE80211_MODE_11NA);
+	}
+
+	for (i = 0; i < band->nchan; i++) {
+		if (!(channels[i].flags & IWN_EEPROM_CHAN_VALID)) {
+			DPRINTF((sc, IWN_DEBUG_RESET,
+			    "skip chan %d flags 0x%x maxpwr %d\n",
+			    band->chan[i], channels[i].flags,
+			    channels[i].maxpwr));
+			continue;
+		}
+
+		chan = band->chan[i];
+		nflags = iwn_eeprom_channel_flags(&channels[i]);
+		error = ieee80211_add_channel(chans, maxchans, nchans,
+		    chan, 0, channels[i].maxpwr, nflags, bands);
+		if (error != 0)
+			break;
+
+		/* Save maximum allowed TX power for this channel. */
+		/* XXX wrong */
+		sc->maxpwr[chan] = channels[i].maxpwr;
+
+		DPRINTF((sc, IWN_DEBUG_RESET,
+		    "add chan %d flags 0x%x maxpwr %d\n", chan,
+		    channels[i].flags, channels[i].maxpwr));
+	}
+
+	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s end\n", __func__));
+
+}
+
+void
+iwn_read_eeprom_ht40(struct iwn_softc *sc, int n, int maxchans, int *nchans,
+    struct ieee80211_channel chans[])
+{
+	struct iwn_eeprom_chan *channels = &sc->eeprom_channels[n];
+	const struct iwn_chan_band *band = &iwn_bands[n];
+	uint8_t chan;
+	int i, error, nflags;
+
+	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s start\n", __func__));
+
+	if (!(sc->sc_flags & IWN_FLAG_HAS_11N)) {
+		DPRINTF((sc, IWN_DEBUG_TRACE, "->%s end no 11n\n", __func__));
+		return;
+	}
+
+	for (i = 0; i < band->nchan; i++) {
+		if (!(channels[i].flags & IWN_EEPROM_CHAN_VALID)) {
+			DPRINTF((sc, IWN_DEBUG_RESET,
+			    "skip chan %d flags 0x%x maxpwr %d\n",
+			    band->chan[i], channels[i].flags,
+			    channels[i].maxpwr));
+			continue;
+		}
+
+		chan = band->chan[i];
+		nflags = iwn_eeprom_channel_flags(&channels[i]);
+		nflags |= (n == 5 ? IEEE80211_CHAN_G : IEEE80211_CHAN_A);
+		error = ieee80211_add_channel_ht40(chans, maxchans, nchans,
+		    chan, channels[i].maxpwr, nflags);
+		switch (error) {
+		case EINVAL:
+			device_printf(sc->sc_dev,
+			    "%s: no entry for channel %d\n", __func__, chan);
+			continue;
+		case ENOENT:
+			DPRINTF((sc, IWN_DEBUG_RESET,
+			    "%s: skip chan %d, extension channel not found\n",
+			    __func__, chan));
+			continue;
+		case ENOBUFS:
+			device_printf(sc->sc_dev,
+			    "%s: channel table is full!\n", __func__);
+			break;
+		case 0:
+			DPRINTF((sc, IWN_DEBUG_RESET,
+			    "add ht40 chan %d flags 0x%x maxpwr %d\n",
+			    chan, channels[i].flags, channels[i].maxpwr));
+			/* FALLTHROUGH */
+		default:
+			break;
+		}
+	}
+
+	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s end\n", __func__));
+
+}
+
 static void
 iwn_read_eeprom_channels(struct iwn_softc *sc, int n, uint32_t addr)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
+	struct iwn_eeprom_chan *channels = &sc->eeprom_channels[n];
 	const struct iwn_chan_band *band = &iwn_bands[n];
-	struct iwn_eeprom_chan channels[IWN_MAX_CHAN_PER_BAND];
 	uint8_t chan;
 	int i;
 
@@ -2580,7 +2717,7 @@ iwn_rx_done(struct ieee80211vap *vap, struct iwn_rx_desc *desc,
 		}
 	}
 
-	ieee80211_rx_enqueue(ic, m, rssi);
+	ieee80211_rx_enqueue(ic, m, rssi + 135);
 	splx(s);
 }
 
@@ -3273,7 +3410,7 @@ static int
 iwn_transmit(struct ieee80211com *ic, struct mbuf *m)
 {
 	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
-	//struct iwn_softc *sc = vap->iv_ic->ic_softc;
+	struct iwn_softc *sc = vap->iv_ic->ic_softc;
 	int s;
 
 	size_t pktlen = m->m_pkthdr.len;
@@ -3283,7 +3420,8 @@ iwn_transmit(struct ieee80211com *ic, struct mbuf *m)
 
 	s = splnet();
 
-	IF_ENQUEUE(&vap->iv_ifp->if_snd, m);
+	IF_ENQUEUE(&sc->sc_sendq, m);
+	//IF_ENQUEUE(&vap->iv_ifp->if_snd, m);
         if_statadd(vap->iv_ifp, if_obytes, pktlen);
         if (mcast)
                 if_statinc(vap->iv_ifp, if_omcasts);
@@ -3359,13 +3497,13 @@ iwn_raw_xmit(struct ieee80211_node *ni , struct mbuf *m,
 	ac = (eh->ether_type != htons(ETHERTYPE_PAE)) ?
 	    M_WME_GETAC(m) : WME_AC_BE;
 
-        bpf_mtap3(vap->iv_rawbpf, m, BPF_D_OUT);
-
 	if (iwn_tx(vap, m, ni, ac) != 0) {
 		ieee80211_tx_complete(ni, m, 1);
 		if_statinc(ifp, if_oerrors);
 		return ENXIO;
 	}
+
+	ieee80211_radiotap_tx(vap, m);
 
 	sc->sc_tx_timer = 5;
 	ifp->if_timer = 1;
@@ -3675,7 +3813,8 @@ iwn_start(struct ifnet *ifp)
 		}
 
 		/* Encapsulate and send data frames. */
-		IFQ_DEQUEUE(&ifp->if_snd, m);
+		IF_POLL(&sc->sc_sendq, m);
+		//IFQ_DEQUEUE(&ifp->if_snd, m);
 		if (m == NULL)
 			break;
 		if (m->m_len < sizeof (*eh) &&
@@ -3711,18 +3850,18 @@ iwn_start(struct ifnet *ifp)
 		ac = (eh->ether_type != htons(ETHERTYPE_PAE)) ?
 		    M_WME_GETAC(m) : WME_AC_BE;
 
-		if (sc->sc_beacon_wait == 0)
-			ieee80211_radiotap_tx(vap, m);
 		if (sc->sc_beacon_wait)
 			continue;
-
-		//bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT);
 
 		if (iwn_tx(vap, m, ni, ac) != 0) {
 			ieee80211_tx_complete(ni, m, 1);
 			if_statinc(ifp, if_oerrors);
 			continue;
 		}
+
+		if (sc->sc_beacon_wait == 0)
+			ieee80211_radiotap_tx(vap, m);
+		IF_DEQUEUE(&sc->sc_sendq, m);
 
 		sc->sc_tx_timer = 5;
 		ifp->if_timer = 1;

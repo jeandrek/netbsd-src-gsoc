@@ -201,6 +201,7 @@ struct iwn_softc {
 
 	struct ethercom		sc_ec;
 	struct ieee80211com	sc_ic;
+	struct ifqueue		sc_sendq;
 
 	struct ieee80211_amrr	amrr;
 	uint8_t			fixed_ridx;
@@ -342,5 +343,6 @@ struct iwn_softc {
 	kcondvar_t		t_event;	
 
 	int			sc_beacon_wait;	/* defer/skip sending */
+	struct iwn_eeprom_chan  eeprom_channels[IWN_MAX_CHAN_PER_BAND];
 };
 
