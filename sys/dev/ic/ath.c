@@ -513,11 +513,15 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 
 	ic->ic_phytype = IEEE80211_T_OFDM;
 	ic->ic_opmode = IEEE80211_M_STA;
-
 	ic->ic_caps =
-		IEEE80211_C_STA |
-		IEEE80211_C_MONITOR |
-		IEEE80211_C_WPA;
+		  IEEE80211_C_IBSS		/* ibss, nee adhoc, mode */
+		| IEEE80211_C_HOSTAP		/* hostap mode */
+		| IEEE80211_C_MONITOR		/* monitor mode */
+		| IEEE80211_C_SHPREAMBLE	/* short preamble supported */
+		| IEEE80211_C_SHSLOT		/* short slot time supported */
+		| IEEE80211_C_WPA		/* capable of WPA1+WPA2 */
+		| IEEE80211_C_TXFRAG		/* handle tx frags */
+		;
 
 	/*
 	 * Query the hal to figure out h/w crypto support.
@@ -644,7 +648,6 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 
 	ieee80211_announce(ic);
 	ath_announce(sc);
-
 	return 0;
 bad2:
 	ath_tx_cleanup(sc);
@@ -4992,10 +4995,6 @@ ath_get_radiocaps(struct ieee80211com *ic,
 		 * to understand static vs. dynamic turbo.
 		 */
 		flags = c->channelFlags & COMPAT;	/* Still needed? */
-#if 0
-		if (c->channelFlags & CHANNEL_STURBO)
-			flags |= IEEE80211_CHAN_TURBO;
-#endif
 
 		memset(bands, 0, sizeof(bands));
 		if ((c->channelFlags & IEEE80211_CHAN_A)
@@ -5023,15 +5022,6 @@ ath_get_radiocaps(struct ieee80211com *ic,
 
 		ieee80211_add_channel(chans, maxchans, nchans, ix, c->channel,
 			0, flags, bands);
-#if 0
-		if (ic->ic_channels[ix].ic_freq == 0) {
-			ic->ic_channels[ix].ic_freq = c->channel;
-			ic->ic_channels[ix].ic_flags = flags;
-		} else {
-			/* channels overlap; e.g. 11g and 11b */
-			ic->ic_channels[ix].ic_flags |= flags;
-		}
-#endif
 	}
 	free(hchans, M_TEMP);
 #undef COMPAT
