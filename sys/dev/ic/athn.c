@@ -145,7 +145,6 @@ PUBLIC int
 athn_attach(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct ifnet *ifp = &sc->sc_if;
 	size_t max_nnodes;
 	int error;
 
@@ -250,7 +249,7 @@ athn_attach(struct athn_softc *sc)
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    sc->sc_mac_rev,
 		    sc->sc_ntxchains, sc->sc_nrxchains, sc->sc_eep_rev,
-		    ether_sprintf(ic->ic_myaddr));
+		    ether_sprintf(ic->ic_macaddr));
 	} else {
 		aprint_normal(": Atheros %s, RF %s\n", athn_get_mac_name(sc),
 		    athn_get_rf_name(sc));
@@ -258,7 +257,7 @@ athn_attach(struct athn_softc *sc)
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    sc->sc_mac_rev,
 		    sc->sc_ntxchains, sc->sc_nrxchains,
-		    sc->sc_eep_rev, ether_sprintf(ic->ic_myaddr));
+		    sc->sc_eep_rev, ether_sprintf(ic->ic_macaddr));
 	}
 
 	callout_init(&sc->sc_scan_to, 0);
@@ -271,10 +270,10 @@ athn_attach(struct athn_softc *sc)
 
 	ic->ic_phytype = IEEE80211_T_OFDM;	/* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA;	/* default to BSS mode */
-	ic->ic_state = IEEE80211_S_INIT;
 
 	/* Set device capabilities. */
 	ic->ic_caps =
+	    IEEE80211_C_STA |
 	    IEEE80211_C_WPA |		/* 802.11i */
 #ifndef IEEE80211_STA_ONLY
 	    IEEE80211_C_HOSTAP |	/* Host AP mode supported. */
@@ -337,8 +336,8 @@ athn_attach(struct athn_softc *sc)
 	/* Get the list of authorized/supported channels. */
 	athn_get_chanlist(sc);
 
-	ifp->if_softc = sc;
-	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
+	ic->ic_vap_create = athn_vap_create;
+#if 0
 	if (!ifp->if_init)
 		ifp->if_init = athn_init;
 	if (!ifp->if_ioctl)
@@ -347,14 +346,12 @@ athn_attach(struct athn_softc *sc)
 		ifp->if_start = athn_start;
 	if (!ifp->if_watchdog)
 		ifp->if_watchdog = athn_watchdog;
-	IFQ_SET_READY(&ifp->if_snd);
-	memcpy(ifp->if_xname, device_xname(sc->sc_dev), IFNAMSIZ);
+#endif
+	IFQ_SET_MAXLEN(&sc->sc_sendq, IFQ_MAXLEN);
+	IFQ_LOCK_INIT(&sc->sc_sendq);
+	ic->ic_name = device_xname(sc->sc_dev);
 
-	if_initialize(ifp);
 	ieee80211_ifattach(ic);
-	/* Use common softint-based if_input */
-	ifp->if_percpuq = if_percpuq_create(ifp);
-	if_register(ifp);
 
 	ic->ic_node_alloc = athn_node_alloc;
 	ic->ic_newassoc = athn_newassoc;
@@ -368,10 +365,6 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_delete_key = athn_delete_key;
 #endif
 
-	/* Override 802.11 state transition machine. */
-	sc->sc_newstate = ic->ic_newstate;
-	ic->ic_newstate = athn_newstate;
-
 	/* XXX we should create at least one vap here??? */
 
 	if (sc->sc_media_change == NULL)
@@ -380,6 +373,36 @@ athn_attach(struct athn_softc *sc)
 
 	athn_radiotap_attach(sc);
 	return 0;
+}
+
+static struct ieee80211vap *
+ath_vap_create(struct ieee80211com *ic,
+    const char name[IFNAMSIZ], int unit, enum ieee80211_opmode opmode,
+    int flags, const uint8_t bssid[IEEE80211_ADDR_LEN],
+    const uint8_t macaddr[IEEE80211_ADDR_LEN])
+{
+	struct athn_vap *avp;
+	struct ieee80211vap *vap;
+
+	avp = kmem_zalloc(sizeof(*avp), KM_SLEEP);
+	vap = &avp->av_vap;
+	if (ieee80211_vap_setup(ic, vap, name, unit, opmode,
+		flags | IEEE80211_CLONE_NOBEACONS, bssid) != 0) {
+		kmem_free(vap, sizeof(*vap));
+		return NULL;
+	}
+
+	/* Use common softint-based if_input */
+	vap->iv_ifp->if_percpuq = if_percpuq_create(vap->iv_ifp);
+
+	/* Override 802.11 state transition machine. */
+	sc->sc_newstate = ic->ic_newstate;
+	ic->ic_newstate = athn_newstate;
+
+	ieee80211_vap_attach(vap, ieee80211_media_change,
+	    ieee80211_media_status, macaddr);
+	ic->ic_opmode = opmode;
+	return vap;
 }
 
 PUBLIC void
@@ -1057,7 +1080,7 @@ Static int
 athn_set_key(struct ieee80211com *ic, struct ieee80211_node *ni,
     struct ieee80211_key *k)
 {
-	struct athn_softc *sc = ic->ic_ifp->if_softc;
+	struct athn_softc *sc = ic->ic_softc;
 	const uint8_t *txmic, *rxmic, *key, *addr;
 	uintptr_t entry, micentry;
 	uint32_t type, lo, hi;
@@ -1137,7 +1160,7 @@ Static void
 athn_delete_key(struct ieee80211com *ic, struct ieee80211_node *ni,
     struct ieee80211_key *k)
 {
-	struct athn_softc *sc = ic->ic_ifp->if_softc;
+	struct athn_softc *sc = ic->ic_softc;
 	uintptr_t entry;
 
 	switch (k->k_cipher) {
@@ -2298,8 +2321,8 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	ops->init_from_rom(sc, curchan, extchan);
 
 	/* XXX */
-	AR_WRITE(sc, AR_STA_ID0, LE_READ_4(&ic->ic_myaddr[0]));
-	AR_WRITE(sc, AR_STA_ID1, LE_READ_2(&ic->ic_myaddr[4]) |
+	AR_WRITE(sc, AR_STA_ID0, LE_READ_4(&ic->ic_macaddr[0]));
+	AR_WRITE(sc, AR_STA_ID1, LE_READ_2(&ic->ic_macaddr[4]) |
 	    sta_id1 | AR_STA_ID1_RTS_USE_DEF | AR_STA_ID1_CRPT_MIC_ENABLE);
 
 	athn_set_opmode(sc);
@@ -2415,7 +2438,7 @@ Static void
 athn_newassoc(struct ieee80211_node *ni, int isnew)
 {
 	struct ieee80211com *ic = ni->ni_ic;
-	struct athn_softc *sc = ic->ic_ifp->if_softc;
+	struct athn_softc *sc = ic->ic_softc;
 	struct athn_node *an = (void *)ni;
 	struct ieee80211_rateset *rs = &ni->ni_rates;
 	uint8_t rate;
@@ -2491,10 +2514,10 @@ athn_next_scan(void *arg)
 }
 
 Static int
-athn_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
+athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 {
-	struct ifnet *ifp = ic->ic_ifp;
-	struct athn_softc *sc = ifp->if_softc;
+	struct ieee80211com *ic = vap->iv_ic;
+	struct athn_softc *sc = ic->ic_softc;
 	uint32_t reg;
 	int error;
 
@@ -2571,7 +2594,7 @@ PUBLIC void
 athn_updateedca(struct ieee80211com *ic)
 {
 #define ATHN_EXP2(x)	((1 << (x)) - 1)	/* CWmin = 2^ECWmin - 1 */
-	struct athn_softc *sc = ic->ic_ifp->if_softc;
+	struct athn_softc *sc = ic->ic_softc;
 	const struct ieee80211_edca_ac_params *ac;
 	int aci, qid;
 
@@ -2717,8 +2740,8 @@ athn_watchdog(struct ifnet *ifp)
 Static void
 athn_set_multi(struct athn_softc *sc)
 {
+#if 0
 	struct ethercom *ec = &sc->sc_ec;
-	struct ifnet *ifp = &ec->ec_if;
 	struct ether_multi *enm;
 	struct ether_multistep step;
 	const uint8_t *addr;
@@ -2726,8 +2749,11 @@ athn_set_multi(struct athn_softc *sc)
 	uint8_t bit;
 
 	if ((ifp->if_flags & (IFF_ALLMULTI | IFF_PROMISC)) != 0) {
+#endif
+		uint32_t lo, hi;
 		lo = hi = 0xffffffff;
 		goto done2;
+#if 0
 	}
 	lo = hi = 0;
 	ETHER_LOCK(ec);
@@ -2753,6 +2779,7 @@ athn_set_multi(struct athn_softc *sc)
 	}
  done:
 	ETHER_UNLOCK(ec);
+#endif
  done2:
 	AR_WRITE(sc, AR_MCAST_FIL0, lo);
 	AR_WRITE(sc, AR_MCAST_FIL1, hi);
@@ -2862,7 +2889,7 @@ athn_init(struct ifnet *ifp)
 	extchan = NULL;
 
 	/* In case a new MAC address has been configured. */
-	IEEE80211_ADDR_COPY(ic->ic_myaddr, CLLADDR(ifp->if_sadl));
+	IEEE80211_ADDR_COPY(ic->ic_macaddr, CLLADDR(ifp->if_sadl));
 
 #ifdef openbsd_power_management
 	/* For CardBus, power on the socket. */
