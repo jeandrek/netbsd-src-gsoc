@@ -84,6 +84,12 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 int athn_debug = 0;
 #endif
 
+Static struct ieee80211vap *
+		athn_vap_create(struct ieee80211com *, const char [IFNAMSIZ],
+		    int, enum ieee80211_opmode, int,
+		    const uint8_t [IEEE80211_ADDR_LEN],
+		    const uint8_t [IEEE80211_ADDR_LEN]);
+Static void	athn_parent(struct ieee80211com *);
 Static int	athn_clock_rate(struct athn_softc *);
 Static const char *
 		athn_get_mac_name(struct athn_softc *);
@@ -96,7 +102,8 @@ Static int	athn_media_change(struct ifnet *);
 Static int	athn_newstate(struct ieee80211com *, enum ieee80211_state,
 		    int);
 Static struct ieee80211_node *
-		athn_node_alloc(struct ieee80211_node_table *);
+		athn_node_alloc(struct ieee80211vap *,
+		    const uint8_t [IEEE80211_ADDR_LEN]);
 Static int	athn_reset_power_on(struct athn_softc *);
 Static int	athn_stop_rx_dma(struct athn_softc *);
 Static int	athn_switch_chan(struct athn_softc *,
@@ -115,6 +122,9 @@ Static void	athn_next_scan(void *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_radiotap_attach(struct athn_softc *);
 Static void	athn_start(struct athn_softc *);
+Static int	athn_transmit(stuct iee80211com *ic, struct mbuf *m);
+Static int	athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
+		    const struct ieee80211_bpf_params *bpfp);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
 Static void	athn_watchdog(struct ifnet *);
 Static void	athn_write_serdes(struct athn_softc *,
@@ -336,7 +346,6 @@ athn_attach(struct athn_softc *sc)
 	/* Get the list of authorized/supported channels. */
 	athn_get_chanlist(sc);
 
-	ic->ic_vap_create = athn_vap_create;
 #if 0
 	if (!ifp->if_init)
 		ifp->if_init = athn_init;
@@ -353,6 +362,10 @@ athn_attach(struct athn_softc *sc)
 
 	ieee80211_ifattach(ic);
 
+	ic->ic_vap_create = athn_vap_create;
+	ic->ic_parent = athn_parent;
+	ic->ic_transmit = athn_transmit;
+	ic->ic_raw_xmit = athn_raw_xmit;
 	ic->ic_node_alloc = athn_node_alloc;
 	ic->ic_newassoc = athn_newassoc;
 	if (ic->ic_updateslot == NULL)
@@ -375,7 +388,7 @@ athn_attach(struct athn_softc *sc)
 	return 0;
 }
 
-static struct ieee80211vap *
+Static struct ieee80211vap *
 athn_vap_create(struct ieee80211com *ic,
     const char name[IFNAMSIZ], int unit, enum ieee80211_opmode opmode,
     int flags, const uint8_t bssid[IEEE80211_ADDR_LEN],
@@ -403,6 +416,20 @@ athn_vap_create(struct ieee80211com *ic,
 	    ieee80211_media_status, macaddr);
 	ic->ic_opmode = opmode;
 	return vap;
+}
+
+Static void
+athn_parent(struct ieee80211com *ic)
+{
+	struct athn_softc *sc = ic->ic_softc;
+	bool startall = false;
+
+	if (ic->ic_nrunning > 0) {
+		athn_init(sc);
+		startall = true;
+	} else if (ic->ic_nrunning == 0)
+		athn_stop(sc, 0);
+	if (startall) ieee80211_start_all(ic);
 }
 
 PUBLIC void
@@ -2427,7 +2454,8 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 }
 
 Static struct ieee80211_node *
-athn_node_alloc(struct ieee80211_node_table *ntp)
+athn_node_alloc(struct ieee80211vap *vap,
+    const uint8_t mac[IEEE80211_ADDR_LEN])
 {
 
 	return malloc(sizeof(struct athn_node), M_DEVBUF,
@@ -2712,6 +2740,33 @@ athn_start(struct athn_softc *sc)
 		/* ifp->if_timer = 1; */
 	}
 }
+
+Static int
+athn_transmit(stuct iee80211com *ic, struct mbuf *m)
+{
+	struct athn_softc *sc = ic->ic_softc;
+	int s;
+
+	s = splnet();
+	IF_ENQUEUE(&sc->sc_sendq, m);
+	splx(s);
+
+	if (!(sc->sc_flags & ATHN_FLAG_OACTIVE)) {
+		athn_start(sc);
+	}
+	return 0;
+}
+
+Static int
+athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
+    const struct ieee80211_bpf_params *bpfp)
+{
+	struct ieee80211com *ic = ni->ni_ic;
+	struct athn_softc *sc = ic->ic_softc;
+	/* XXX Is everything handled? */
+	return sc->sc_ops.tx(sc, m, ni, 0);
+}
+
 
 Static void
 athn_watchdog(struct ifnet *ifp)
