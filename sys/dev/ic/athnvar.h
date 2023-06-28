@@ -496,6 +496,7 @@ struct athn_softc {
 #define ATHN_FLAG_AN_TOP2_FIXUP		(1 << 12)
 #define ATHN_FLAG_NON_ENTERPRISE	(1 << 13)
 #define ATHN_FLAG_3TREDUCE_CHAIN	(1 << 14)
+#define ATHN_FLAG_OACTIVE		(1 << 15)
 
 	uint8_t				sc_ngpiopins;
 	int				sc_led_pin;
@@ -620,6 +621,12 @@ struct athn_softc {
 	int				(*sc_media_change)(struct ifnet *);
 };
 
+struct athn_vap {
+	struct ieee80211vap	av_vap;
+	int		(*av_newstate)(struct ieee80211vap *,
+				enum ieee80211_state, int);
+}
+
 int	athn_attach(struct athn_softc *);
 void	athn_detach(struct athn_softc *);
 void	athn_suspend(struct athn_softc *);
@@ -666,7 +673,7 @@ void	athn_config_nonpcie(struct athn_softc *);
 void	athn_config_pcie(struct athn_softc *);
 void	athn_get_delta_slope(uint32_t, uint32_t *, uint32_t *);
 void	athn_inc_tx_trigger_level(struct athn_softc *);
-void	athn_stop(struct ifnet *, int);
+void	athn_stop(struct athn_softc *, int);
 void	athn_stop_tx_dma(struct athn_softc *, int);
 int	athn_tx_pending(struct athn_softc *, int);
 int	athn_txtime(struct athn_softc *, int, int, u_int);
