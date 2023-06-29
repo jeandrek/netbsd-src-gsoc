@@ -111,7 +111,8 @@ Static int	athn_switch_chan(struct athn_softc *,
 Static void	athn_calib_to(void *);
 Static void	athn_disable_interrupts(struct athn_softc *);
 Static void	athn_enable_interrupts(struct athn_softc *);
-Static void	athn_get_chanlist(struct athn_softc *);
+Static void	athn_get_radiocaps(struct ieee80211com *, int, int *,
+		    struct ieee80211_channel []);
 Static void	athn_get_chipid(struct athn_softc *);
 Static void	athn_init_dma(struct athn_softc *);
 Static void	athn_init_qos(struct athn_softc *);
@@ -356,7 +357,8 @@ athn_attach(struct athn_softc *sc)
 #endif
 
 	/* Get the list of authorized/supported channels. */
-	athn_get_chanlist(sc);
+	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX,
+	    &ic->ic_nchans, ic->ic_channels);
 
 #if 0
 	if (!ifp->if_init)
@@ -389,6 +391,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_set_key = athn_set_key;
 	ic->ic_delete_key = athn_delete_key;
 #endif
+	ic->ic_getradiocaps = athn_get_radiocaps;
 
 	/* XXX we should create at least one vap here??? */
 
@@ -503,9 +506,11 @@ athn_radiotap_attach(struct athn_softc *sc)
 }
 
 Static void
-athn_get_chanlist(struct athn_softc *sc)
+athn_get_radiocaps(struct ieee80211com *ic, int maxchans,
+    int *nchans, struct ieee80211_channel chans[])
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+#if 0
+	struct athn_softc *sc = ic->ic_softc;
 	uint8_t chan;
 	size_t i;
 
@@ -527,6 +532,15 @@ athn_get_chanlist(struct athn_softc *sc)
 			ic->ic_channels[chan].ic_flags = IEEE80211_CHAN_A;
 		}
 	}
+#else /* XXX */
+	uint8_t bands[IEEE80211_MODE_BYTES];
+        
+	memset(bands, 0, sizeof(bands));   
+	setbit(bands, IEEE80211_MODE_11B); 
+	setbit(bands, IEEE80211_MODE_11G); 
+	setbit(bands, IEEE80211_MODE_11NG);
+	ieee80211_add_channels_default_2ghz(chans, maxchans, nchans, bands, 0);
+#endif
 }
 
 PUBLIC void
