@@ -160,7 +160,9 @@ PUBLIC int
 athn_attach(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
+#if 0
 	size_t max_nnodes;
+#endif
 	int error;
 
 	/* Read hardware revision. */
@@ -237,11 +239,13 @@ athn_attach(struct athn_softc *sc)
 	 * TKIP keys consume 2 entries in the cache.
 	 */
 	KASSERT(sc->sc_kc_entries / 2 > IEEE80211_WEP_NKID);
+#if 0 /* XXX */
 	max_nnodes = (sc->sc_kc_entries / 2) - IEEE80211_WEP_NKID;
 	if (sc->sc_max_aid != 0)	/* we have an override */
 		ic->ic_max_aid = sc->sc_max_aid;
 	if (ic->ic_max_aid > max_nnodes)
 		ic->ic_max_aid = max_nnodes;
+#endif
 
 	DPRINTFN(DBG_INIT, sc, "using %s loop power control\n",
 	    (sc->sc_flags & ATHN_FLAG_OLPC) ? "open" : "closed");
@@ -337,6 +341,7 @@ athn_attach(struct athn_softc *sc)
 	}
 #endif
 
+#if 0 /* XXX */
 	/* Set supported rates. */
 	if (sc->sc_flags & ATHN_FLAG_11G) {
 		ic->ic_sup_rates[IEEE80211_MODE_11B] =
@@ -348,6 +353,7 @@ athn_attach(struct athn_softc *sc)
 		ic->ic_sup_rates[IEEE80211_MODE_11A] =
 		    ieee80211_std_rateset_11a;
 	}
+#endif
 
 	/* Get the list of authorized/supported channels. */
 	athn_get_chanlist(sc);
@@ -373,7 +379,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_transmit = athn_transmit;
 	ic->ic_raw_xmit = athn_raw_xmit;
 	ic->ic_node_alloc = athn_node_alloc;
-	ic->ic_newassoc = athn_newassoc;
+	if (0) ic->ic_newassoc = athn_newassoc;
 	if (ic->ic_updateslot == NULL)
 		ic->ic_updateslot = athn_updateslot;
 #ifdef notyet_edca
@@ -388,7 +394,7 @@ athn_attach(struct athn_softc *sc)
 
 	if (sc->sc_media_change == NULL)
 		sc->sc_media_change = athn_media_change;
-	ieee80211_media_init(ic, sc->sc_media_change, ieee80211_media_status);
+	/*ieee80211_media_init(ic, sc->sc_media_change, ieee80211_media_status);*/
 
 	athn_radiotap_attach(sc);
 	return 0;
@@ -1357,7 +1363,6 @@ athn_calib_to(void *arg)
 {
 	struct athn_softc *sc = arg;
 	struct athn_ops *ops = &sc->sc_ops;
-	struct ieee80211com *ic = &sc->sc_ic;
 	int s;
 
 	s = splnet();
@@ -2032,7 +2037,6 @@ athn_init_tx_queues(struct athn_softc *sc)
 PUBLIC void
 athn_set_sta_timers(struct athn_softc *sc, struct ieee80211_node *ni)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
 	uint32_t tsfhi, tsflo, tsftu, reg;
 	uint32_t intval, next_tbtt, next_dtim;
 	int dtim_period, rem_dtim_count;
@@ -2101,7 +2105,6 @@ athn_set_sta_timers(struct athn_softc *sc, struct ieee80211_node *ni)
 PUBLIC void
 athn_set_hostap_timers(struct athn_softc *sc, struct ieee80211_node *ni)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
 	uint32_t intval, next_tbtt;
 
 	/* Beacon interval in TU. */
@@ -2475,14 +2478,18 @@ athn_node_alloc(struct ieee80211vap *vap,
 Static void
 athn_newassoc(struct ieee80211_node *ni, int isnew)
 {
+#if 0
 	struct ieee80211com *ic = ni->ni_ic;
 	struct athn_softc *sc = ic->ic_softc;
+#endif
 	struct athn_node *an = (void *)ni;
 	struct ieee80211_rateset *rs = &ni->ni_rates;
 	uint8_t rate;
 	int ridx, i, j;
 
+#if 0 /* XXX must fix */
 	ieee80211_amrr_node_init(&sc->sc_amrr, &an->amn);
+#endif
 	/* Start at lowest available bit-rate, AMRR will raise. */
 	ni->ni_txrate = 0;
 
@@ -2538,6 +2545,7 @@ athn_media_change(struct ifnet *ifp)
 	}
 	return error;
 #endif
+	return 0;
 }
 
 Static void
@@ -2627,6 +2635,8 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 		callout_schedule(&sc->sc_calib_to, hz / 2);
 		break;
+	default:
+		break;
 	}
 
 	return avp->av_newstate(vap, nstate, arg);
@@ -2685,10 +2695,9 @@ athn_clock_rate(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_updateslot(struct ifnet *ifp)
+athn_updateslot(struct ieee80211com *ic)
 {
-	struct athn_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_softc *sc = ic->ic_softc;
 	int slot;
 
 	slot = (ic->ic_flags & IEEE80211_F_SHSLOT) ? 9 : 20;
@@ -2727,7 +2736,7 @@ athn_start(struct athn_softc *sc)
 			continue;
 		}
 		eh = mtod(m, struct ether_header *);
-		ni = ieee80211_find_txnode(TAILQ_FIRST(&ic.ic_vaps),
+		ni = ieee80211_find_txnode(TAILQ_FIRST(&ic->ic_vaps),
 			eh->ether_dhost);
 		if (ni == NULL) {
 			m_freem(m);
@@ -2737,10 +2746,9 @@ athn_start(struct athn_softc *sc)
 
 		/* bpf_mtap(ifp, m, BPF_D_OUT); */
 
-		if ((m = ieee80211_encap(TAILQ_FIRST(&ic.ic_vaps), m, ni))
+		if ((m = ieee80211_encap(TAILQ_FIRST(&ic->ic_vaps), ni, m))
 		    == NULL)
 			continue;
- sendit:
 		/* bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT); */
 
 		if (sc->sc_ops.tx(sc, m, ni, 0) != 0) {

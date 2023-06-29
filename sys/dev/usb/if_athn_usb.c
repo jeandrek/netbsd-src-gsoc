@@ -127,9 +127,11 @@ Static const struct athn_usb_type *
 Static int	athn_usb_media_change(struct ifnet *);
 Static void	athn_usb_newassoc(struct ieee80211_node *, int);
 Static void	athn_usb_newassoc_cb(struct athn_usb_softc *, void *);
+#if 0
 Static int	athn_usb_newstate(struct ieee80211com *, enum ieee80211_state,
 		    int);
 Static void	athn_usb_newstate_cb(struct athn_usb_softc *, void *);
+#endif
 Static void	athn_usb_node_cleanup(struct ieee80211_node *);
 Static void	athn_usb_node_cleanup_cb(struct athn_usb_softc *, void *);
 Static int	athn_usb_open_pipes(struct athn_usb_softc *);
@@ -147,8 +149,10 @@ Static void	athn_usb_start(struct ifnet *);
 Static void	athn_usb_stop(struct ifnet *, int disable);
 Static void	athn_usb_stop_locked(struct ifnet *);
 Static void	athn_usb_swba(struct athn_usb_softc *);
+#if 0
 Static int	athn_usb_switch_chan(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
+#endif
 Static void	athn_usb_task(void *);
 Static int	athn_usb_tx(struct athn_softc *, struct mbuf *,
 		    struct ieee80211_node *, struct athn_usb_tx_data *);
@@ -1407,6 +1411,7 @@ athn_usb_media_change(struct ifnet *ifp)
 	return error;
 }
 
+#if 0
 Static int
 athn_usb_newstate(struct ieee80211com *ic, enum ieee80211_state nstate,
     int arg)
@@ -1516,6 +1521,7 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 		(void)sc->sc_newstate(ic, nstate, cmd->arg);
 	splx(s);
 }
+#endif
 
 Static void
 athn_usb_newassoc(struct ieee80211_node *ni, int isnew)
@@ -1734,6 +1740,7 @@ athn_usb_rx_enable(struct athn_softc *sc)
 	AR_WRITE_BARRIER(sc);
 }
 
+#if 0
 Static int
 athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan)
@@ -1791,6 +1798,7 @@ athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	error = athn_usb_wmi_cmd(usc, AR_WMI_CMD_ENABLE_INTR);
 	return error;
 }
+#endif
 
 #ifdef notyet_edca
 Static void
@@ -1848,7 +1856,7 @@ athn_usb_updateslot_cb(struct athn_usb_softc *usc, void *arg)
 	DPRINTFN(DBG_FN, usc, "\n");
 
 	s = splnet();
-	athn_updateslot(&usc->usc_sc.sc_if);
+	athn_updateslot(&usc->usc_sc.sc_ic);
 	splx(s);
 }
 
@@ -2595,6 +2603,7 @@ athn_usb_start(struct ifnet *ifp)
 			return;
 		}
 
+#if 0
 		/* Send pending management frames first. */
 		IF_DEQUEUE(&ic->ic_mgtq, m);
 		if (m != NULL) {
@@ -2604,6 +2613,7 @@ athn_usb_start(struct ifnet *ifp)
 		}
 		if (ic->ic_state != IEEE80211_S_RUN)
 			break;
+#endif
 
 		/* Encapsulate and send data frames. */
 		IFQ_DEQUEUE(&ifp->if_snd, m);
@@ -2616,7 +2626,8 @@ athn_usb_start(struct ifnet *ifp)
 			continue;
 		}
 		eh = mtod(m, struct ether_header *);
-		ni = ieee80211_find_txnode(ic, eh->ether_dhost);
+		ni = ieee80211_find_txnode(TAILQ_FIRST(&ic->ic_vaps),
+			eh->ether_dhost);
 		if (ni == NULL) {
 			m_freem(m);
 			if_statinc(ifp, if_oerrors);
@@ -2625,13 +2636,13 @@ athn_usb_start(struct ifnet *ifp)
 
 		bpf_mtap(ifp, m, BPF_D_OUT);
 
-		if ((m = ieee80211_encap(ic, m, ni)) == NULL) {
+		if ((m = ieee80211_encap(TAILQ_FIRST(&ic->ic_vaps), ni, m))
+		    == NULL) {
 			ieee80211_free_node(ni);
 			if_statinc(ifp, if_oerrors);
 			continue;
 		}
- sendit:
-		bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT);
+		/* bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT); */
 
 		if (athn_usb_tx(sc, m, ni, data) != 0) {
 			m_freem(m);
@@ -2670,12 +2681,14 @@ athn_usb_watchdog(struct ifnet *ifp)
 		}
 		ifp->if_timer = 1;
 	}
-	ieee80211_watchdog(&sc->sc_ic);
+	/* ieee80211_watchdog(&sc->sc_ic); */
 }
 
 Static int
 athn_usb_ioctl(struct ifnet *ifp, u_long cmd, void *data)
 {
+	return 1;
+#if 0
 	struct athn_softc *sc = ifp->if_softc;
 	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
 	struct ieee80211com *ic = &sc->sc_ic;
@@ -2742,6 +2755,7 @@ athn_usb_ioctl(struct ifnet *ifp, u_long cmd, void *data)
 	}
 	splx(s);
 	return error;
+#endif
 }
 
 Static int
@@ -2787,7 +2801,7 @@ athn_usb_init_locked(struct ifnet *ifp)
 	extchan = NULL;
 
 	/* In case a new MAC address has been configured. */
-	IEEE80211_ADDR_COPY(ic->ic_myaddr, CLLADDR(ifp->if_sadl));
+	IEEE80211_ADDR_COPY(ic->ic_macaddr, CLLADDR(ifp->if_sadl));
 
 	error = athn_set_power_awake(sc);
 	if (error != 0)
@@ -2823,7 +2837,7 @@ athn_usb_init_locked(struct ifnet *ifp)
 	/* Create main interface on target. */
 	memset(&hvif, 0, sizeof(hvif));
 	hvif.index = 0;
-	IEEE80211_ADDR_COPY(hvif.myaddr, ic->ic_myaddr);
+	IEEE80211_ADDR_COPY(hvif.myaddr, ic->ic_macaddr);
 	switch (ic->ic_opmode) {
 	case IEEE80211_M_STA:
 		hvif.opmode = htobe32(AR_HTC_M_STA);
@@ -2842,8 +2856,10 @@ athn_usb_init_locked(struct ifnet *ifp)
 		hvif.opmode = htobe32(AR_HTC_M_HOSTAP);
 		break;
 #endif
+	default:
+		break;
 	}
-	hvif.rtsthreshold = htobe16(ic->ic_rtsthreshold);
+	/* hvif.rtsthreshold = htobe16(ic->ic_rtsthreshold); */
 	DPRINTFN(DBG_INIT, sc, "creating VAP\n");
 	error = athn_usb_wmi_xcmd(usc, AR_WMI_CMD_VAP_CREATE,
 	    &hvif, sizeof(hvif), NULL);
@@ -2852,7 +2868,7 @@ athn_usb_init_locked(struct ifnet *ifp)
 
 	/* Create a fake node to send management frames before assoc. */
 	memset(&sta, 0, sizeof(sta));
-	IEEE80211_ADDR_COPY(sta.macaddr, ic->ic_myaddr);
+	IEEE80211_ADDR_COPY(sta.macaddr, ic->ic_macaddr);
 	sta.sta_index = 0;
 	sta.is_vif_sta = 1;
 	sta.vif_index = hvif.index;
@@ -2902,6 +2918,7 @@ athn_usb_init_locked(struct ifnet *ifp)
 			athn_usb_set_key(ic, NULL, &ic->ic_nw_keys[i]);
 	}
 #endif
+#if 0
 	if (ic->ic_opmode == IEEE80211_M_HOSTAP)
 		ic->ic_max_aid = AR_USB_MAX_STA;  /* Firmware is limited to 8 STA */
 	else
@@ -2911,6 +2928,7 @@ athn_usb_init_locked(struct ifnet *ifp)
 		ieee80211_new_state(ic, IEEE80211_S_RUN, -1);
 	else
 		ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
+#endif
 	athn_usb_wait_async(usc);
 	return 0;
  fail:
@@ -2943,7 +2961,7 @@ athn_usb_stop_locked(struct ifnet *ifp)
 	DPRINTFN(DBG_FN, sc, "\n");
 
 	s = splusb();
-	ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
+	/* ieee80211_new_state(ic, IEEE80211_S_INIT, -1); */
 	athn_usb_wait_async(usc);
 	splx(s);
 
@@ -2967,7 +2985,7 @@ athn_usb_stop_locked(struct ifnet *ifp)
 	/* Remove main interface. */
 	memset(&hvif, 0, sizeof(hvif));
 	hvif.index = 0;
-	IEEE80211_ADDR_COPY(hvif.myaddr, ic->ic_myaddr);
+	IEEE80211_ADDR_COPY(hvif.myaddr, ic->ic_macaddr);
 	(void)athn_usb_wmi_xcmd(usc, AR_WMI_CMD_VAP_REMOVE,
 	    &hvif, sizeof(hvif), NULL);
 

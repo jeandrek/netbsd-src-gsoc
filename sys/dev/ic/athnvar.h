@@ -654,7 +654,7 @@ int	athn_set_power_awake(struct athn_softc *);
 void	athn_set_power_sleep(struct athn_softc *);
 void	athn_set_rxfilter(struct athn_softc *, uint32_t);
 void	athn_set_sta_timers(struct athn_softc *, struct ieee80211_node *);
-void	athn_updateslot(struct ifnet *);
+void	athn_updateslot(struct ieee80211com *);
 
 #ifdef notyet_edca
 void	athn_updateedca(struct ieee80211com *);
