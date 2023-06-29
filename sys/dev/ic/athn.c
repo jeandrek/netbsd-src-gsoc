@@ -99,7 +99,7 @@ Static int	athn_init(struct athn_softc *);
 Static int	athn_init_calib(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static int	athn_media_change(struct ifnet *);
-Static int	athn_newstate(struct ieee80211com *, enum ieee80211_state,
+Static int	athn_newstate(struct ieee80211vap *, enum ieee80211_state,
 		    int);
 Static struct ieee80211_node *
 		athn_node_alloc(struct ieee80211vap *,
@@ -116,17 +116,21 @@ Static void	athn_get_chipid(struct athn_softc *);
 Static void	athn_init_dma(struct athn_softc *);
 Static void	athn_init_qos(struct athn_softc *);
 Static void	athn_init_tx_queues(struct athn_softc *);
+#if 0
 Static void	athn_iter_func(void *, struct ieee80211_node *);
+#endif
 Static void	athn_newassoc(struct ieee80211_node *, int);
 Static void	athn_next_scan(void *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_radiotap_attach(struct athn_softc *);
 Static void	athn_start(struct athn_softc *);
-Static int	athn_transmit(stuct iee80211com *ic, struct mbuf *m);
+Static int	athn_transmit(struct ieee80211com *ic, struct mbuf *m);
 Static int	athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		    const struct ieee80211_bpf_params *bpfp);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
+#if 0
 Static void	athn_watchdog(struct ifnet *);
+#endif
 Static void	athn_write_serdes(struct athn_softc *,
 		    const struct athn_serdes *);
 Static void	athn_softintr(void *);
@@ -148,7 +152,9 @@ Static void	athn_ani_monitor(struct athn_softc *);
 Static void	athn_ani_ofdm_err_trigger(struct athn_softc *);
 Static void	athn_ani_restart(struct athn_softc *);
 #endif /* notyet */
+#if 0
 Static void	athn_set_multi(struct athn_softc *);
+#endif
 
 PUBLIC int
 athn_attach(struct athn_softc *sc)
@@ -1335,6 +1341,7 @@ athn_btcoex_disable(struct athn_softc *sc)
 }
 #endif
 
+#if 0
 Static void
 athn_iter_func(void *arg, struct ieee80211_node *ni)
 {
@@ -1343,6 +1350,7 @@ athn_iter_func(void *arg, struct ieee80211_node *ni)
 
 	ieee80211_amrr_choose(&sc->sc_amrr, ni, &an->amn);
 }
+#endif
 
 Static void
 athn_calib_to(void *arg)
@@ -1378,12 +1386,14 @@ athn_calib_to(void *arg)
 
 	ops->next_calib(sc);
 #endif
+#if 0 /* XXX */
 	if (ic->ic_fixed_rate == -1) {
 		if (ic->ic_opmode == IEEE80211_M_STA)
 			athn_iter_func(sc, ic->ic_bss);
 		else
 			ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, sc);
 	}
+#endif
 	callout_schedule(&sc->sc_calib_to, hz / 2);
 	splx(s);
 }
@@ -2020,7 +2030,7 @@ athn_init_tx_queues(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_set_sta_timers(struct athn_softc *sc)
+athn_set_sta_timers(struct athn_softc *sc, struct ieee80211_node *ni)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
 	uint32_t tsfhi, tsflo, tsftu, reg;
@@ -2032,7 +2042,7 @@ athn_set_sta_timers(struct athn_softc *sc)
 	tsftu = AR_TSF_TO_TU(tsfhi, tsflo) + AR_FUDGE;
 
 	/* Beacon interval in TU. */
-	intval = ic->ic_bss->ni_intval;
+	intval = ni->ni_intval;
 
 	next_tbtt = roundup(tsftu, intval);
 #ifdef notyet
@@ -2089,13 +2099,13 @@ athn_set_sta_timers(struct athn_softc *sc)
 
 #ifndef IEEE80211_STA_ONLY
 PUBLIC void
-athn_set_hostap_timers(struct athn_softc *sc)
+athn_set_hostap_timers(struct athn_softc *sc, struct ieee80211_node *ni)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
 	uint32_t intval, next_tbtt;
 
 	/* Beacon interval in TU. */
-	intval = ic->ic_bss->ni_intval;
+	intval = ni->ni_intval;
 	next_tbtt = intval;
 
 	AR_WRITE(sc, AR_NEXT_TBTT_TIMER, next_tbtt * IEEE80211_DUR_TU);
@@ -2550,6 +2560,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 {
 	struct ieee80211com *ic = vap->iv_ic;
 	struct athn_softc *sc = ic->ic_softc;
+	struct athn_vap *avp = ATHN_VAP(vap);
 	uint32_t reg;
 	int error;
 
@@ -2588,13 +2599,13 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		athn_disable_interrupts(sc);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
-			athn_set_hostap_timers(sc);
+			athn_set_hostap_timers(sc, vap->iv_bss);
 			/* Enable software beacon alert interrupts. */
 			sc->sc_imask |= AR_IMR_SWBA;
 		} else
 #endif
 		{
-			athn_set_sta_timers(sc);
+			athn_set_sta_timers(sc, vap->iv_bss);
 			/* Enable beacon miss interrupts. */
 			sc->sc_imask |= AR_IMR_BMISS;
 
@@ -2618,7 +2629,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		break;
 	}
 
-	return sc->sc_newstate(ic, nstate, arg);
+	return avp->av_newstate(vap, nstate, arg);
 }
 
 #ifdef notyet_edca
@@ -2716,7 +2727,8 @@ athn_start(struct athn_softc *sc)
 			continue;
 		}
 		eh = mtod(m, struct ether_header *);
-		ni = ieee80211_find_txnode(ic, eh->ether_dhost);
+		ni = ieee80211_find_txnode(TAILQ_FIRST(&ic.ic_vaps),
+			eh->ether_dhost);
 		if (ni == NULL) {
 			m_freem(m);
 			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
@@ -2725,7 +2737,8 @@ athn_start(struct athn_softc *sc)
 
 		/* bpf_mtap(ifp, m, BPF_D_OUT); */
 
-		if ((m = ieee80211_encap(ic, m, ni)) == NULL)
+		if ((m = ieee80211_encap(TAILQ_FIRST(&ic.ic_vaps), m, ni))
+		    == NULL)
 			continue;
  sendit:
 		/* bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT); */
@@ -2742,7 +2755,7 @@ athn_start(struct athn_softc *sc)
 }
 
 Static int
-athn_transmit(stuct iee80211com *ic, struct mbuf *m)
+athn_transmit(struct ieee80211com *ic, struct mbuf *m)
 {
 	struct athn_softc *sc = ic->ic_softc;
 	int s;
@@ -2767,7 +2780,7 @@ athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 	return sc->sc_ops.tx(sc, m, ni, 0);
 }
 
-
+#if 0
 Static void
 athn_watchdog(struct ifnet *ifp)
 {
@@ -2788,7 +2801,9 @@ athn_watchdog(struct ifnet *ifp)
 	}
 	ieee80211_watchdog(&sc->sc_ic);
 }
+#endif
 
+#if 0
 Static void
 athn_set_multi(struct athn_softc *sc)
 {
@@ -2837,6 +2852,7 @@ athn_set_multi(struct athn_softc *sc)
 	AR_WRITE(sc, AR_MCAST_FIL1, hi);
 	AR_WRITE_BARRIER(sc);
 }
+#endif
 
 #if 0
 Static int
@@ -2939,7 +2955,7 @@ athn_init(struct athn_softc *sc)
 	extchan = NULL;
 
 	/* In case a new MAC address has been configured. */
-	IEEE80211_ADDR_COPY(ic->ic_macaddr, CLLADDR(ifp->if_sadl));
+	/* IEEE80211_ADDR_COPY(ic->ic_macaddr, CLLADDR(ifp->if_sadl)); */
 
 #ifdef openbsd_power_management
 	/* For CardBus, power on the socket. */
@@ -3024,7 +3040,6 @@ athn_init(struct athn_softc *sc)
 PUBLIC void
 athn_stop(struct athn_softc *sc, int disable)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
 	int qid;
 
 	/* ifp->if_timer = */ sc->sc_tx_timer = 0;

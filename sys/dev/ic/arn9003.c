@@ -67,6 +67,7 @@ __KERNEL_RCSID(0, "$NetBSD: arn9003.c,v 1.15 2020/01/29 14:09:58 thorpej Exp $")
 #include <dev/ic/arn9003.h>
 
 #define Static static
+#define IEEE80211_STA_ONLY
 
 Static void	ar9003_calib_iq(struct athn_softc *);
 Static int	ar9003_calib_tx_iq(struct athn_softc *);
@@ -136,7 +137,9 @@ Static void	ar9003_set_rf_mode(struct athn_softc *,
 Static void	ar9003_set_rxchains(struct athn_softc *);
 Static void	ar9003_set_spur_immunity_level(struct athn_softc *, int);
 Static void	ar9003_set_training_gain(struct athn_softc *, int);
+#ifndef IEEE80211_STA_ONLY
 Static int	ar9003_swba_intr(struct athn_softc *);
+#endif
 Static int	ar9003_tx(struct athn_softc *, struct mbuf *,
 		    struct ieee80211_node *, int);
 Static int	ar9003_tx_alloc(struct athn_softc *);
@@ -942,10 +945,8 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	struct athn_rx_buf *bf;
 	struct ar_rx_status *ds;
 	struct ieee80211_frame *wh;
-	struct ieee80211_node *ni;
 	struct mbuf *m, *m1;
 	size_t len;
-	u_int32_t rstamp;
 	int error, rssi, s;
 
 	bf = SIMPLEQ_FIRST(&rxq->head);
@@ -984,8 +985,10 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 			m->m_pkthdr.len = m->m_len = len;
 			wh = mtod(m, struct ieee80211_frame *);
 
+#if 0
 			ieee80211_notify_michael_failure(ic, wh,
 			    0 /* XXX: keyix */);
+#endif
 		}
 		if_statinc(ifp, if_ierrors);
 		goto skip;
@@ -1003,7 +1006,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	/* Allocate a new Rx buffer. */
 	m1 = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 	if (__predict_false(m1 == NULL)) {
-		ic->ic_stats.is_rx_nobuf++;
+		/* ic->ic_stats.is_rx_nobuf++; */
 		if_statinc(ifp, if_ierrors);
 		goto skip;
 	}
@@ -1040,9 +1043,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 
 	s = splnet();
 
-	/* Grab a reference to the source node. */
 	wh = mtod(m, struct ieee80211_frame *);
-	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)wh);
 
 	/* Remove any HW padding after the 802.11 header. */
 	if (!(wh->i_fc[0] & IEEE80211_FC0_TYPE_CTL)) {
@@ -1059,11 +1060,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 
 	/* Send the frame to the 802.11 layer. */
 	rssi = MS(ds->ds_status5, AR_RXS5_RSSI_COMBINED);
-	rstamp = ds->ds_status3;
-	ieee80211_input(ic, m, ni, rssi, rstamp);
-
-	/* Node is no longer needed. */
-	ieee80211_free_node(ni);
+	ieee80211_rx_enqueue(ic, m, rssi);
 
 	splx(s);
 
@@ -1501,7 +1498,7 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		type = AR_FRAME_TYPE_NORMAL;
 
 	if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
-		k = ieee80211_crypto_encap(ic, ni, m);
+		k = ieee80211_crypto_encap(ni, m);
 		if (k == NULL)
 			return ENOBUFS;
 
@@ -1547,11 +1544,13 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		    (ic->ic_curmode == IEEE80211_MODE_11A) ?
 			ATHN_RIDX_OFDM6 : ATHN_RIDX_CCK1;
 	}
+#if 0
 	else if (ic->ic_fixed_rate != -1) {
 		/* Use same fixed rate for all tries. */
 		ridx[0] = ridx[1] = ridx[2] = ridx[3] =
 		    sc->sc_fixed_ridx;
 	}
+#endif
 	else {
 		int txrate = ni->ni_txrate;
 		/* Use fallback table of the node. */
@@ -1642,10 +1641,16 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 
 	ds->ds_ctl12 = SM(AR_TXC12_FRAME_TYPE, type);
 
+#if 0 /* XXX */
 	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
 	    (hasqos && (qos & IEEE80211_QOS_ACKPOLICY_MASK) ==
 	     IEEE80211_QOS_ACKPOLICY_NOACK))
 		ds->ds_ctl12 |= AR_TXC12_NO_ACK;
+#else
+	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
+	    (hasqos && (qos & IEEE80211_QOS_ACKPOLICY_NOACK)))
+		ds->ds_ctl12 |= AR_TXC12_NO_ACK;
+#endif
 
 #if notyet
 	if (0 && k != NULL) {
@@ -1688,7 +1693,7 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	/* Check if frame must be protected using RTS/CTS or CTS-to-self. */
 	if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
 		/* NB: Group frames are sent using CCK in 802.11b/g. */
-		if (totlen > ic->ic_rtsthreshold) {
+		if (totlen > ni->ni_vap->iv_rtsthreshold) {
 			ds->ds_ctl11 |= AR_TXC11_RTS_ENABLE;
 		}
 		else if ((ic->ic_flags & IEEE80211_F_USEPROT) &&
@@ -2725,7 +2730,9 @@ ar9003_paprd_tx_tone(struct athn_softc *sc)
 #define TONE_LEN	1800
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_frame *wh;
+#if 0
 	struct ieee80211_node *ni;
+#endif
 	struct mbuf *m;
 	int error;
 
@@ -2738,18 +2745,21 @@ ar9003_paprd_tx_tone(struct athn_softc *sc)
 	wh->i_fc[0] = IEEE80211_FC0_TYPE_DATA | IEEE80211_FC0_SUBTYPE_NODATA;
 	wh->i_fc[1] = IEEE80211_FC1_DIR_NODS;
 	*(uint16_t *)wh->i_dur = htole16(10);	/* XXX */
-	IEEE80211_ADDR_COPY(wh->i_addr1, ic->ic_myaddr);
-	IEEE80211_ADDR_COPY(wh->i_addr2, ic->ic_myaddr);
-	IEEE80211_ADDR_COPY(wh->i_addr3, ic->ic_myaddr);
+	IEEE80211_ADDR_COPY(wh->i_addr1, ic->ic_macaddr);
+	IEEE80211_ADDR_COPY(wh->i_addr2, ic->ic_macaddr);
+	IEEE80211_ADDR_COPY(wh->i_addr3, ic->ic_macaddr);
 	m->m_pkthdr.len = m->m_len = TONE_LEN;
 
 	/* Set gain of training signal. */
 	ar9003_set_training_gain(sc, sc->sc_paprd_curchain);
 
+#if 0 /* XXX */
 	/* Transmit training signal. */
 	ni = ieee80211_ref_node(ic->ic_bss);
 	if ((error = ar9003_tx(sc, m, ni, ATHN_TXFLAG_PAPRD)) != 0)
 		ieee80211_free_node(ni);
+#endif
+	error = 0;
 	return error;
 #undef TONE_LEN
 }

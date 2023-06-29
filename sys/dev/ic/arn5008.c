@@ -59,6 +59,7 @@ __KERNEL_RCSID(0, "$NetBSD: arn5008.c,v 1.19 2022/03/18 23:32:24 riastradh Exp $
 #include <net80211/ieee80211_amrr.h>
 #include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_regdomain.h>
+#include <net80211/ieee80211_input.h>
 
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
@@ -69,6 +70,7 @@ __KERNEL_RCSID(0, "$NetBSD: arn5008.c,v 1.19 2022/03/18 23:32:24 riastradh Exp $
 #include <dev/ic/arn9280.h>
 
 #define Static static
+#define IEEE80211_STA_ONLY
 
 Static void	ar5008_calib_adc_dc_off(struct athn_softc *);
 Static void	ar5008_calib_adc_gain(struct athn_softc *);
@@ -117,7 +119,9 @@ Static void	ar5008_set_rf_mode(struct athn_softc *,
 Static void	ar5008_set_rxchains(struct athn_softc *);
 Static void	ar5008_set_spur_immunity_level(struct athn_softc *, int);
 Static void	ar5008_swap_rom(struct athn_softc *);
+#ifndef IEEE80211_STA_ONLY
 Static int	ar5008_swba_intr(struct athn_softc *);
+#endif
 Static int	ar5008_tx(struct athn_softc *, struct mbuf *,
 		    struct ieee80211_node *, int);
 Static int	ar5008_tx_alloc(struct athn_softc *);
@@ -794,9 +798,7 @@ ar5008_rx_process(struct athn_softc *sc)
 	struct athn_rx_buf *bf, *nbf;
 	struct ar_rx_desc *ds;
 	struct ieee80211_frame *wh;
-	struct ieee80211_node *ni;
 	struct mbuf *m, *m1;
-	u_int32_t rstamp;
 	int error, len, rssi, s;
 
 	bf = SIMPLEQ_FIRST(&rxq->head);
@@ -854,7 +856,9 @@ ar5008_rx_process(struct athn_softc *sc)
 			wh = mtod(m, struct ieee80211_frame *);
 
 			/* Report Michael MIC failures to net80211. */
+#if 0
 			ieee80211_notify_michael_failure(ic, wh, 0 /* XXX: keyix */);
+#endif
 		}
 		if_statinc(ifp, if_ierrors);
 		goto skip;
@@ -870,7 +874,7 @@ ar5008_rx_process(struct athn_softc *sc)
 	/* Allocate a new Rx buffer. */
 	m1 = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 	if (__predict_false(m1 == NULL)) {
-		ic->ic_stats.is_rx_nobuf++;
+		/* ic->ic_stats.is_rx_nobuf++; */
 		if_statinc(ifp, if_ierrors);
 		goto skip;
 	}
@@ -910,9 +914,7 @@ ar5008_rx_process(struct athn_softc *sc)
 
 	s = splnet();
 
-	/* Grab a reference to the source node. */
 	wh = mtod(m, struct ieee80211_frame *);
-	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)wh);
 
 	/* Remove any HW padding after the 802.11 header. */
 	if (!(wh->i_fc[0] & IEEE80211_FC0_TYPE_CTL)) {
@@ -930,11 +932,7 @@ ar5008_rx_process(struct athn_softc *sc)
 
 	/* Send the frame to the 802.11 layer. */
 	rssi = MS(ds->ds_status4, AR_RXS4_RSSI_COMBINED);
-	rstamp = ds->ds_status2;
-	ieee80211_input(ic, m, ni, rssi, rstamp);
-
-	/* Node is no longer needed. */
-	ieee80211_free_node(ni);
+	ieee80211_rx_enqueue(ic, m, rssi);
 
 	splx(s);
 
@@ -1348,7 +1346,7 @@ ar5008_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		type = AR_FRAME_TYPE_NORMAL;
 
 	if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
-		k = ieee80211_crypto_encap(ic, ni, m);
+		k = ieee80211_crypto_encap(ni, m);
 		if (k == NULL)
 			return ENOBUFS;
 
@@ -1394,11 +1392,13 @@ ar5008_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		    (ic->ic_curmode == IEEE80211_MODE_11A) ?
 			ATHN_RIDX_OFDM6 : ATHN_RIDX_CCK1;
 	}
+#if 0
 	else if (ic->ic_fixed_rate != -1) {
 		/* Use same fixed rate for all tries. */
 		ridx[0] = ridx[1] = ridx[2] = ridx[3] =
 		    sc->sc_fixed_ridx;
 	}
+#endif
 	else {
 		int txrate = ni->ni_txrate;
 		/* Use fallback table of the node. */
@@ -1485,10 +1485,16 @@ ar5008_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 
 	ds->ds_ctl1 = SM(AR_TXC1_FRAME_TYPE, type);
 
+#if 0 /* XXX */
 	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
 	    (hasqos && (qos & IEEE80211_QOS_ACKPOLICY_MASK) ==
 	     IEEE80211_QOS_ACKPOLICY_NOACK))
 		ds->ds_ctl1 |= AR_TXC1_NO_ACK;
+#else
+	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
+	    (hasqos && (qos & IEEE80211_QOS_ACKPOLICY_NOACK)))
+		ds->ds_ctl1 |= AR_TXC1_NO_ACK;
+#endif
 #if notyet
 	if (0 && k != NULL) {
 		uintptr_t entry;
@@ -1528,7 +1534,7 @@ ar5008_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	/* Check if frame must be protected using RTS/CTS or CTS-to-self. */
 	if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
 		/* NB: Group frames are sent using CCK in 802.11b/g. */
-		if (totlen > ic->ic_rtsthreshold) {
+		if (totlen > ni->ni_vap->iv_rtsthreshold) {
 			ds->ds_ctl0 |= AR_TXC0_RTS_ENABLE;
 		}
 		else if ((ic->ic_flags & IEEE80211_F_USEPROT) &&

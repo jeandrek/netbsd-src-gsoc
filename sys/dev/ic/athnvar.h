@@ -34,6 +34,7 @@
 
 #define ATHN_SOFTC(sc)		((struct athn_softc *)(sc))
 #define ATHN_NODE(ni)		((struct athn_node *)(ni))
+#define ATHN_VAP(vap)		((struct athn_vap *)(vap))
 
 #ifdef ATHN_DEBUG
 #define	DBG_INIT	__BIT(0)
@@ -456,6 +457,7 @@ struct athn_softc {
 	device_suspensor_t		sc_suspensor;
 	pmf_qual_t			sc_qual;
 	struct ieee80211com		sc_ic;
+	struct ifqueue			sc_sendq;
 	struct ethercom			sc_ec;
 #define sc_if	sc_ec.ec_if
 	void				*sc_soft_ih;
@@ -625,7 +627,7 @@ struct athn_vap {
 	struct ieee80211vap	av_vap;
 	int		(*av_newstate)(struct ieee80211vap *,
 				enum ieee80211_state, int);
-}
+};
 
 int	athn_attach(struct athn_softc *);
 void	athn_detach(struct athn_softc *);
@@ -645,13 +647,13 @@ void	athn_rx_start(struct athn_softc *);
 void	athn_set_bss(struct athn_softc *, struct ieee80211_node *);
 int	athn_set_chan(struct athn_softc *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
-void	athn_set_hostap_timers(struct athn_softc *);
+void	athn_set_hostap_timers(struct athn_softc *, struct ieee80211_node *);
 void	athn_set_led(struct athn_softc *, int);
 void	athn_set_opmode(struct athn_softc *);
 int	athn_set_power_awake(struct athn_softc *);
 void	athn_set_power_sleep(struct athn_softc *);
 void	athn_set_rxfilter(struct athn_softc *, uint32_t);
-void	athn_set_sta_timers(struct athn_softc *);
+void	athn_set_sta_timers(struct athn_softc *, struct ieee80211_node *);
 void	athn_updateslot(struct ifnet *);
 
 #ifdef notyet_edca
