@@ -99,6 +99,7 @@ Static int	athn_init(struct athn_softc *);
 Static int	athn_init_calib(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static int	athn_media_change(struct ifnet *);
+Static void	athn_set_channel(struct ieee80211com *);
 Static int	athn_newstate(struct ieee80211vap *, enum ieee80211_state,
 		    int);
 Static struct ieee80211_node *
@@ -288,6 +289,8 @@ athn_attach(struct athn_softc *sc)
 	sc->sc_amrr.amrr_min_success_threshold = 1;
 	sc->sc_amrr.amrr_max_success_threshold = 15;
 
+	ic->ic_softc = sc;
+
 	ic->ic_phytype = IEEE80211_T_OFDM;	/* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA;	/* default to BSS mode */
 
@@ -392,6 +395,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_delete_key = athn_delete_key;
 #endif
 	ic->ic_getradiocaps = athn_get_radiocaps;
+	ic->ic_set_channel = athn_set_channel;
 
 	/* XXX we should create at least one vap here??? */
 
@@ -399,7 +403,7 @@ athn_attach(struct athn_softc *sc)
 		sc->sc_media_change = athn_media_change;
 	/*ieee80211_media_init(ic, sc->sc_media_change, ieee80211_media_status);*/
 
-	athn_radiotap_attach(sc);
+	if (0) athn_radiotap_attach(sc);
 	return 0;
 }
 
@@ -2575,6 +2579,14 @@ athn_next_scan(void *arg)
 		ieee80211_next_scan(ic);
 	splx(s);
 #endif
+}
+
+Static void
+athn_set_channel(struct ieee80211com *ic)
+{
+	struct athn_softc *sc = ic->ic_softc;
+
+	athn_switch_chan(sc, ic->ic_curchan, NULL); /* XXX extchan? */
 }
 
 Static int
