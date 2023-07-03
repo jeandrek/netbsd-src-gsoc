@@ -1,4 +1,4 @@
-/*	$NetBSD: nslu2_machdep.c,v 1.36 2023/04/20 08:28:05 skrll Exp $	*/
+/*	$NetBSD: nslu2_machdep.c,v 1.40 2023/06/17 11:28:13 rin Exp $	*/
 
 /*-
  * Copyright (c) 2006 The NetBSD Foundation, Inc.
@@ -94,7 +94,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: nslu2_machdep.c,v 1.36 2023/04/20 08:28:05 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: nslu2_machdep.c,v 1.40 2023/06/17 11:28:13 rin Exp $");
 
 #include "opt_arm_debug.h"
 #include "opt_console.h"
@@ -351,6 +351,19 @@ static const struct pmap_devmap nslu2_devmap[] = {
 		IXP425_IO_SIZE
 	),
 
+	/* SDRAM Controller */
+	DEVMAP_ENTRY(
+		IXP425_MCU_VBASE,
+		IXP425_MCU_HWBASE,
+		IXP425_MCU_SIZE
+	),
+
+	/*
+	 * No need to map the following entries statically.
+	 * If you revive these, align VBASE's to L1 section
+	 * boundaries (see pmap_devmap.c).
+	 */
+#if 0
 	/* Expansion Bus */
 	DEVMAP_ENTRY(
 		IXP425_EXP_VBASE,
@@ -363,13 +376,6 @@ static const struct pmap_devmap nslu2_devmap[] = {
 		IXP425_PCI_VBASE,
 		IXP425_PCI_HWBASE,
 		IXP425_PCI_SIZE
-	),
-
-	/* SDRAM Controller */
-	DEVMAP_ENTRY(
-		IXP425_MCU_VBASE,
-		IXP425_MCU_HWBASE,
-		IXP425_MCU_SIZE
 	),
 
 	/* PCI Memory Space */
@@ -385,6 +391,7 @@ static const struct pmap_devmap nslu2_devmap[] = {
 		NSLU2_FLASH_HWBASE,
 		NSLU2_FLASH_SIZE
 	),
+#endif
 
 	DEVMAP_ENTRY_END
 };
@@ -482,8 +489,9 @@ initarm(void *arg)
 
 	/* Tell the user about the memory */
 #ifdef VERBOSE_INIT_ARM
-	printf("physmemory: %d pages at 0x%08lx -> 0x%08lx\n", physmem,
-	    physical_start, physical_end - 1);
+	printf("physmemory: %" PRIuPSIZE " pages at "
+	    "0x%08" PRIxPADDR " -> 0x%08" PRIxPADDR "\n",
+	    physmem, physical_start, physical_end - 1);
 
 	printf("Allocating page tables\n");
 #endif
@@ -622,6 +630,9 @@ initarm(void *arg)
 		logical += pmap_map_chunk(l1pagetable, KERNEL_BASE + logical,
 		    physical_start + logical, totalsize - textsize,
 		    VM_PROT_READ|VM_PROT_WRITE, PTE_CACHE);
+
+		if (KERNEL_BASE + logical >= KERNEL_VM_BASE)
+			panic("VA for kernel image exhausted.");
 	}
 
 #ifdef VERBOSE_INIT_ARM

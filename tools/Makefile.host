@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.host,v 1.34 2018/05/04 14:50:18 christos Exp $
+#	$NetBSD: Makefile.host,v 1.36 2023/06/04 16:53:59 lukem Exp $
 
 NOINFO=         # defined
 NOLINT=         # defined

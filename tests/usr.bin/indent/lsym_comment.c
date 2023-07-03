@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_comment.c,v 1.12 2023/05/15 20:30:20 rillig Exp $ */
+/* $NetBSD: lsym_comment.c,v 1.24 2023/06/23 20:59:04 rillig Exp $ */
 
 /*
  * Tests for the token lsym_comment, which starts a comment.
@@ -8,7 +8,7 @@
  *
  * See also:
  *	opt_fc1.c
- *	token_comment.c
+ *	lsym_comment.c
  */
 
 /*-
@@ -32,7 +32,7 @@
  * - block/end-of-line comment to the right of code
  * - block/end-of-line comment to the right of label with code
  *
- * - with/without opt.comment_delimiter_on_blankline (-cdb)
+ * - with/without opt.comment_delimiter_on_blank_line (-cdb)
  * - with/without opt.star_comment_cont (-sc)
  * - with/without opt.format_block_comments (-fbc)
  * - with varying opt.max_line_length (32, 64, 80, 140)
@@ -42,8 +42,7 @@
  * - with varying opt.block_comment_max_line_length (-lc60, -lc78, -lc90)
  * - with varying opt.comment_column (-c0, -c1, -c33, -c80)
  * - with varying opt.decl_comment_column (-cd0, -cd1, -cd20, -cd33, -cd80)
- * - with/without ps.decl_on_line
- * - with/without ps.next_col_1
+ * - with/without ps.line_has_decl
  *
  * - very long comments that overflow the buffer 'com'
  * - comments that come from save_com
@@ -51,7 +50,6 @@
  * - wrap/nowrap comment containing '\n'
  * - wrap/nowrap comment containing '\f'
  * - wrap/nowrap comment containing '\t'
- * - wrap/nowrap comment containing '\b'
  */
 
 //indent input
@@ -100,6 +98,7 @@ t(void) {
 void
 t(void)
 {
+
 	/*
 	 * Old indent wrapped the URL near where this sentence ends.
 	 *
@@ -137,16 +136,13 @@ t(void)
  *
  * The other Christmas tree is a standalone block comment, therefore the
  * comment starts in the code column.
- *
- * Since the comments occur between psym_if_expr and the following statement,
- * they are handled by search_stmt_comment.
  */
 //indent input
 {
-	if (1) /*- a Christmas tree  *  search_stmt_comment
+	if (1) /*- a Christmas tree  *
 				    ***
 				   ***** */
-		    /*- another one *  search_stmt_comment
+		    /*- another one *
 				   ***
 				  ***** */
 		1;
@@ -155,10 +151,10 @@ t(void)
 
 //indent run -bbb
 {
-	if (1)			/*- a Christmas tree  *  search_stmt_comment
+	if (1)			/*- a Christmas tree  *
 						     ***
 						    ***** */
-		/*- another one *  search_stmt_comment
+		/*- another one *
 			       ***
 			      ***** */
 		1;
@@ -218,16 +214,16 @@ int decl;			/*-fixed comment
 
 //indent input
 {
-	if (0)/*-search_stmt_comment   |
-	   search_stmt_comment         |*/
+	if (0)/*-first line            |
+	   second line                 |*/
 		;
 }
 //indent end
 
 //indent run -di0
 {
-	if (0)			/*-search_stmt_comment   |
-			     search_stmt_comment         |*/
+	if (0)			/*-first line            |
+			     second line                 |*/
 		;
 }
 //indent end
@@ -251,21 +247,19 @@ int decl;			/*-fixed comment
 /*
  * Ensure that all text of the comment is preserved when the comment is moved
  * to the right.
- *
- * This comment is handled by search_stmt_comment.
  */
 //indent input
 {
-	if(0)/*-search_stmt_comment
-123456789ab search_stmt_comment   |*/
+	if(0)/*-first line
+123456789ab second line           |*/
 	    ;
 }
 //indent end
 
 //indent run -di0
 {
-	if (0)			/*-search_stmt_comment
-		   123456789ab search_stmt_comment   |*/
+	if (0)			/*-first line
+		   123456789ab second line           |*/
 		;
 }
 //indent end
@@ -299,12 +293,10 @@ tab1+++	tab2---	tab3+++	tab4---	tab5+++	tab6---	tab7+++fixed comment*/
  * Ensure that all text of the comment is preserved when the comment is moved
  * to the left. In this case, the internal layout of the comment cannot be
  * preserved since the second line already starts in column 1.
- *
- * This comment is processed by search_stmt_comment.
  */
 //indent input
 {
-	if(0)					    /*-|search_stmt_comment
+	if(0)					    /*-|first line
 					| minus 12     |
 		| tabs inside		|
 	    |---|
@@ -316,7 +308,7 @@ tab1+++	tab2---	tab3+++	tab4---	tab5+++	tab6---	tab7+++fixed comment*/
 
 //indent run -di0
 {
-	if (0)			/*-|search_stmt_comment
+	if (0)			/*-|first line
 		    | minus 12     |
 | tabs inside		|
 |---|
@@ -328,7 +320,7 @@ tab1+++	tab2---	tab3+++	tab4---	tab5+++	tab6---	tab7+++fixed comment*/
 
 
 /*
- * Ensure that '{' after a search_stmt_comment is preserved.
+ * Ensure that '{' after a comment is preserved.
  */
 //indent input
 {
@@ -337,7 +329,7 @@ tab1+++	tab2---	tab3+++	tab4---	tab5+++	tab6---	tab7+++fixed comment*/
 }
 //indent end
 
-/* Before 2023-05-11, the comment moved to the right of the '{'. */
+/* Before 2023-05-11, the comment and the '{' swapped places. */
 //indent run
 {
 	if (0) /* comment */ {
@@ -372,6 +364,35 @@ tab1+++	tab2---	tab3+++	tab4---	tab5+++	tab6---	tab7+++fixed comment*/
 /*
  * 456789 123456789 123456789
  * 123456789
+ */
+//indent end
+
+
+/*
+ * When determining whether the comment fits in a single line, only the first
+ * trailing space or tab is kept, the others are removed.
+ */
+//indent input
+/* tab: */
+/* 456789 123456789 123456789 12345		*/
+/* 456789 123456789 123456789 123456		*/
+/* space: */
+/* 456789 123456789 123456789 12345             */
+/* 456789 123456789 123456789 123456            */
+//indent end
+
+//indent run -l38
+/* tab: */
+/*
+ * 456789 123456789 123456789 12345
+ */
+/*
+ * 456789 123456789 123456789 123456
+ */
+/* space: */
+/* 456789 123456789 123456789 12345 */
+/*
+ * 456789 123456789 123456789 123456
  */
 //indent end
 
@@ -740,11 +761,10 @@ while(cond)/*comment*/;
 void
 loop(void)
 {
-	while (cond) /* comment */ ;
+	while (cond) /* comment */;
 
 	while (cond)
-/* $ XXX: The space after the comment looks unintentional. */
-		/* comment */ ;
+		/* comment */;
 }
 //indent end
 
@@ -880,9 +900,8 @@ int		decl;
 
 
 /*
- * At the beginning of a block comment or after a '*', '\f' is special. This
- * is an implementation detail that should not be visible from the outside.
- * Form feeds in comments are seldom used though, so this is no problem.
+ * Form feeds are seldom used, especially in comments, so treat them as an
+ * ordinary character.
  */
 //indent input
 /* comment*/
@@ -890,18 +909,11 @@ int		decl;
 //indent end
 
 //indent run
-/* * comment */
-/* text* * comment */
+/*  comment */
+/* text* comment */
 //indent end
 
-/*
- * Without 'star_comment_cont', there is no separator between the form feed
- * and the surrounding text.
- */
-//indent run -nsc
-/*comment */
-/* text*comment */
-//indent end
+//indent run-equals-prev-output -nsc
 
 //indent run-equals-input -nfc1
 
@@ -909,7 +921,7 @@ int		decl;
 /*
  * A completely empty line in a box comment must be copied unmodified to the
  * output. This is done in process_comment by adding a space to the end of an
- * otherwise empty comment. This space forces output_complete_line to add some output,
+ * otherwise empty comment. This space forces output_line to add some output,
  * but the trailing space is discarded, resulting in an empty line.
  */
 //indent input
@@ -951,7 +963,7 @@ f(void)
 		/*
 		 * 12 1234 123 123456 1234 1234567 123
 		 * 1234.
-		 */ ;
+		 */;
 }
 //indent end
 
@@ -961,7 +973,7 @@ int
 f(void)
 {
 	if (0)
-		/* 12 1234 123 123456 1234 1234567 123 1234.  */ ;
+		/* 12 1234 123 123456 1234 1234567 123 1234. */;
 }
 //indent end
 
@@ -1006,8 +1018,8 @@ f(void)
 
 
 /*
- * Test two completely empty lines in a wrap comment. The second empty line
- * covers the condition ps.next_col_1 in copy_comment_wrap.
+ * In a comment that is wrapped, one or more empty lines separate paragraphs.
+ * All of these empty lines are preserved.
  */
 //indent input
 /* line 1
@@ -1097,3 +1109,86 @@ a>b;
 	a > b;
 }
 //indent end
+
+
+/*
+ * Line comments are only related to a code snippet if they are on the same
+ * line; they cannot be continued in the next lines.
+ */
+//indent input
+int line;	// comment line 1
+		// comment line 2
+int block;	/* comment line 1
+		 * comment line 2
+		 */
+//indent end
+
+//indent run -di0
+int line;			// comment line 1
+// $ XXX: This comment was probably intended to continue 'comment line 1'.
+// comment line 2
+int block;			/* comment line 1 comment line 2 */
+//indent end
+
+
+// Ensure that '/*/' is not interpreted as a complete comment.
+//indent input
+/*/ comment? or:not; /* */
+//indent end
+
+//indent run
+/* / comment? or:not; /* */
+//indent end
+
+//indent run-equals-input -nfc1
+
+
+/*
+ * The tokens '/' and '*' do not form a comment when they are separated by a
+ * space.
+ */
+//indent input
+int a = b / *c;
+// $ Indent can be tricked into treating '/' as a unary operator, thus turning
+// $ some operators into the start of a comment. This only works in
+// $ syntactically invalid text.
+int a = b + / * c;
+//indent end
+
+//indent run -di0
+int a = b / *c;
+// $ FIXME: Don't merge the two operators; there are enough situations where
+// $ indent has to guess whether an operator is unary or binary, and these
+// $ heuristics can go wrong.
+int a = b + /*c;
+//indent end
+
+
+/*
+ * Ensure that tab characters that are broken into separate lines are replaced
+ * with spaces; other tabs are preserved.
+ */
+//indent input
+/* word	word	word	word	word	word	word	word	word */
+//indent end
+
+//indent run -l38
+/*
+ * word	word	word	word	word
+ * word	word	word	word
+ */
+//indent end
+
+
+/* In no-wrap comments, every single newline is preserved. */
+//indent input
+/*-
+paragraph 1
+
+
+
+paragraph 2
+ */
+//indent end
+
+//indent run-equals-input

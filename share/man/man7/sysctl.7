@@ -1,4 +1,4 @@
-.\"	$NetBSD: sysctl.7,v 1.163 2022/12/16 08:42:55 msaitoh Exp $
+.\"	$NetBSD: sysctl.7,v 1.165 2023/06/18 18:16:40 riastradh Exp $
 .\"
 .\" Copyright (c) 1993
 .\"	The Regents of the University of California.  All rights reserved.
@@ -29,7 +29,7 @@
 .\"
 .\"	@(#)sysctl.3	8.4 (Berkeley) 5/9/95
 .\"
-.Dd December 16, 2022
+.Dd May 29, 2023
 .Dt SYSCTL 7
 .Os
 .Sh NAME
@@ -142,13 +142,24 @@ The highest valid file system type number.
 Returns configuration information about the file system type given as a fourth
 level identifier.
 .It Li vfs.generic.usermount ( Dv VFS_USERMOUNT )
-Determines if non superuser mounts are allowed, defaults to
-.Dv 0 .
+Controls whether users other than the super-user can mount file
+systems.
+Defaults to
+.Li 0 ,
+so only the super-user can mount file systems.
+.Pp
+File systems mounted by unprivileged users must be mounted with the
+.Li nodev
+and
+.Li nosuid
+.Xr mount 8
+options.
 .It Li vfs.generic.magiclinks ( Dv VFS_MAGICLINKS )
-Controls if expansion of variables is going to be performed on pathnames
-or not.
-Defaults to no variable expansion,
-.Dv 0 .
+Controls whether expansion of variables is going to be performed on
+pathnames or not.
+Defaults to
+.Li 0 ,
+no variable expansion.
 Variables are of the form
 .Li @name
 and the variables supported are described in
@@ -927,7 +938,7 @@ program.
 .It Li kern.osrelease ( Dv KERN_OSRELEASE )
 The system release string.
 .It Li kern.osrevision ( Dv KERN_OSREV )
-The system revision string.
+The system revision, expressed as an integer.
 .It Li kern.ostype ( Dv KERN_OSTYPE )
 The system type string.
 .\".It Li kern.panic_now

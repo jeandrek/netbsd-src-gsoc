@@ -330,6 +330,7 @@ static void	iwm_scan_start(struct ieee80211com *);
 static void	iwm_scan_end(struct ieee80211com *);
 static void	iwm_set_channel(struct ieee80211com *);
 static void	iwm_scan_curchan(struct ieee80211_scan_state *, unsigned long);
+static void	iwm_scan_mindwell(struct ieee80211_scan_state *);
 static int	iwm_reset(struct ieee80211vap *, u_long);
 static int	iwm_transmit(struct ieee80211com *, struct mbuf *);
 static int	iwm_raw_xmit(struct ieee80211_node *, struct mbuf *,
@@ -468,6 +469,7 @@ static void	iwm_mac_ctxt_cmd_fill_sta(struct iwm_softc *, struct iwm_node *,
 static int	iwm_mac_ctxt_cmd(struct iwm_softc *, struct iwm_node *,
 		    uint32_t, int);
 static int	iwm_update_quotas(struct iwm_softc *, struct iwm_node *);
+static int	iwm_scan(struct ieee80211com *, struct ieee80211_scan_state *);
 static int	iwm_auth(struct ieee80211vap *);
 static void	iwm_newassoc(struct ieee80211_node *, int);
 static void	iwm_calib_timeout(void *);
@@ -491,6 +493,7 @@ static void	iwm_tt_tx_backoff(struct iwm_softc *, uint32_t);
 static int	iwm_init_hw(struct iwm_softc *);
 static int	iwm_init(struct iwm_softc *);
 static void	iwm_start(struct iwm_softc *);
+static void	iwm_start_ifp(struct ifnet *);
 static void	iwm_stop(struct iwm_softc *);
 #ifdef notyet
 static void	iwm_watchdog(struct ifnet *);
@@ -6308,21 +6311,13 @@ iwm_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		break;
 
 	case IEEE80211_S_SCAN:
+#if 0
 		if (ostate == nstate &&
 		    ISSET(sc->sc_flags, IWM_FLAG_SCANNING)) {
 			return 0;
 		}
-		if (isset(sc->sc_enabled_capa, IWM_UCODE_TLV_CAPA_UMAC_SCAN)) {
-			err = iwm_umac_scan(sc);
-		} else {
-			err = iwm_lmac_scan(sc);
-		}
-		if (err) {
-			DPRINTF(("%s: could not initiate scan: %d\n",
-			    DEVNAME(sc), err));
-			return err;
-		}
-		SET(sc->sc_flags, IWM_FLAG_SCANNING);
+		ic->ic_flags |= IEEE80211_F_SCAN;// | IEEE80211_F_ASCAN;
+#endif
 		IWM_LOCK(sc);
 		iwm_led_blink_start(sc);
 		IWM_UNLOCK(sc);
@@ -6895,6 +6890,16 @@ iwm_init(struct iwm_softc *sc)
 #endif
 
 	return 0;
+}
+
+static void
+iwm_start_ifp(struct ifnet *ifp)
+{
+	struct ieee80211vap *vap = ifp->if_softc;
+	struct ieee80211com *ic = vap->iv_ic;
+	struct iwm_softc *sc = ic->ic_softc;
+
+	iwm_start(sc);
 }
 
 static void
@@ -8194,7 +8199,7 @@ iwm_config_complete(struct iwm_softc *sc)
 	ic->ic_scan_end = iwm_scan_end;
 	ic->ic_set_channel = iwm_set_channel;
 	ic->ic_scan_curchan = iwm_scan_curchan;
-//	ic->ic_scan_mindwell = iwm_scan_mindwell;
+	ic->ic_scan_mindwell = iwm_scan_mindwell;
 	ic->ic_newassoc = iwm_newassoc;
 	ic->ic_transmit = iwm_transmit;
 	ic->ic_raw_xmit = iwm_raw_xmit;
@@ -8350,6 +8355,8 @@ iwm_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 	vap->vap.iv_reset = iwm_reset;
 	vap->newstate = vap->vap.iv_newstate;
 	vap->vap.iv_newstate = iwm_newstate;
+	vap->vap.iv_ifp->if_start = iwm_start_ifp;
+	vap->vap.iv_ifp->if_extflags |= IFEF_MPSAFE;
 
 	/* Use common softint-based if_input */
 	vap->vap.iv_ifp->if_percpuq = if_percpuq_create(vap->vap.iv_ifp);
@@ -8448,26 +8455,62 @@ iwm_set_channel(struct ieee80211com *ic)
 #endif
 }
 
+static int
+iwm_scan(struct ieee80211com *ic, struct ieee80211_scan_state *ss)
+{
+	struct iwm_softc *sc = ic->ic_softc;
+	int err;
+
+	if (ISSET(sc->sc_flags, IWM_FLAG_SCANNING)) {
+		return EAGAIN;
+	}
+	if (ss != NULL)
+		sc->sc_des_esslen = uimin(ss->ss_nssid, IWM_PROBE_OPTION_MAX);
+	else
+		sc->sc_des_esslen = IWM_PROBE_OPTION_MAX;
+	//ic->ic_flags |= IEEE80211_F_SCAN;// | IEEE80211_F_ASCAN;
+	if (isset(sc->sc_enabled_capa, IWM_UCODE_TLV_CAPA_UMAC_SCAN)) {
+		err = iwm_umac_scan(sc);
+	} else {
+		err = iwm_lmac_scan(sc);
+	}
+	if (err) {
+		DPRINTF(("%s: could not initiate scan: %d\n",
+		    DEVNAME(sc), err));
+		return err;
+	}
+	SET(sc->sc_flags, IWM_FLAG_SCANNING);
+
+	return 0;
+}
+
 /*
  * Callback from net80211 to start scanning of the current channel.
  */
 static void
 iwm_scan_curchan(struct ieee80211_scan_state *ss, unsigned long maxdwell)
 {
-#if 0
 	struct ieee80211vap *vap = ss->ss_vap;
 	struct ieee80211com *ic = vap->iv_ic;
 	int error;
 
 	ss->ss_flags |= IEEE80211_SCAN_ONCE;
 
-	error = iwm_scan_start(ic);
+	error = iwm_scan(ic, ss);
 	if (error != 0) {
-		IEEE80211_LOCK(ic);
-		ieee80211_cancel_scan(vap);
-		IEEE80211_UNLOCK(ic);
+		ieee80211_cancel_scan(vap,0);
 	}
-#endif
+}
+
+/*
+ * Callback from net80211 to handle the minimum dwell time being met.
+ * The intent is to terminate the scan but we just let the firmware
+ * notify us when it's finished as we have no safe way to abort it.
+ */
+static void
+iwm_scan_mindwell(struct ieee80211_scan_state *ss)
+{
+	/* NB: don't try to abort scan; wait for firmware to finish */
 }
 
 #if 0

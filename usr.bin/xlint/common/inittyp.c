@@ -1,4 +1,4 @@
-/*	$NetBSD: inittyp.c,v 1.33 2022/11/30 20:50:22 rillig Exp $	*/
+/*	$NetBSD: inittyp.c,v 1.36 2023/06/29 10:31:32 rillig Exp $	*/
 
 /*
  * Copyright (c) 1994, 1995 Jochen Pohl
@@ -37,7 +37,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: inittyp.c,v 1.33 2022/11/30 20:50:22 rillig Exp $");
+__RCSID("$NetBSD: inittyp.c,v 1.36 2023/06/29 10:31:32 rillig Exp $");
 #endif
 
 #if defined(IS_LINT1)
@@ -80,7 +80,7 @@ __RCSID("$NetBSD: inittyp.c,v 1.33 2022/11/30 20:50:22 rillig Exp $");
 
 /* various type information */
 ttab_t	ttab[NTSPEC] = {
-	typeinfo(NULL, NOTSPEC, NOTSPEC, 0, 0, ' '),
+	typeinfo(NULL, NO_TSPEC, NO_TSPEC, 0, 0, ' '),
 	typeinfo("signed", SIGNED, UNSIGN, 0, 0, ' '),
 	typeinfo("unsigned", SIGNED, UNSIGN, 0, 0, ' '),
 	typeinfo("_Bool", BOOL, BOOL, CHAR_SIZE, 1, 'u'),
@@ -103,17 +103,10 @@ ttab_t	ttab[NTSPEC] = {
 	typeinfo("float", FLOAT, FLOAT, FLOAT_SIZE, 32, 'f'),
 	typeinfo("double", DOUBLE, DOUBLE, DOUBLE_SIZE, 64, 'f'),
 	typeinfo("long double", LDOUBLE, LDOUBLE, LDOUBLE_SIZE, 80, 'f'),
-	typeinfo("void", VOID, VOID, 0, 0, ' '),
-	typeinfo("struct", STRUCT, STRUCT, 0, 0, ' '),
-	typeinfo("union", UNION, UNION, 0, 0, ' '),
-	typeinfo("enum", ENUM, ENUM, ENUM_SIZE, 24, 's'),
-	typeinfo("pointer", PTR, PTR, PTR_SIZE, 32, 'p'),
-	typeinfo("array", ARRAY, ARRAY, 0, 0, ' '),
-	typeinfo("function", FUNC, FUNC, 0, 0, ' '),
 #ifdef DEBUG
-	typeinfo("_Complex", NOTSPEC, NOTSPEC, 0, 0, ' '),
+	typeinfo("_Complex", NO_TSPEC, NO_TSPEC, 0, 0, ' '),
 #else
-	typeinfo(NULL, NOTSPEC, NOTSPEC, 0, 0, ' '),
+	typeinfo(NULL, NO_TSPEC, NO_TSPEC, 0, 0, ' '),
 #endif
 	typeinfo("float _Complex", FCOMPLEX, FCOMPLEX,
 	    FLOAT_SIZE * 2, 32 * 2, 'c'),
@@ -121,25 +114,12 @@ ttab_t	ttab[NTSPEC] = {
 	    DOUBLE_SIZE * 2, 64 * 2, 'c'),
 	typeinfo("long double _Complex", LCOMPLEX, LCOMPLEX,
 	    LDOUBLE_SIZE * 2, 80 * 2, 'c'),
+	typeinfo("void", VOID, VOID, 0, 0, ' '),
+	typeinfo("struct", STRUCT, STRUCT, 0, 0, ' '),
+	typeinfo("union", UNION, UNION, 0, 0, ' '),
+	typeinfo("enum", ENUM, ENUM, ENUM_SIZE, 24, 's'),
+	typeinfo("pointer", PTR, PTR, PTR_SIZE, 32, 'p'),
+	typeinfo("array", ARRAY, ARRAY, 0, 0, ' '),
+	typeinfo("function", FUNC, FUNC, 0, 0, ' '),
 };
 #undef typeinfo
-
-#ifdef IS_LINT1
-void
-inittyp(void)
-{
-	size_t	i;
-
-	if (!pflag) {
-		for (i = 0; i < NTSPEC; i++)
-			ttab[i].tt_portable_size_in_bits =
-			    ttab[i].tt_size_in_bits;
-	}
-
-	if (Tflag) {
-		ttab[BOOL].tt_is_integer = false;
-		ttab[BOOL].tt_is_uinteger = false;
-		ttab[BOOL].tt_is_arithmetic = false;
-	}
-}
-#endif

@@ -1,4 +1,4 @@
-# $NetBSD: Makefile,v 1.8 2022/04/06 13:29:15 reinoud Exp $
+# $NetBSD: Makefile,v 1.10 2023/06/03 21:26:28 lukem Exp $
 
 .include <bsd.own.mk>
 
@@ -15,7 +15,6 @@ CPPFLAGS+= -I${MOUNT} -I${KUDF} -I${NETBSDSRCDIR}/sys
 DPADD+=${LIBUTIL}
 LDADD+=-lutil -lprop
 
-CWARNFLAGS.clang+=	-Wno-error=address-of-packed-member
-CWARNFLAGS.gcc+=	${GCC_NO_ADDR_OF_PACKED_MEMBER}
+CWARNFLAGS+=	${CC_WNO_ADDRESS_OF_PACKED_MEMBER}
 
 .include <bsd.prog.mk>

@@ -1,4 +1,4 @@
-/*	$NetBSD: lint.h,v 1.35 2022/02/07 21:57:47 rillig Exp $	*/
+/*	$NetBSD: lint.h,v 1.37 2023/06/29 10:31:32 rillig Exp $	*/
 
 /*
  * Copyright (c) 1994, 1995 Jochen Pohl
@@ -51,7 +51,7 @@
  * Type specifiers, used in type structures (type_t) and elsewhere.
  */
 typedef enum {
-	NOTSPEC = 0,
+	NO_TSPEC = 0,
 	SIGNED,		/* keyword "signed", only used in the parser */
 	UNSIGN,		/* keyword "unsigned", only used in the parser */
 	BOOL,		/* _Bool */
@@ -73,6 +73,10 @@ typedef enum {
 	FLOAT,		/* float */
 	DOUBLE,		/* double or, with tflag, long float */
 	LDOUBLE,	/* long double */
+	COMPLEX,	/* keyword "_Complex", only used in the parser */
+	FCOMPLEX,	/* float _Complex */
+	DCOMPLEX,	/* double _Complex */
+	LCOMPLEX,	/* long double _Complex */
 	VOID,		/* void */
 	STRUCT,		/* structure tag */
 	UNION,		/* union tag */
@@ -80,11 +84,7 @@ typedef enum {
 	PTR,		/* pointer */
 	ARRAY,		/* array */
 	FUNC,		/* function */
-	COMPLEX,	/* keyword "_Complex", only used in the parser */
-	FCOMPLEX,	/* float _Complex */
-	DCOMPLEX,	/* double _Complex */
-	LCOMPLEX	/* long double _Complex */
-#define NTSPEC (LCOMPLEX + 1)
+#define NTSPEC ((int)FUNC + 1)
 } tspec_t;
 
 

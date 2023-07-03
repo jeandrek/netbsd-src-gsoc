@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.prog.mk,v 1.343 2023/05/08 14:31:08 christos Exp $
+#	$NetBSD: bsd.prog.mk,v 1.345 2023/05/28 10:33:13 lukem Exp $
 #	@(#)bsd.prog.mk	8.2 (Berkeley) 4/2/94
 
 .ifndef HOSTPROG
@@ -34,22 +34,6 @@ realinstall:	proginstall scriptsinstall
 .endfor
 
 CLEANFILES+= a.out [Ee]rrs mklog core *.core .gdbinit
-
-.if defined(SHAREDSTRINGS)
-CLEANFILES+=strings
-.c.o:
-	${CC} -E ${CPPFLAGS} ${CFLAGS} ${.IMPSRC} | xstr -c -
-	@${CC} ${CPPFLAGS} ${CFLAGS} -c x.c ${OBJECT_TARGET}
-	${CTFCONVERT_RUN}
-	@rm -f x.c
-
-.cc.o .cpp.o .cxx.o .C.o:
-	${CXX} -E ${CPPFLAGS} ${CXXFLAGS} ${.IMPSRC} | xstr -c -
-	@${MV} x.c x.cc
-	@${CXX} ${CPPFLAGS} ${CXXFLAGS} -c x.cc ${OBJECT_TARGET}
-	${CTFCONVERT_RUN}
-	@rm -f x.cc
-.endif
 
 .if defined(MKPIE) && (${MKPIE} != "no") && !defined(NOPIE)
 CFLAGS+=	${PIE_CFLAGS}
@@ -491,56 +475,6 @@ LOBJS.${_P}+=	${LSRCS:.c=.ln} ${SRCS.${_P}:M*.c:.c=.ln}
 .if defined(OBJS.${_P}) && !empty(OBJS.${_P})			# {
 .NOPATH: ${OBJS.${_P}} ${_P} ${_YPSRCS.${_P}}
 
-.if (defined(USE_COMBINE) && ${USE_COMBINE} != "no" && !commands(${_P}) \
-   && (${_CCLINK.${_P}} == ${_CCLINK.CDEFAULT} \
-       || ${_CCLINK.${_P}} == ${_CCLINK.CXXDEFAULT}) \
-   && !defined(NOCOMBINE.${_P}) && !defined(NOCOMBINE))
-.for f in ${SRCS.${_P}:N*.h:N*.sh:N*.fth:C/\.[yl]$/.c/g}
-#_XFLAGS.$f := ${CPPFLAGS.$f:D1} ${CPUFLAGS.$f:D2} \
-#     ${COPTS.$f:D3} ${OBJCOPTS.$f:D4} ${CXXFLAGS.$f:D5}
-.if (${CPPFLAGS.$f:D1} == "1" || ${CPUFLAGS.$f:D2} == "2" \
-     || ${COPTS.$f:D3} == "3" || ${OBJCOPTS.$f:D4} == "4" \
-     || ${CXXFLAGS.$f:D5} == "5") \
-    || ("${f:M*.[cyl]}" == "" || commands(${f:R:S/$/.o/}))
-XOBJS.${_P}+=	${f:R:S/$/.o/}
-.else
-XSRCS.${_P}+=	${f}
-NODPSRCS+=	${f}
-.endif
-.endfor
-
-${_P}: .gdbinit ${LIBCRT0} ${LIBCRTI} ${XOBJS.${_P}} ${SRCS.${_P}} \
-    ${DPSRCS} ${LIBC} ${LIBCRTBEGIN} ${LIBCRTEND} ${_DPADD.${_P}}
-	${_MKTARGET_LINK}
-.if defined(DESTDIR)
-	${_CCLINK.${_P}} -Wl,-nostdlib \
-	    ${_LDFLAGS.${_P}} ${_LDSTATIC.${_P}} -o ${.TARGET} ${_PROGLDOPTS} \
-	    -B${_GCC_CRTDIR}/ -B${DESTDIR}/usr/lib/ \
-	    -MD --combine ${_CPPFLAGS.${_P}} ${_CFLAGS.${_P}} ${_COPTS.${_P}} \
-	    ${XSRCS.${_P}:@.SRC.@${.ALLSRC:M*.c:M*${.SRC.}}@:O:u} ${XOBJS.${_P}} \
-	    ${_LDADD.${_P}} -L${_GCC_LIBGCCDIR} -L${DESTDIR}/usr/lib
-.else
-	${_CCLINK.${_P}} ${_LDFLAGS.${_P}} ${_LDSTATIC.${_P}} -o ${.TARGET} ${_PROGLDOPTS} \
-	    -MD --combine ${_CPPFLAGS.${_P}} ${_COPTS.${_P}}
-	    ${XSRCS.${_P}:@.SRC.@${.ALLSRC:M*.c:M*${.SRC.}}@:O:u} ${XOBJS.${_P}} \
-	    ${_LDADD.${_P}}
-.endif	# defined(DESTDIR)
-.if defined(CTFMERGE)
-	${CTFMERGE} ${CTFMFLAGS} -o ${.TARGET} ${OBJS.${_P}}
-.endif
-.if defined(PAXCTL_FLAGS.${_P})
-	${PAXCTL} ${PAXCTL_FLAGS.${_P}} ${.TARGET}
-.endif
-.if ${MKSTRIPIDENT} != "no"
-	${OBJCOPY} -R .ident ${.TARGET}
-.endif
-
-CLEANFILES+=	${_P}.d
-.if exists(${_P}.d)
-.include "${_P}.d"		# include -MD depend for program.
-.endif
-.else	# USE_COMBINE
-
 ${OBJS.${_P}} ${LOBJS.${_P}}: ${DPSRCS}
 
 ${_P}: .gdbinit ${LIBCRT0} ${LIBCRTI} ${OBJS.${_P}} ${LIBC} ${LIBCRTBEGIN} \
@@ -560,7 +494,6 @@ ${_P}: .gdbinit ${LIBCRT0} ${LIBCRTI} ${OBJS.${_P}} ${LIBC} ${LIBCRTBEGIN} \
 	${OBJCOPY} -R .ident ${.TARGET}
 .endif
 .endif	# !commands(${_P})
-.endif	# USE_COMBINE
 
 ${_P}.ro: ${OBJS.${_P}} ${_DPADD.${_P}}
 	${_MKTARGET_LINK}

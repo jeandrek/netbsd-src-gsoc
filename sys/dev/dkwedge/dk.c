@@ -1,4 +1,4 @@
-/*	$NetBSD: dk.c,v 1.158 2023/05/13 10:11:36 riastradh Exp $	*/
+/*	$NetBSD: dk.c,v 1.171 2023/05/22 15:00:17 riastradh Exp $	*/
 
 /*-
  * Copyright (c) 2004, 2005, 2006, 2007 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: dk.c,v 1.158 2023/05/13 10:11:36 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: dk.c,v 1.171 2023/05/22 15:00:17 riastradh Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_dkwedge.h"
@@ -70,34 +70,72 @@ typedef enum {
 	DKW_STATE_DEAD		= 666
 } dkwedge_state_t;
 
+/*
+ * Lock order:
+ *
+ *	sc->sc_dk.dk_openlock
+ *	=> sc->sc_parent->dk_rawlock
+ *	=> sc->sc_parent->dk_openlock
+ *	=> dkwedges_lock
+ *	=> sc->sc_sizelock
+ *
+ * Locking notes:
+ *
+ *	W	dkwedges_lock
+ *	D	device reference
+ *	O	sc->sc_dk.dk_openlock
+ *	P	sc->sc_parent->dk_openlock
+ *	R	sc->sc_parent->dk_rawlock
+ *	S	sc->sc_sizelock
+ *	I	sc->sc_iolock
+ *	$	stable after initialization
+ *	1	used only by a single thread
+ *
+ * x&y means both x and y must be held to write (with a write lock if
+ * one is rwlock), and either x or y must be held to read.
+ */
+
 struct dkwedge_softc {
-	device_t	sc_dev;	/* pointer to our pseudo-device */
-	struct cfdata	sc_cfdata;	/* our cfdata structure */
-	uint8_t		sc_wname[128];	/* wedge name (Unicode, UTF-8) */
+	device_t	sc_dev;	/* P&W: pointer to our pseudo-device */
+		/* sc_dev is also stable while device is referenced */
+	struct cfdata	sc_cfdata;	/* 1: our cfdata structure */
+	uint8_t		sc_wname[128];	/* $: wedge name (Unicode, UTF-8) */
 
 	dkwedge_state_t sc_state;	/* state this wedge is in */
+		/* stable while device is referenced */
+		/* used only in assertions when stable, and in dump in ddb */
 
-	struct disk	*sc_parent;	/* parent disk */
-	daddr_t		sc_offset;	/* LBA offset of wedge in parent */
+	struct disk	*sc_parent;	/* $: parent disk */
+		/* P: sc_parent->dk_openmask */
+		/* P: sc_parent->dk_nwedges */
+		/* P: sc_parent->dk_wedges */
+		/* R: sc_parent->dk_rawopens */
+		/* R: sc_parent->dk_rawvp (also stable while wedge is open) */
+	daddr_t		sc_offset;	/* $: LBA offset of wedge in parent */
 	krwlock_t	sc_sizelock;
-	uint64_t	sc_size;	/* size of wedge in blocks */
-	char		sc_ptype[32];	/* partition type */
-	dev_t		sc_pdev;	/* cached parent's dev_t */
-					/* link on parent's wedge list */
+	uint64_t	sc_size;	/* S: size of wedge in blocks */
+	char		sc_ptype[32];	/* $: partition type */
+	dev_t		sc_pdev;	/* $: cached parent's dev_t */
+					/* P: link on parent's wedge list */
 	LIST_ENTRY(dkwedge_softc) sc_plink;
 
 	struct disk	sc_dk;		/* our own disk structure */
-	struct bufq_state *sc_bufq;	/* buffer queue */
-	struct callout	sc_restart_ch;	/* callout to restart I/O */
+		/* O&R: sc_dk.dk_bopenmask */
+		/* O&R: sc_dk.dk_copenmask */
+		/* O&R: sc_dk.dk_openmask */
+	struct bufq_state *sc_bufq;	/* $: buffer queue */
+	struct callout	sc_restart_ch;	/* I: callout to restart I/O */
 
 	kmutex_t	sc_iolock;
-	bool		sc_iostop;	/* don't schedule restart */
-	int		sc_mode;	/* parent open mode */
+	bool		sc_iostop;	/* I: don't schedule restart */
+	int		sc_mode;	/* O&R: parent open mode */
 };
 
 static int	dkwedge_match(device_t, cfdata_t, void *);
 static void	dkwedge_attach(device_t, device_t, void *);
 static int	dkwedge_detach(device_t, int);
+
+static void	dk_set_geometry(struct dkwedge_softc *, struct disk *);
 
 static void	dkstart(struct dkwedge_softc *);
 static void	dkiodone(struct buf *);
@@ -111,8 +149,6 @@ static void	dkwedge_delall1(struct disk *, bool);
 static int	dkwedge_del1(struct dkwedge_info *, int);
 static int	dk_open_parent(dev_t, int, struct vnode **);
 static int	dk_close_parent(struct vnode *, int);
-
-static int	dkunit(dev_t);
 
 static dev_type_open(dkopen);
 static dev_type_close(dkclose);
@@ -140,7 +176,7 @@ const struct bdevsw dk_bdevsw = {
 	.d_psize = dksize,
 	.d_discard = dkdiscard,
 	.d_cfdriver = &dk_cd,
-	.d_devtounit = dkunit,
+	.d_devtounit = dev_minor_unit,
 	.d_flag = D_DISK | D_MPSAFE
 };
 
@@ -158,7 +194,7 @@ const struct cdevsw dk_cdevsw = {
 	.d_kqfilter = nokqfilter,
 	.d_discard = dkdiscard,
 	.d_cfdriver = &dk_cd,
-	.d_devtounit = dkunit,
+	.d_devtounit = dev_minor_unit,
 	.d_flag = D_DISK | D_MPSAFE
 };
 
@@ -190,9 +226,34 @@ dkwedge_match(device_t parent, cfdata_t match, void *aux)
 static void
 dkwedge_attach(device_t parent, device_t self, void *aux)
 {
+	struct dkwedge_softc *sc = aux;
+	struct disk *pdk = sc->sc_parent;
+	int unit = device_unit(self);
+
+	KASSERTMSG(unit >= 0, "unit=%d", unit);
 
 	if (!pmf_device_register(self, NULL, NULL))
 		aprint_error_dev(self, "couldn't establish power handler\n");
+
+	mutex_enter(&pdk->dk_openlock);
+	rw_enter(&dkwedges_lock, RW_WRITER);
+	KASSERTMSG(unit < ndkwedges, "unit=%d ndkwedges=%u", unit, ndkwedges);
+	KASSERTMSG(sc == dkwedges[unit], "sc=%p dkwedges[%d]=%p",
+	    sc, unit, dkwedges[unit]);
+	KASSERTMSG(sc->sc_dev == NULL, "sc=%p sc->sc_dev=%p", sc, sc->sc_dev);
+	sc->sc_dev = self;
+	rw_exit(&dkwedges_lock);
+	mutex_exit(&pdk->dk_openlock);
+
+	disk_init(&sc->sc_dk, device_xname(sc->sc_dev), NULL);
+	mutex_enter(&pdk->dk_openlock);
+	dk_set_geometry(sc, pdk);
+	mutex_exit(&pdk->dk_openlock);
+	disk_attach(&sc->sc_dk);
+
+	/* Disk wedge is ready for use! */
+	device_set_private(self, sc);
+	sc->sc_state = DKW_STATE_RUNNING;
 }
 
 /*
@@ -364,6 +425,7 @@ dkwedge_add(struct dkwedge_info *dkw)
 	u_int unit;
 	int error;
 	dev_t pdev;
+	device_t dev __diagused;
 
 	dkw->dkw_parent[sizeof(dkw->dkw_parent) - 1] = '\0';
 	pdk = disk_find(dkw->dkw_parent);
@@ -393,8 +455,11 @@ dkwedge_add(struct dkwedge_info *dkw)
 			break;
 		if (dkwedge_size(lsc) > dkw->dkw_size)
 			break;
+		if (lsc->sc_dev == NULL)
+			break;
 
 		sc = lsc;
+		device_acquire(sc->sc_dev);
 		dkwedge_size_increase(sc, dkw->dkw_size);
 		dk_set_geometry(sc, pdk);
 
@@ -477,7 +542,7 @@ dkwedge_add(struct dkwedge_info *dkw)
 	sc->sc_cfdata.cf_name = dk_cd.cd_name;
 	sc->sc_cfdata.cf_atname = dk_ca.ca_name;
 	/* sc->sc_cfdata.cf_unit set below */
-	sc->sc_cfdata.cf_fstate = FSTATE_STAR;
+	sc->sc_cfdata.cf_fstate = FSTATE_NOTFOUND; /* use chosen cf_unit */
 
 	/* Insert the larval wedge into the array. */
 	rw_enter(&dkwedges_lock, RW_WRITER);
@@ -538,7 +603,7 @@ dkwedge_add(struct dkwedge_info *dkw)
 	 * This should never fail, unless we're almost totally out of
 	 * memory.
 	 */
-	if ((sc->sc_dev = config_attach_pseudo(&sc->sc_cfdata)) == NULL) {
+	if ((dev = config_attach_pseudo_acquire(&sc->sc_cfdata, sc)) == NULL) {
 		aprint_error("%s%u: unable to attach pseudo-device\n",
 		    sc->sc_cfdata.cf_name, sc->sc_cfdata.cf_unit);
 
@@ -559,19 +624,7 @@ dkwedge_add(struct dkwedge_info *dkw)
 		return ENOMEM;
 	}
 
-	/*
-	 * XXX Really ought to make the disk_attach() and the changing
-	 * of state to RUNNING atomic.
-	 */
-
-	disk_init(&sc->sc_dk, device_xname(sc->sc_dev), NULL);
-	mutex_enter(&pdk->dk_openlock);
-	dk_set_geometry(sc, pdk);
-	mutex_exit(&pdk->dk_openlock);
-	disk_attach(&sc->sc_dk);
-
-	/* Disk wedge is ready for use! */
-	sc->sc_state = DKW_STATE_RUNNING;
+	KASSERT(dev == sc->sc_dev);
 
 announce:
 	/* Announce our arrival. */
@@ -586,11 +639,12 @@ announce:
 	strlcpy(dkw->dkw_devname, device_xname(sc->sc_dev),
 	    sizeof(dkw->dkw_devname));
 
+	device_release(sc->sc_dev);
 	return 0;
 }
 
 /*
- * dkwedge_find:
+ * dkwedge_find_acquire:
  *
  *	Lookup a disk wedge based on the provided information.
  *	NOTE: We look up the wedge based on the wedge devname,
@@ -598,10 +652,11 @@ announce:
  *
  *	Return NULL if the wedge is not found, otherwise return
  *	the wedge's softc.  Assign the wedge's unit number to unitp
- *	if unitp is not NULL.
+ *	if unitp is not NULL.  The wedge's sc_dev is referenced and
+ *	must be released by device_release or equivalent.
  */
 static struct dkwedge_softc *
-dkwedge_find(struct dkwedge_info *dkw, u_int *unitp)
+dkwedge_find_acquire(struct dkwedge_info *dkw, u_int *unitp)
 {
 	struct dkwedge_softc *sc = NULL;
 	u_int unit;
@@ -611,8 +666,10 @@ dkwedge_find(struct dkwedge_info *dkw, u_int *unitp)
 	rw_enter(&dkwedges_lock, RW_READER);
 	for (unit = 0; unit < ndkwedges; unit++) {
 		if ((sc = dkwedges[unit]) != NULL &&
+		    sc->sc_dev != NULL &&
 		    strcmp(device_xname(sc->sc_dev), dkw->dkw_devname) == 0 &&
 		    strcmp(sc->sc_parent->dk_name, dkw->dkw_parent) == 0) {
+			device_acquire(sc->sc_dev);
 			break;
 		}
 	}
@@ -646,10 +703,10 @@ dkwedge_del1(struct dkwedge_info *dkw, int flags)
 	struct dkwedge_softc *sc = NULL;
 
 	/* Find our softc. */
-	if ((sc = dkwedge_find(dkw, NULL)) == NULL)
+	if ((sc = dkwedge_find_acquire(dkw, NULL)) == NULL)
 		return ESRCH;
 
-	return config_detach(sc->sc_dev, flags);
+	return config_detach_release(sc->sc_dev, flags);
 }
 
 /*
@@ -660,26 +717,16 @@ dkwedge_del1(struct dkwedge_info *dkw, int flags)
 static int
 dkwedge_detach(device_t self, int flags)
 {
-	struct dkwedge_softc *sc = NULL;
-	u_int unit;
-	int bmaj, cmaj, rc;
+	struct dkwedge_softc *const sc = device_private(self);
+	const u_int unit = device_unit(self);
+	int bmaj, cmaj, error;
 
-	rw_enter(&dkwedges_lock, RW_WRITER);
-	for (unit = 0; unit < ndkwedges; unit++) {
-		if ((sc = dkwedges[unit]) != NULL && sc->sc_dev == self)
-			break;
-	}
-	if (unit == ndkwedges)
-		rc = ENXIO;
-	else if ((rc = disk_begindetach(&sc->sc_dk, /*lastclose*/NULL, self,
-		    flags)) == 0) {
-		/* Mark the wedge as dying. */
-		sc->sc_state = DKW_STATE_DYING;
-	}
-	rw_exit(&dkwedges_lock);
+	error = disk_begindetach(&sc->sc_dk, /*lastclose*/NULL, self, flags);
+	if (error)
+		return error;
 
-	if (rc != 0)
-		return rc;
+	/* Mark the wedge as dying. */
+	sc->sc_state = DKW_STATE_DYING;
 
 	pmf_device_deregister(self);
 
@@ -770,7 +817,6 @@ dkwedge_delidle(struct disk *pdk)
 static void
 dkwedge_delall1(struct disk *pdk, bool idleonly)
 {
-	struct dkwedge_info dkw;
 	struct dkwedge_softc *sc;
 	int flags;
 
@@ -782,8 +828,18 @@ dkwedge_delall1(struct disk *pdk, bool idleonly)
 		mutex_enter(&pdk->dk_rawlock); /* for sc->sc_dk.dk_openmask */
 		mutex_enter(&pdk->dk_openlock);
 		LIST_FOREACH(sc, &pdk->dk_wedges, sc_plink) {
-			if (!idleonly || sc->sc_dk.dk_openmask == 0)
+			/*
+			 * Wedge is not yet created.  This is a race --
+			 * it may as well have been added just after we
+			 * deleted all the wedges, so pretend it's not
+			 * here yet.
+			 */
+			if (sc->sc_dev == NULL)
+				continue;
+			if (!idleonly || sc->sc_dk.dk_openmask == 0) {
+				device_acquire(sc->sc_dev);
 				break;
+			}
 		}
 		if (sc == NULL) {
 			KASSERT(idleonly || pdk->dk_nwedges == 0);
@@ -791,12 +847,9 @@ dkwedge_delall1(struct disk *pdk, bool idleonly)
 			mutex_exit(&pdk->dk_rawlock);
 			return;
 		}
-		strlcpy(dkw.dkw_parent, pdk->dk_name, sizeof(dkw.dkw_parent));
-		strlcpy(dkw.dkw_devname, device_xname(sc->sc_dev),
-		    sizeof(dkw.dkw_devname));
 		mutex_exit(&pdk->dk_openlock);
 		mutex_exit(&pdk->dk_rawlock);
-		(void) dkwedge_del1(&dkw, flags);
+		(void)config_detach_release(sc->sc_dev, flags);
 	}
 }
 
@@ -832,7 +885,7 @@ dkwedge_list(struct disk *pdk, struct dkwedge_list *dkwl, struct lwp *l)
 		if (uio.uio_resid < sizeof(dkw))
 			break;
 
-		if (sc->sc_state != DKW_STATE_RUNNING)
+		if (sc->sc_dev == NULL)
 			continue;
 
 		strlcpy(dkw.dkw_devname, device_xname(sc->sc_dev),
@@ -845,9 +898,19 @@ dkwedge_list(struct disk *pdk, struct dkwedge_list *dkwl, struct lwp *l)
 		dkw.dkw_size = dkwedge_size(sc);
 		strlcpy(dkw.dkw_ptype, sc->sc_ptype, sizeof(dkw.dkw_ptype));
 
+		/*
+		 * Acquire a device reference so this wedge doesn't go
+		 * away before our next iteration in LIST_FOREACH, and
+		 * then release the lock for uiomove.
+		 */
+		device_acquire(sc->sc_dev);
+		mutex_exit(&pdk->dk_openlock);
 		error = uiomove(&dkw, sizeof(dkw), &uio);
+		mutex_enter(&pdk->dk_openlock);
+		device_release(sc->sc_dev);
 		if (error)
 			break;
+
 		dkwl->dkwl_ncopied++;
 	}
 	dkwl->dkwl_nwedges = pdk->dk_nwedges;
@@ -856,8 +919,8 @@ dkwedge_list(struct disk *pdk, struct dkwedge_list *dkwl, struct lwp *l)
 	return error;
 }
 
-device_t
-dkwedge_find_by_wname(const char *wname)
+static device_t
+dkwedge_find_by_wname_acquire(const char *wname)
 {
 	device_t dv = NULL;
 	struct dkwedge_softc *sc;
@@ -865,7 +928,7 @@ dkwedge_find_by_wname(const char *wname)
 
 	rw_enter(&dkwedges_lock, RW_READER);
 	for (i = 0; i < ndkwedges; i++) {
-		if ((sc = dkwedges[i]) == NULL)
+		if ((sc = dkwedges[i]) == NULL || sc->sc_dev == NULL)
 			continue;
 		if (strcmp(sc->sc_wname, wname) == 0) {
 			if (dv != NULL) {
@@ -875,6 +938,7 @@ dkwedge_find_by_wname(const char *wname)
 				    device_xname(sc->sc_dev));
 				continue;
 			}
+			device_acquire(sc->sc_dev);
 			dv = sc->sc_dev;
 		}
 	}
@@ -882,22 +946,47 @@ dkwedge_find_by_wname(const char *wname)
 	return dv;
 }
 
-device_t
-dkwedge_find_by_parent(const char *name, size_t *i)
+static device_t
+dkwedge_find_by_parent_acquire(const char *name, size_t *i)
 {
 
 	rw_enter(&dkwedges_lock, RW_READER);
 	for (; *i < (size_t)ndkwedges; (*i)++) {
 		struct dkwedge_softc *sc;
-		if ((sc = dkwedges[*i]) == NULL)
+		if ((sc = dkwedges[*i]) == NULL || sc->sc_dev == NULL)
 			continue;
 		if (strcmp(sc->sc_parent->dk_name, name) != 0)
 			continue;
+		device_acquire(sc->sc_dev);
 		rw_exit(&dkwedges_lock);
 		return sc->sc_dev;
 	}
 	rw_exit(&dkwedges_lock);
 	return NULL;
+}
+
+/* XXX unsafe */
+device_t
+dkwedge_find_by_wname(const char *wname)
+{
+	device_t dv;
+
+	if ((dv = dkwedge_find_by_wname_acquire(wname)) == NULL)
+		return NULL;
+	device_release(dv);
+	return dv;
+}
+
+/* XXX unsafe */
+device_t
+dkwedge_find_by_parent(const char *name, size_t *i)
+{
+	device_t dv;
+
+	if ((dv = dkwedge_find_by_parent_acquire(name, i)) == NULL)
+		return NULL;
+	device_release(dv);
+	return dv;
 }
 
 void
@@ -908,7 +997,7 @@ dkwedge_print_wnames(void)
 
 	rw_enter(&dkwedges_lock, RW_READER);
 	for (i = 0; i < ndkwedges; i++) {
-		if ((sc = dkwedges[i]) == NULL)
+		if ((sc = dkwedges[i]) == NULL || sc->sc_dev == NULL)
 			continue;
 		printf(" wedge:%s", sc->sc_wname);
 	}
@@ -1147,21 +1236,24 @@ dkwedge_read(struct disk *pdk, struct vnode *vp, daddr_t blkno,
  * dkwedge_lookup:
  *
  *	Look up a dkwedge_softc based on the provided dev_t.
+ *
+ *	Caller must guarantee the wedge is referenced.
  */
 static struct dkwedge_softc *
 dkwedge_lookup(dev_t dev)
 {
-	const int unit = minor(dev);
-	struct dkwedge_softc *sc;
 
-	rw_enter(&dkwedges_lock, RW_READER);
-	if (unit < 0 || unit >= ndkwedges)
-		sc = NULL;
-	else
-		sc = dkwedges[unit];
-	rw_exit(&dkwedges_lock);
+	return device_lookup_private(&dk_cd, minor(dev));
+}
 
-	return sc;
+static struct dkwedge_softc *
+dkwedge_lookup_acquire(dev_t dev)
+{
+	device_t dv = device_lookup_acquire(&dk_cd, minor(dev));
+
+	if (dv == NULL)
+		return NULL;
+	return device_private(dv);
 }
 
 static int
@@ -1209,36 +1301,6 @@ dk_close_parent(struct vnode *vp, int mode)
 }
 
 /*
- * dkunit:		[devsw entry point]
- *
- *	Return the autoconf device_t unit number of a wedge by its
- *	devsw dev_t number, or -1 if there is none.
- *
- *	XXX This is a temporary hack until dkwedge numbering is made to
- *	correspond 1:1 to autoconf device numbering.
- */
-static int
-dkunit(dev_t dev)
-{
-	int mn = minor(dev);
-	struct dkwedge_softc *sc;
-	device_t dv;
-	int unit = -1;
-
-	if (mn < 0)
-		return -1;
-
-	rw_enter(&dkwedges_lock, RW_READER);
-	if (mn < ndkwedges &&
-	    (sc = dkwedges[minor(dev)]) != NULL &&
-	    (dv = sc->sc_dev) != NULL)
-		unit = device_unit(dv);
-	rw_exit(&dkwedges_lock);
-
-	return unit;
-}
-
-/*
  * dkopen:		[devsw entry point]
  *
  *	Open a wedge.
@@ -1251,8 +1313,8 @@ dkopen(dev_t dev, int flags, int fmt, struct lwp *l)
 
 	if (sc == NULL)
 		return ENXIO;
-	if (sc->sc_state != DKW_STATE_RUNNING)
-		return ENXIO;
+	KASSERT(sc->sc_dev != NULL);
+	KASSERT(sc->sc_state == DKW_STATE_RUNNING);
 
 	/*
 	 * We go through a complicated little dance to only open the parent
@@ -1378,11 +1440,16 @@ dkclose(dev_t dev, int flags, int fmt, struct lwp *l)
 {
 	struct dkwedge_softc *sc = dkwedge_lookup(dev);
 
+	/*
+	 * dkclose can be called even if dkopen didn't succeed, so we
+	 * have to handle the same possibility that the wedge may not
+	 * exist.
+	 */
 	if (sc == NULL)
 		return ENXIO;
-	if (sc->sc_state != DKW_STATE_RUNNING &&
-	    sc->sc_state != DKW_STATE_DYING)
-		return ENXIO;
+	KASSERT(sc->sc_dev != NULL);
+	KASSERT(sc->sc_state != DKW_STATE_LARVAL);
+	KASSERT(sc->sc_state != DKW_STATE_DEAD);
 
 	mutex_enter(&sc->sc_dk.dk_openlock);
 	mutex_enter(&sc->sc_parent->dk_rawlock);
@@ -1446,6 +1513,7 @@ dkstrategy(struct buf *bp)
 	uint64_t p_size, p_offset;
 
 	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
 	KASSERT(sc->sc_state != DKW_STATE_LARVAL);
 	KASSERT(sc->sc_state != DKW_STATE_DEAD);
 	KASSERT(sc->sc_parent->dk_rawvp != NULL);
@@ -1574,6 +1642,9 @@ dkiodone(struct buf *bp)
 	struct buf *obp = bp->b_private;
 	struct dkwedge_softc *sc = dkwedge_lookup(obp->b_dev);
 
+	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
+
 	if (bp->b_error != 0)
 		obp->b_error = bp->b_error;
 	obp->b_resid = bp->b_resid;
@@ -1615,6 +1686,9 @@ dkminphys(struct buf *bp)
 	struct dkwedge_softc *sc = dkwedge_lookup(bp->b_dev);
 	dev_t dev;
 
+	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
+
 	dev = bp->b_dev;
 	bp->b_dev = sc->sc_pdev;
 	if (sc->sc_parent->dk_driver && sc->sc_parent->dk_driver->d_minphys)
@@ -1635,6 +1709,7 @@ dkread(dev_t dev, struct uio *uio, int flags)
 	struct dkwedge_softc *sc __diagused = dkwedge_lookup(dev);
 
 	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
 	KASSERT(sc->sc_state != DKW_STATE_LARVAL);
 	KASSERT(sc->sc_state != DKW_STATE_DEAD);
 
@@ -1652,6 +1727,7 @@ dkwrite(dev_t dev, struct uio *uio, int flags)
 	struct dkwedge_softc *sc __diagused = dkwedge_lookup(dev);
 
 	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
 	KASSERT(sc->sc_state != DKW_STATE_LARVAL);
 	KASSERT(sc->sc_state != DKW_STATE_DEAD);
 
@@ -1670,6 +1746,7 @@ dkioctl(dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	int error = 0;
 
 	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
 	KASSERT(sc->sc_state != DKW_STATE_LARVAL);
 	KASSERT(sc->sc_state != DKW_STATE_DEAD);
 	KASSERT(sc->sc_parent->dk_rawvp != NULL);
@@ -1745,6 +1822,7 @@ dkdiscard(dev_t dev, off_t pos, off_t len)
 	int error;
 
 	KASSERT(sc != NULL);
+	KASSERT(sc->sc_dev != NULL);
 	KASSERT(sc->sc_state != DKW_STATE_LARVAL);
 	KASSERT(sc->sc_state != DKW_STATE_DEAD);
 	KASSERT(sc->sc_parent->dk_rawvp != NULL);
@@ -1782,6 +1860,11 @@ dkdiscard(dev_t dev, off_t pos, off_t len)
 static int
 dksize(dev_t dev)
 {
+	/*
+	 * Don't bother taking a reference because this is only used
+	 * either (a) while the device is open (for swap), or (b) while
+	 * any multiprocessing is quiescent (for crash dumps).
+	 */
 	struct dkwedge_softc *sc = dkwedge_lookup(dev);
 	uint64_t p_size;
 	int rv = -1;
@@ -1813,6 +1896,10 @@ dksize(dev_t dev)
 static int
 dkdump(dev_t dev, daddr_t blkno, void *va, size_t size)
 {
+	/*
+	 * Don't bother taking a reference because this is only used
+	 * while any multiprocessing is quiescent.
+	 */
 	struct dkwedge_softc *sc = dkwedge_lookup(dev);
 	const struct bdevsw *bdev;
 	uint64_t p_size, p_offset;
@@ -1855,8 +1942,9 @@ dkdump(dev_t dev, daddr_t blkno, void *va, size_t size)
  *	Find wedge corresponding to the specified parent name
  *	and offset/length.
  */
-device_t
-dkwedge_find_partition(device_t parent, daddr_t startblk, uint64_t nblks)
+static device_t
+dkwedge_find_partition_acquire(device_t parent, daddr_t startblk,
+    uint64_t nblks)
 {
 	struct dkwedge_softc *sc;
 	int i;
@@ -1864,7 +1952,7 @@ dkwedge_find_partition(device_t parent, daddr_t startblk, uint64_t nblks)
 
 	rw_enter(&dkwedges_lock, RW_READER);
 	for (i = 0; i < ndkwedges; i++) {
-		if ((sc = dkwedges[i]) == NULL)
+		if ((sc = dkwedges[i]) == NULL || sc->sc_dev == NULL)
 			continue;
 		if (strcmp(sc->sc_parent->dk_name, device_xname(parent)) == 0 &&
 		    sc->sc_offset == startblk &&
@@ -1877,11 +1965,26 @@ dkwedge_find_partition(device_t parent, daddr_t startblk, uint64_t nblks)
 				continue;
 			}
 			wedge = sc->sc_dev;
+			device_acquire(wedge);
 		}
 	}
 	rw_exit(&dkwedges_lock);
 
 	return wedge;
+}
+
+/* XXX unsafe */
+device_t
+dkwedge_find_partition(device_t parent, daddr_t startblk,
+    uint64_t nblks)
+{
+	device_t dv;
+
+	if ((dv = dkwedge_find_partition_acquire(parent, startblk, nblks))
+	    == NULL)
+		return NULL;
+	device_release(dv);
+	return dv;
 }
 
 const char *
@@ -1893,8 +1996,11 @@ dkwedge_get_parent_name(dev_t dev)
 
 	if (major(dev) != bmaj && major(dev) != cmaj)
 		return NULL;
-	struct dkwedge_softc *sc = dkwedge_lookup(dev);
+
+	struct dkwedge_softc *const sc = dkwedge_lookup_acquire(dev);
 	if (sc == NULL)
 		return NULL;
-	return sc->sc_parent->dk_name;
+	const char *const name = sc->sc_parent->dk_name;
+	device_release(sc->sc_dev);
+	return name;
 }

@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_preprocessing.c,v 1.10 2023/05/13 08:33:39 rillig Exp $ */
+/* $NetBSD: lsym_preprocessing.c,v 1.15 2023/06/16 23:19:01 rillig Exp $ */
 
 /*
  * Tests for the token lsym_preprocessing, which represents a '#' that starts
@@ -255,4 +255,90 @@ int before;
 	int on;
 #endif
 	int after;
+//indent end
+
+
+/*
+ * Before 2023-06-14, indent was limited to 5 levels of conditional compilation
+ * directives.
+ */
+//indent input
+#if 1
+#if 2
+#if 3
+#if 4
+#if 5
+#if 6
+#endif 6
+#endif 5
+#endif 4
+#endif 3
+#endif 2
+#endif 1
+//indent end
+
+//indent run-equals-input
+
+
+/*
+ * Unrecognized and unmatched preprocessing directives are preserved.
+ */
+//indent input
+#else
+#elif 0
+#elifdef var
+#endif
+
+#unknown
+# 3 "file.c"
+//indent end
+
+//indent run
+#else
+#elif 0
+#elifdef var
+#endif
+
+#unknown
+# 3 "file.c"
+// exit 1
+// error: Standard Input:1: Unmatched #else
+// error: Standard Input:2: Unmatched #elif
+// error: Standard Input:3: Unmatched #elifdef
+// error: Standard Input:4: Unmatched #endif
+//indent end
+
+
+/*
+ * The '#' can only occur at the beginning of a line, therefore indent does not
+ * care when it occurs in the middle of a line.
+ */
+//indent input
+int no = #;
+//indent end
+
+//indent run -di0
+int no =
+#;
+//indent end
+
+
+/*
+ * Preprocessing directives may be indented; indent moves them to the beginning
+ * of a line.
+ */
+//indent input
+#if 0
+	#if 1 \
+	 || 2
+	#endif
+#endif
+//indent end
+
+//indent run
+#if 0
+#if 1 \
+	 || 2
+#endif
+#endif
 //indent end

@@ -1,4 +1,4 @@
-/*	$NetBSD: fmt_decl.c,v 1.43 2023/05/16 08:22:11 rillig Exp $	*/
+/*	$NetBSD: fmt_decl.c,v 1.60 2023/06/25 19:19:42 rillig Exp $	*/
 
 /*
  * Tests for declarations of global variables, external functions, and local
@@ -83,7 +83,7 @@ typedef struct Complex
 {
 	double		x;
 	double		y;
-}		Complex;
+} Complex;
 //indent end
 
 
@@ -153,6 +153,7 @@ t2(char *x, int y)
 
 //indent input
 const int	int_minimum_size =
+// $ FIXME: Missing indentation.
 MAXALIGN(offsetof(int, test)) + MAXIMUM_ALIGNOF;
 //indent end
 
@@ -294,36 +295,33 @@ struct s01234567890123 a,b;
 struct s a, b;
 /* $ XXX: See process_comma, varname_len for why this line is broken. */
 struct s0 a,
-   b;
-/* $ XXX: The indentation of the second line is wrong. The variable names */
-/* $ XXX: 'a' and 'b' should be in the same column; the word 'struct' is */
-/* $ XXX: missing in the calculation for the indentation. */
-struct s01 a,
-    b;
-struct s012 a,
-     b;
-struct s0123 a,
-      b;
-struct s01234 a,
-       b;
-struct s012345 a,
-        b;
-struct s0123456 a,
-         b;
-struct s01234567 a,
           b;
-struct s012345678 a,
+struct s01 a,
            b;
-struct s0123456789 a,
+struct s012 a,
             b;
-struct s01234567890 a,
+struct s0123 a,
              b;
-struct s012345678901 a,
+struct s01234 a,
               b;
-struct s0123456789012 a,
+struct s012345 a,
                b;
-struct s01234567890123 a,
+struct s0123456 a,
                 b;
+struct s01234567 a,
+                 b;
+struct s012345678 a,
+                  b;
+struct s0123456789 a,
+                   b;
+struct s01234567890 a,
+                    b;
+struct s012345678901 a,
+                     b;
+struct s0123456789012 a,
+                      b;
+struct s01234567890123 a,
+                       b;
 //indent end
 
 
@@ -570,10 +568,9 @@ buffer_add(buffer *buf, char ch)
 }
 //indent end
 
-/* Before lexi.c 1.156 from 2021-11-25, indent generated 'buffer * buf'. */
 //indent run
 void		buffer_add(buffer *, char);
-/* $ FIXME: space after '*' */
+// $ FIXME: There should be no space after the '*'.
 void		buffer_add(buffer * buf, char ch);
 
 void
@@ -602,29 +599,24 @@ ToToken(bool cond)
 
 
 /*
- * Indent gets easily confused by unknown type names in struct declarations.
+ * Before indent.c 1.309 from 2023-05-23, indent easily got confused by unknown
+ * type names in struct declarations, as a ';' did not finish a declaration.
  */
 //indent input
 typedef struct OpenDirs {
 	CachedDirList	list;
 	HashTable /* of CachedDirListNode */ table;
-}		OpenDirs;
-//indent end
-
-/* FIXME: The word 'HashTable' must not be aligned like a member name. */
-//indent run
-typedef struct OpenDirs {
-	CachedDirList	list;
-			HashTable /* of CachedDirListNode */ table;
-}		OpenDirs;
+} OpenDirs;
 //indent end
 
 //indent run-equals-input -THashTable
 
+//indent run-equals-input
+
 
 /*
- * Indent gets easily confused by unknown type names, even in declarations
- * that are syntactically unambiguous.
+ * Before lexi.c 1.153 from 2021-11-25, indent easily got confused by unknown
+ * type names, even in declarations that are syntactically unambiguous.
  */
 //indent input
 static CachedDir *dot = NULL;
@@ -632,14 +624,12 @@ static CachedDir *dot = NULL;
 
 //indent run-equals-input -TCachedDir
 
-/* Since lexi.c 1.153 from 2021-11-25. */
 //indent run-equals-input
 
 
 /*
- * Before lexi.c 1.156 from 2021-11-25, indent easily got confused by unknown
- * type names in declarations and generated 'HashEntry * he' with an extra
- * space.
+ * Before lexi.c 1.153 from 2021-11-25, indent easily got confused by unknown
+ * type names in declarations.
  */
 //indent input
 static CachedDir *
@@ -648,7 +638,6 @@ CachedDir_New(const char *name)
 }
 //indent end
 
-/* Since lexi.c 1.153 from 2021-11-25. */
 //indent run-equals-input
 
 
@@ -697,15 +686,15 @@ CachedDir_Assign(CachedDir **var, CachedDir *dir)
 }
 //indent end
 
-//indent run-equals-input
-
 //indent run-equals-input -TCachedDir
+
+//indent run-equals-input
 
 
 /*
  * Before lexi.c 1.153 from 2021-11-25, all initializer expressions after the
- * first one were indented as if they would be statement continuations. This
- * was because the token 'Shell' was identified as a word, not as a type name.
+ * first one were indented as if they were statement continuations. This was
+ * caused by the token 'Shell' being identified as a word, not as a type name.
  */
 //indent input
 static Shell	shells[] = {
@@ -716,7 +705,6 @@ static Shell	shells[] = {
 };
 //indent end
 
-/* Since lexi.c 1.153 from 2021-11-25. */
 //indent run-equals-input
 
 
@@ -808,8 +796,7 @@ char str[*ptr * *ptr];
 char str[sizeof(expr * expr)];
 char str[sizeof(int) * expr];
 char str[sizeof(*ptr)];
-/* $ FIXME: should be 'type **' */
-char str[sizeof(type * *)];
+char str[sizeof(type **)];
 char str[sizeof(**ptr)];
 //indent end
 
@@ -940,9 +927,6 @@ ch_isalpha(char ch)
 //indent run -i4 -di0
 // $ FIXME: 'buffer' is classified as 'word'.
 // $
-// $ XXX: 'char' is classified as 'type_in_parentheses'; check whether this
-// $ XXX: lexer symbol should only be used for types in cast expressions.
-// $
 // $ FIXME: 'size_t' is classified as 'word'.
 void buf_add_chars(struct buffer *, const char *, size_t);
 
@@ -960,3 +944,252 @@ ch_isalpha(char ch)
 //indent end
 
 //indent run-equals-input -i4 -di0
+
+
+//indent input
+void __printflike(1, 2)
+debug_printf(const char *fmt, ...)
+{
+}
+//indent end
+
+//indent run
+void
+// $ FIXME: No line break here.
+__printflike(1, 2)
+debug_printf(const char *fmt, ...)
+{
+}
+//indent end
+
+
+/*
+ * When a name is defined both as a function and as a macro, the name in the
+ * function definition must be enclosed in parentheses, to prevent the macro
+ * from being expanded. It is also possible to undefine the macro, but that is
+ * often not done in practice.
+ */
+//indent input
+void
+(error_at)(int msgid, const pos_t *pos, ...)
+{
+}
+//indent end
+
+//indent run-equals-input
+
+
+//indent input
+struct a {
+	struct b {
+		struct c {
+			struct d1 {
+				int e;
+			} d1;
+			struct d2 {
+				int e;
+			} d2;
+		} c;
+	} b;
+};
+//indent end
+
+//indent run-equals-input -di0
+
+
+//indent input
+static FILE *ArchFindMember(const char *, const char *,
+			    struct ar_hdr *, const char *);
+
+bool
+Job_CheckCommands(GNode *gn, void (*abortProc)(const char *, ...))
+{
+}
+
+static void MAKE_ATTR_PRINTFLIKE(5, 0)
+ParseVErrorInternal(FILE *f, bool useVars, const GNode *gn,
+		    ParseErrorLevel level, const char *fmt, va_list ap)
+{
+}
+
+typedef struct {
+	const char *m_name;
+} mod_t;
+//indent end
+
+//indent run -fbs -di0 -psl
+// $ Must be detected as a function declaration, not a definition.
+static FILE *ArchFindMember(const char *, const char *,
+			    struct ar_hdr *, const char *);
+
+bool
+Job_CheckCommands(GNode *gn, void (*abortProc)(const char *, ...))
+{
+}
+
+static void
+MAKE_ATTR_PRINTFLIKE(5, 0)
+ParseVErrorInternal(FILE *f, bool useVars, const GNode *gn,
+		    ParseErrorLevel level, const char *fmt, va_list ap)
+{
+}
+
+typedef struct {
+	const char *m_name;
+} mod_t;
+//indent end
+
+
+//indent input
+int a[] = {1, 2},
+b[] = {1, 2};
+{
+int a[] = {1, 2},
+b[] = {1, 2};
+}
+//indent end
+
+//indent run -di0
+int a[] = {1, 2},
+// $ FIXME: Missing indentation.
+b[] = {1, 2};
+{
+	int a[] = {1, 2},
+	// $ FIXME: Missing indentation.
+	b[] = {1, 2};
+}
+//indent end
+
+
+/*
+ * When a type occurs at the top level, it forces a line break before.
+ */
+//indent input
+__attribute__((__dead__)) void die(void) {}
+//indent end
+
+//indent run
+__attribute__((__dead__))
+void
+die(void)
+{
+}
+//indent end
+
+
+/*
+ * In very rare cases, the type of a declarator might include literal tab
+ * characters. This tab might affect the indentation of the declarator, but
+ * only if it occurs before the declarator, and that is hard to achieve.
+ */
+//indent input
+int		arr[sizeof "	"];
+//indent end
+
+//indent run-equals-input
+
+
+/*
+ * The '}' of an initializer is not supposed to end the statement, it only ends
+ * the brace level of the initializer expression.
+ */
+//indent input
+int multi_line[1][1][1] = {
+{
+{
+1
+},
+},
+};
+int single_line[2][1][1] = {{{1},},{{2}}};
+//indent end
+
+//indent run -di0
+int multi_line[1][1][1] = {
+	{
+		{
+			1
+		},
+	},
+};
+int single_line[2][1][1] = {{{1},}, {{2}}};
+//indent end
+
+
+/*
+ * The '}' of an initializer is not supposed to end the statement, it only ends
+ * the brace level of the initializer expression.
+ */
+//indent input
+{
+int multi_line = {
+{
+{
+b
+},
+},
+};
+int single_line = {{{b},},{}};
+}
+//indent end
+
+//indent run -di0
+{
+	int multi_line = {
+		{
+			{
+				b
+			},
+		},
+	};
+	int single_line = {{{b},}, {}};
+}
+//indent end
+
+
+/*
+ * In initializers, multi-line expressions don't have their second line
+ * indented, even though they should.
+ */
+//indent input
+{
+multi_line = (int[]){
+{1
++1},
+{1
++1},
+{1
++1},
+};
+}
+//indent end
+
+//indent run
+{
+	multi_line = (int[]){
+		{1
+		+ 1},
+		{1
+		+ 1},
+		{1
+		+ 1},
+	};
+}
+//indent end
+
+
+/*
+ *
+ */
+//indent input
+int
+old_style(a)
+	struct {
+		int		member;
+	}		a;
+{
+	stmt;
+}
+//indent end
+
+//indent run-equals-input

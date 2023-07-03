@@ -1,4 +1,4 @@
-/* $NetBSD: opt_bbb.c,v 1.7 2023/05/11 18:13:55 rillig Exp $ */
+/* $NetBSD: opt_bbb.c,v 1.11 2023/06/18 07:32:33 rillig Exp $ */
 
 /*
  * Tests for the options '-bbb' and '-nbbb'.
@@ -39,22 +39,22 @@ function_definition(void)
  * This is a block comment.
  */
 /* This is not a block comment since it is single-line. */
-/* $ TODO: Add a blank line here. */
+
 /*
  * This is a second block comment.
  */
 /* This is not a block comment. */
-/* $ TODO: Add a blank line here. */
+
 /*
  * Documentation of global_variable.
  */
 int		global_variable;
-/* $ TODO: Add a blank line here. */
+
 /*
  * Documentation of function_declaration.
  */
 void		function_declaration(void);
-/* $ TODO: Add a blank line here. */
+
 /*
  * Documentation of function_definition.
  */
@@ -65,3 +65,36 @@ function_definition(void)
 //indent end
 
 //indent run-equals-input -nbbb
+
+
+//indent input
+{
+label:				/* not a block comment */
+	stmt;			/* not a block comment */
+label:	/*
+	 * This is not a block comment, as it goes to the right.
+	 */
+	stmt;			/*
+				 * This is not a block comment, as it goes to
+				 * the right.
+				 */
+	/**
+	 * This is a block comment.
+	 */
+}
+//indent end
+
+//indent run -bbb
+{
+label:				/* not a block comment */
+	stmt;			/* not a block comment */
+label:				/* This is not a block comment, as it goes to
+				 * the right. */
+	stmt;			/* This is not a block comment, as it goes to
+				 * the right. */
+
+	/**
+	 * This is a block comment.
+	 */
+}
+//indent end

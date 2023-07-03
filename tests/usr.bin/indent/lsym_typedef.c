@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_typedef.c,v 1.6 2022/04/24 10:36:37 rillig Exp $ */
+/* $NetBSD: lsym_typedef.c,v 1.9 2023/06/17 22:09:24 rillig Exp $ */
 
 /*
  * Tests for the token lsym_typedef, which represents the keyword 'typedef'
@@ -59,3 +59,55 @@ typedef int number;
 //indent end
 
 //indent run-equals-input
+
+
+/*
+ * Ensure that a typedef declaration does not introduce an unnecessary line
+ * break after the '}'.
+ */
+//indent input
+typedef struct {
+	int member;
+	bool bit:1;
+} typedef_name;
+
+struct {
+	int member;
+	bool bit:1;
+} var_name;
+//indent end
+
+//indent run
+typedef struct {
+	int		member;
+	bool		bit:1;
+} typedef_name;
+
+struct {
+	int		member;
+	bool		bit:1;
+}		var_name;
+//indent end
+
+//indent run-equals-input -di0
+
+
+/*
+ * When 'typedef' or a tag is followed by a name, that name marks a type and a
+ * following '*' marks a pointer type.
+ */
+//indent input
+{
+	// $ Syntactically invalid but shows that '*' is not multiplication.
+	a = typedef name * y;
+	a = (typedef x * y)z;
+}
+//indent end
+
+//indent run
+{
+	// $ Everything before the '*' is treated as a declaration.
+	a = typedef name *y;
+	a = (typedef x *y)z;
+}
+//indent end

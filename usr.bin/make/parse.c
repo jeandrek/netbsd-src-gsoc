@@ -1,4 +1,4 @@
-/*	$NetBSD: parse.c,v 1.698 2023/05/10 16:10:02 rillig Exp $	*/
+/*	$NetBSD: parse.c,v 1.704 2023/06/23 06:08:56 rillig Exp $	*/
 
 /*
  * Copyright (c) 1988, 1989, 1990, 1993
@@ -105,7 +105,15 @@
 #include "pathnames.h"
 
 /*	"@(#)parse.c	8.3 (Berkeley) 3/19/94"	*/
-MAKE_RCSID("$NetBSD: parse.c,v 1.698 2023/05/10 16:10:02 rillig Exp $");
+MAKE_RCSID("$NetBSD: parse.c,v 1.704 2023/06/23 06:08:56 rillig Exp $");
+
+/* Detects a multiple-inclusion guard in a makefile. */
+typedef enum {
+	GS_START,		/* at the beginning of the file */
+	GS_COND,		/* after the guard condition */
+	GS_DONE,		/* after the closing .endif */
+	GS_NO			/* the file is not guarded */
+} GuardState;
 
 /*
  * A file being read.
@@ -125,8 +133,11 @@ typedef struct IncludedFile {
 
 	Buffer buf;		/* the file's content or the body of the .for
 				 * loop; either empty or ends with '\n' */
-	char *buf_ptr;		/* next char to be read */
+	char *buf_ptr;		/* next char to be read from buf */
 	char *buf_end;		/* buf_end[-1] == '\n' */
+
+	GuardState guardState;
+	Guard *guard;
 
 	struct ForLoop *forLoop;
 } IncludedFile;
@@ -299,6 +310,8 @@ static const struct {
 
 enum PosixState posix_state = PS_NOT_YET;
 
+static HashTable /* full file name -> Guard */ guards;
+
 static IncludedFile *
 GetInclude(size_t i)
 {
@@ -413,8 +426,8 @@ IsEscaped(const char *line, const char *p)
 }
 
 /*
- * Add the filename and lineno to the GNode so that we remember where it
- * was first defined.
+ * Add the filename and lineno to the GNode so that we remember where its
+ * last command was added or where it was mentioned in a .depend file.
  */
 static void
 RememberLocation(GNode *gn)
@@ -1197,6 +1210,24 @@ FindInQuotPath(const char *file)
 	return fullname;
 }
 
+static bool
+SkipGuarded(const char *fullname)
+{
+	Guard *guard = HashTable_FindValue(&guards, fullname);
+	if (guard != NULL && guard->kind == GK_VARIABLE
+	    && GNode_ValueDirect(SCOPE_GLOBAL, guard->name) != NULL)
+		goto skip;
+	if (guard != NULL && guard->kind == GK_TARGET
+	    && Targ_FindNode(guard->name) != NULL)
+		goto skip;
+	return false;
+
+skip:
+	DEBUG2(PARSE, "Skipping '%s' because '%s' is defined\n",
+	    fullname, guard->name);
+	return true;
+}
+
 /*
  * Handle one of the .[-ds]include directives by remembering the current file
  * and pushing the included file on the stack.  After the included file has
@@ -1230,6 +1261,9 @@ IncludeFile(const char *file, bool isSystem, bool depinc, bool silent)
 			Parse_Error(PARSE_FATAL, "Could not find %s", file);
 		return;
 	}
+
+	if (SkipGuarded(fullname))
+		return;
 
 	if ((fd = open(fullname, O_RDONLY)) == -1) {
 		if (!silent)
@@ -2174,6 +2208,8 @@ Parse_PushInput(const char *name, unsigned lineno, unsigned readLines,
 	curFile->forBodyReadLines = readLines;
 	curFile->buf = buf;
 	curFile->depending = doing_depend;	/* restore this on EOF */
+	curFile->guardState = forLoop == NULL ? GS_START : GS_NO;
+	curFile->guard = NULL;
 	curFile->forLoop = forLoop;
 
 	if (forLoop != NULL && !For_NextIteration(forLoop, &curFile->buf))
@@ -2315,6 +2351,13 @@ ParseEOF(void)
 	}
 
 	Cond_EndFile();
+
+	if (curFile->guardState == GS_DONE)
+		HashTable_Set(&guards, curFile->name.str, curFile->guard);
+	else if (curFile->guard != NULL) {
+		free(curFile->guard->name);
+		free(curFile->guard);
+	}
 
 	FStr_Done(&curFile->name);
 	Buf_Done(&curFile->buf);
@@ -2616,8 +2659,10 @@ static char *
 ReadHighLevelLine(void)
 {
 	char *line;
+	CondResult condResult;
 
 	for (;;) {
+		IncludedFile *curFile = CurFile();
 		line = ReadLowLevelLine(LK_NONEMPTY);
 		if (posix_state == PS_MAYBE_NEXT_LINE)
 			posix_state = PS_NOW_OR_NEVER;
@@ -2626,10 +2671,24 @@ ReadHighLevelLine(void)
 		if (line == NULL)
 			return NULL;
 
+		if (curFile->guardState != GS_NO
+		    && ((curFile->guardState == GS_START && line[0] != '.')
+			|| curFile->guardState == GS_DONE))
+			curFile->guardState = GS_NO;
 		if (line[0] != '.')
 			return line;
 
-		switch (Cond_EvalLine(line)) {
+		condResult = Cond_EvalLine(line);
+		if (curFile->guardState == GS_START) {
+			Guard *guard;
+			if (condResult != CR_ERROR
+			    && (guard = Cond_ExtractGuard(line)) != NULL) {
+				curFile->guardState = GS_COND;
+				curFile->guard = guard;
+			} else
+				curFile->guardState = GS_NO;
+		}
+		switch (condResult) {
 		case CR_FALSE:	/* May also mean a syntax error. */
 			if (!SkipIrrelevantBranches())
 				return NULL;
@@ -2700,9 +2759,13 @@ ParseLine_ShellCommand(const char *p)
 }
 
 static void
-HandleBreak(void)
+HandleBreak(const char *arg)
 {
 	IncludedFile *curFile = CurFile();
+
+	if (arg[0] != '\0')
+		Parse_Error(PARSE_FATAL,
+		    "The .break directive does not take arguments");
 
 	if (curFile->forLoop != NULL) {
 		/* pretend we reached EOF */
@@ -2742,7 +2805,7 @@ ParseDirective(char *line)
 	arg = cp;
 
 	if (Substring_Equals(dir, "break"))
-		HandleBreak();
+		HandleBreak(arg);
 	else if (Substring_Equals(dir, "undef"))
 		Var_Undef(arg);
 	else if (Substring_Equals(dir, "export"))
@@ -2778,6 +2841,23 @@ Parse_VarAssign(const char *line, bool finishDependencyGroup, GNode *scope)
 	Parse_Var(&var, scope);
 	free(var.varname);
 	return true;
+}
+
+void
+Parse_GuardElse(void)
+{
+	IncludedFile *curFile = CurFile();
+	if (cond_depth == curFile->condMinDepth + 1)
+		curFile->guardState = GS_NO;
+}
+
+void
+Parse_GuardEndif(void)
+{
+	IncludedFile *curFile = CurFile();
+	if (cond_depth == curFile->condMinDepth
+	    && curFile->guardState == GS_COND)
+		curFile->guardState = GS_DONE;
 }
 
 static char *
@@ -2970,6 +3050,7 @@ Parse_Init(void)
 	sysIncPath = SearchPath_New();
 	defSysIncPath = SearchPath_New();
 	Vector_Init(&includes, sizeof(IncludedFile));
+	HashTable_Init(&guards);
 }
 
 /* Clean up the parsing module. */
@@ -2977,6 +3058,8 @@ void
 Parse_End(void)
 {
 #ifdef CLEANUP
+	HashIter hi;
+
 	Lst_DoneCall(&targCmds, free);
 	assert(targets == NULL);
 	SearchPath_Free(defSysIncPath);
@@ -2984,6 +3067,13 @@ Parse_End(void)
 	SearchPath_Free(parseIncPath);
 	assert(includes.len == 0);
 	Vector_Done(&includes);
+	HashIter_Init(&hi, &guards);
+	while (HashIter_Next(&hi) != NULL) {
+		Guard *guard = hi.entry->value;
+		free(guard->name);
+		free(guard);
+	}
+	HashTable_Done(&guards);
 #endif
 }
 

@@ -1,10 +1,10 @@
-#	$NetBSD: configure.ac,v 1.99 2021/02/25 13:41:58 christos Exp $
+#	$NetBSD: configure.ac,v 1.105 2023/06/03 09:10:13 lukem Exp $
 #
 # Autoconf definition file for libnbcompat.
 #
 # When you edit configure.ac:
 # 0. Create the tools versions of autoconf and autoheader:
-#        cd ${SRCDIR} && build.sh -V MKMAINTAINERTOOLS=yes tools
+#        cd ${SRCDIR} && ./build.sh -V MKMAINTAINERTOOLS=yes tools
 #    (This might not work if you try it after editing configure.ac.)
 # 1. edit configure.ac
 # 2. Regenerate "configure" and "nbtool_config.h.in" from "configure.ac":
@@ -12,7 +12,7 @@
 #    (Please don't use a non-tools version of autoconf or autoheader.)
 # 3. Test that the tools still build:
 #        mv ${TOOLDIR} ${TOOLDIR}.bak
-#        cd ${SRCDIR} && build.sh -V MKMAINTAINERTOOLS=yes tools
+#        cd ${SRCDIR} && ./build.sh -V MKMAINTAINERTOOLS=yes tools
 # 4. cvs commit files that you edited.
 # 5. Regen again, to pick up changed RCS IDs from the above commit:
 #        cd ${SRCDIR}/tools/compat && ${TOOLDIR}/bin/nbmake-${MACHINE} regen
@@ -20,8 +20,12 @@
 #
 
 AC_INIT([libnbcompat], [noversion], [lib-bug-people@NetBSD.org])
-AC_CONFIG_HEADERS(nbtool_config.h)
-AC_CONFIG_FILES(defs.mk)
+AC_CONFIG_HEADERS([nbtool_config.h])
+AC_CONFIG_FILES([defs.mk])
+AC_CONFIG_MACRO_DIR([buildaux])
+
+m4_pattern_forbid([^AX_])
+m4_pattern_forbid([^NB_])
 
 # Autoheader header and footer
 AH_TOP([/*      $][NetBSD$    */
@@ -32,8 +36,8 @@ AH_TOP([/*      $][NetBSD$    */
 AH_BOTTOM([#include "compat_defs.h"
 #endif /* !__NETBSD_NBTOOL_CONFIG_H__ */])
 
-AC_DEFUN([AC_NETBSD],
-[AC_BEFORE([$0], [AC_COMPILE_IFELSE])dnl
+AC_DEFUN([NB_NETBSD], [dnl
+      AC_BEFORE([$0], [AC_COMPILE_IFELSE])dnl
       AC_BEFORE([$0], [AC_RUN_IFELSE])dnl
       AC_MSG_CHECKING([for NetBSD])
       AC_EGREP_CPP(yes,
@@ -46,17 +50,17 @@ AC_DEFUN([AC_NETBSD],
 	 AC_DEFINE([_POSIX_C_SOURCE], 200112L, [Define for NetBSD headers.])
 	 AC_DEFINE([_XOPEN_SOURCE], 600, [Define for NetBSD headers.])],
 	[AC_MSG_RESULT([no])])
-])# AC_NETBSD
+])dnl NB_NETBSD
 
-AC_NETBSD
+NB_NETBSD()
 AC_PATH_PROG(BSHELL, sh, )
 if test x"$BSHELL" = x; then
 	AC_MSG_ERROR([sh must be somewhere on \$PATH])
 fi
 AC_DEFINE_UNQUOTED([PATH_BSHELL], "$BSHELL", [Path to sh(1).])
 
-AC_C_BIGENDIAN
-AC_HEADER_STDC
+AC_C_BIGENDIAN()
+AC_HEADER_STDC()
 
 # Confirm existence of zlib.  (This is available as a default install
 # option on many OS's; this could be added as a reachover build in the
@@ -77,7 +81,7 @@ AC_CHECK_HEADERS(sys/ioctl.h sys/mman.h sys/param.h \
 	AC_MSG_ERROR([standard system header file not found]))
 
 # Find headers that may not be available.
-AC_HEADER_DIRENT
+AC_HEADER_DIRENT()
 AC_CHECK_HEADERS(sys/mtio.h sys/sysmacros.h sys/syslimits.h stdio_ext.h \
 	getopt.h features.h malloc.h sys/poll.h pthread.h stddef.h sys/uio.h)
 AC_CHECK_HEADERS(sys/bswap.h machine/bswap.h sys/cdefs.h machine/endian.h \
@@ -104,7 +108,7 @@ AC_CHECK_HEADERS(netconfig.h,,
 	fi])
 
 # Typedefs.
-AC_TYPE_SIZE_T
+AC_TYPE_SIZE_T()
 AC_CHECK_TYPES([id_t, long long, u_long, u_char, u_short, u_int, u_quad_t])
 AC_CHECK_TYPES([uchar_t, ushort_t, uint_t, ulong_t])
 AC_CHECK_TYPE(socklen_t, [AC_DEFINE([HAVE_SOCKLEN_T], 1,
@@ -142,7 +146,7 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 dnl XXX - This is UGLY.  Need a better way to homogenize the bitsized types,
 dnl including use of compiler primitive types via AC_CHECK_SIZEOF.
 dnl
-define([NB_CHECK_INTTYPE], [
+AC_DEFUN([NB_CHECK_INTTYPE], [dnl
 	AC_CHECK_TYPE(uint][$1][_t,, [
 		AC_CHECK_TYPE(u_int][$1][_t,
 			AC_DEFINE(uint][$1][_t, u_int][$1][_t, \
@@ -155,7 +159,7 @@ define([NB_CHECK_INTTYPE], [
 				  [Define if you have uint][$1][_t, but not u_int][$1][_t.]),
 			AC_MSG_ERROR([cannot find a suitable type for u_int][$1][_t]))
 	])
-])
+])dnl NB_CHECK_INTTYPE
 
 NB_CHECK_INTTYPE(8)
 NB_CHECK_INTTYPE(16)
@@ -218,8 +222,9 @@ AC_CHECK_DECLS([optind, optreset],,, [
 AC_CHECK_DECLS(sys_signame,,, [#include <signal.h>])
 
 # Library functions (where a .h check isn't enough).
-AC_FUNC_ALLOCA
+AC_FUNC_ALLOCA()
 AC_CHECK_FUNCS(atoll asprintf asnprintf basename devname dirfd dirname \
+	dispatch_semaphore_create \
 	dprintf esetfunc fgetln flock fpurge __fpurge futimes getline \
 	getopt getopt_long group_from_gid gid_from_group \
 	heapsort isblank issetugid lchflags lchmod lchown lutimes mkstemp \
@@ -313,12 +318,59 @@ main(void)
         [AC_MSG_RESULT(yes)],
         [AC_MSG_RESULT(no)
          AC_DEFINE(BROKEN_FPARSELN, 1,
-            [Define to 1 if your `fparseln' function is broken.])],
+            [Define to 1 if your 'fparseln' function is broken.])],
         [AC_MSG_WARN([cross compiling: not checking farseln])]
     )
 ])
 
-# Variables substituted via @VARNAME@ in defs.mk.in
-AC_SUBST(HAVE_PTHREAD_H, $ac_cv_header_pthread_h)
+dnl
+dnl Set per-warning CC_* variables if supported by HOST_CC.
+dnl
 
-AC_OUTPUT
+dnl clang needs to fail if given an unknown -WWARN.
+cc_fail_unknown=
+AX_CHECK_COMPILE_FLAG([-Werror=unknown-warning-option],
+ [AS_VAR_APPEND([cc_fail_unknown], [-Werror=unknown-warning-option])])
+
+dnl NB_CC_FLAG(FLAG)
+dnl	Determine if HOST_CC supports FLAG, and
+dnl	sets output variable VAR (derived from FLAG)
+dnl	to FLAG if it is supported.
+dnl
+AC_DEFUN([NB_CC_FLAG], [dnl
+m4_pushdef([NB_FLAG], [$1])
+dnl gcc ignores unknown -Wno-WARN but will fail unknown equivalent -WWARN.
+m4_pushdef([NB_WFLAG], m4_bpatsubst(NB_FLAG, [^-Wno-], [-W]))
+m4_pushdef([NB_VAR], [CC]m4_translit(NB_FLAG, [-=a-z], [__A-Z]))
+AX_CHECK_COMPILE_FLAG(NB_WFLAG, [AS_VAR_SET(NB_VAR,NB_FLAG)], [], [$cc_fail_unknown])
+AC_SUBST(NB_VAR)
+m4_append([NB_CC_FLAG_VARS], NB_VAR, [ ])
+m4_popdef([NB_FLAG])
+m4_popdef([NB_WFLAG])
+m4_popdef([NB_VAR])
+]) dnl NB_CC_FLAG
+
+dnl Disable use of pre-compiled headers on Darwin.
+NB_CC_FLAG([-no-cpp-precomp])
+
+dnl Detect HOST_CC support for <bsd.own.mk> CC_* warnings
+NB_CC_FLAG([-Wno-address-of-packed-member])
+NB_CC_FLAG([-Wno-cast-function-type])
+NB_CC_FLAG([-Wno-error=address-of-packed-member])
+NB_CC_FLAG([-Wno-format-overflow])
+NB_CC_FLAG([-Wno-format-truncation])
+NB_CC_FLAG([-Wno-implicit-fallthrough])
+NB_CC_FLAG([-Wno-maybe-uninitialized])
+NB_CC_FLAG([-Wno-return-local-addr])
+NB_CC_FLAG([-Wno-stringop-overflow])
+NB_CC_FLAG([-Wno-stringop-truncation])
+
+AC_OUTPUT()
+
+dnl Display results
+dnl
+AC_MSG_NOTICE([============= Configuration results =============])
+m4_foreach_w([NB_VAR], [CC LIBS ]NB_CC_FLAG_VARS, [dnl
+AC_MSG_NOTICE(m4_format([%-40s],NB_VAR)[$NB_VAR])
+])
+AC_MSG_NOTICE([================================================])

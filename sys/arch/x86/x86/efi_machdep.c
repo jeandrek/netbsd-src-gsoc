@@ -1,4 +1,4 @@
-/*	$NetBSD: efi_machdep.c,v 1.4 2022/12/24 15:23:02 andvar Exp $	*/
+/*	$NetBSD: efi_machdep.c,v 1.6 2023/05/22 16:28:07 riastradh Exp $	*/
 
 /*-
  * Copyright (c) 2016 The NetBSD Foundation, Inc.
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: efi_machdep.c,v 1.4 2022/12/24 15:23:02 andvar Exp $");
+__KERNEL_RCSID(0, "$NetBSD: efi_machdep.c,v 1.6 2023/05/22 16:28:07 riastradh Exp $");
 
 #include "efi.h"
 #include "opt_efi.h"
@@ -582,18 +582,6 @@ efi_get_e820memmap(void)
 #ifdef EFI_RUNTIME
 
 /*
- * XXX move to sys/dev/efi/efi.h
- */
-#ifdef _LP64
-#define	EFIERR(x)	(0x8000000000000000ul | (x))
-#else
-#define	EFIERR(x)	(0x80000000ul | (x))
-#endif
-
-#define	EFI_UNSUPPORTED		EFIERR(3)
-#define	EFI_DEVICE_ERROR	EFIERR(7)
-
-/*
  * efi_runtime_init()
  *
  *	Set up kernel access to EFI runtime services:
@@ -985,12 +973,29 @@ efi_runtime_setvar(efi_char *name, struct uuid *vendor, uint32_t attrib,
 	return status;
 }
 
+static efi_status
+efi_runtime_gettab(const struct uuid *vendor, uint64_t *addrp)
+{
+	struct efi_cfgtbl *cfgtbl = efi_getcfgtblhead();
+	paddr_t pa;
+
+	if (cfgtbl == NULL)
+		return EFI_UNSUPPORTED;
+
+	pa = efi_getcfgtblpa(vendor);
+	if (pa == 0)
+		return EFI_NOT_FOUND;
+	*addrp = pa;
+	return EFI_SUCCESS;
+}
+
 static struct efi_ops efi_runtime_ops = {
 	.efi_gettime = efi_runtime_gettime,
 	.efi_settime = efi_runtime_settime,
 	.efi_getvar = efi_runtime_getvar,
 	.efi_setvar = efi_runtime_setvar,
 	.efi_nextvar = efi_runtime_nextvar,
+	.efi_gettab = efi_runtime_gettab,
 };
 
 #endif	/* EFI_RUNTIME */

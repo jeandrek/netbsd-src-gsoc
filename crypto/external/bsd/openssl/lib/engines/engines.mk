@@ -1,4 +1,4 @@
-#	$NetBSD: engines.mk,v 1.2 2023/05/07 16:21:19 christos Exp $
+#	$NetBSD: engines.mk,v 1.6 2023/05/26 23:13:37 riastradh Exp $
 
 NOLINT=		# don't build a lint library
 NOPROFILE=	# don't build a profile library
@@ -14,7 +14,9 @@ CRYPTODIST=     ${NETBSDSRCDIR}/crypto
 .PATH: ${OPENSSLSRC}/engines
 
 CPPFLAGS+= -I${OPENSSLSRC}/include -I${OPENSSLSRC}/../include
- 
+
+LIBDPLIBS+=crypto ${.CURDIR}/../../libcrypto
+
 LIBDIR=${OSSL_ENGINESDIR}
 
 .if ${MKPIC} != "no"

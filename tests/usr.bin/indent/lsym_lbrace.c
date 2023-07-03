@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_lbrace.c,v 1.6 2022/04/24 09:04:12 rillig Exp $ */
+/* $NetBSD: lsym_lbrace.c,v 1.10 2023/06/16 23:19:01 rillig Exp $ */
 
 /*
  * Tests for the token lsym_lbrace, which represents a '{' in these contexts:
@@ -40,11 +40,12 @@ void function(void) {{{ body(); }}}
 //indent run
 void
 function(void)
-/* $ FIXME: Each '{' must be properly indented. */
-{{{
+{
+	{
+		{
 			body();
-}
-}
+		}
+	}
 }
 //indent end
 
@@ -57,18 +58,88 @@ origin(void)
 	return (struct point){
 		.x = 0,
 		.y = 0,
+	}, actual_return_value;
+}
+//indent end
+
+//indent run-equals-input
+
+/* Ensure that the comma is not interpreted as separator for declarators. */
+//indent run-equals-input -bc
+
+
+//indent input
+{
+	const char *hello = (const char[]){
+		'h', 'e', 'l', 'l', 'o',
+	}, *world = (const char[]){
+		'w', 'o', 'r', 'l', 'd',
 	};
 }
 //indent end
 
-//indent run
-struct point
-origin(void)
+//indent run-equals-input -ldi0
+
+//indent run-equals-input -ldi0 -bc
+
+
+//indent input
 {
-	return (struct point){
-		.x = 0,
-/* $ FIXME: All initializers must be indented to the same level. */
-			.y = 0,
-	};
+	if (cond rparen {
+	}
+	switch (expr rparen {
+	}
+}
+//indent end
+
+//indent run
+{
+		if (cond rparen {
+		}
+		switch (expr rparen {
+		}
+}
+// exit 1
+// error: Standard Input:2: Unbalanced parentheses
+// error: Standard Input:4: Unbalanced parentheses
+//indent end
+
+
+/*
+ * The -bl option does not force initializer braces on separate lines.
+ */
+//indent input
+struct {int member;} var = {1};
+//indent end
+
+//indent run -bl
+struct
+{
+	int		member;
+}		var = {1};
+//indent end
+
+
+/*
+ * A comment in a single-line function definition is not a declaration comment
+ * and thus not in column 25.
+ */
+//indent input
+void function(void); /* comment */
+void function(void) { /* comment */ }
+//indent end
+
+//indent run -di0
+void function(void);		/* comment */
+void
+function(void)
+{				/* comment */
+}
+//indent end
+
+//indent run -di0 -nfbs
+void function(void);		/* comment */
+void
+function(void) {		/* comment */
 }
 //indent end

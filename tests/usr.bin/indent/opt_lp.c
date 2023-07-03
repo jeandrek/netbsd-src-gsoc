@@ -1,4 +1,4 @@
-/* $NetBSD: opt_lp.c,v 1.6 2022/04/24 09:04:12 rillig Exp $ */
+/* $NetBSD: opt_lp.c,v 1.10 2023/06/09 06:36:58 rillig Exp $ */
 
 /*
  * Tests for the options '-lp' and '-nlp'.
@@ -66,10 +66,6 @@ example(void)
 }
 //indent end
 
-/*
- * XXX: Combining the options '-nlp' and '-ci4' is counterproductive as the
- * indentation does not make the nesting level of the function calls visible.
- */
 //indent run -nlp -ci4
 void
 example(void)
@@ -78,12 +74,68 @@ example(void)
 	    third_procedure(p4, p5));
 
 	p1 = first_procedure(second_procedure(p2,
-	    p3),
+		p3),
 	    third_procedure(p4,
-	    p5));
+		p5));
 
 	p1 = first_procedure(
 	    second_procedure(p2, p3),
 	    third_procedure(p4, p5));
+}
+//indent end
+
+
+/*
+ * Ensure that in multi-line else-if conditions, all lines are indented by the
+ * correct amount.  The 'else if' condition is tricky because it has the same
+ * indentation as the preceding 'if' condition.
+ */
+//indent input
+{
+if (cond11a
+&& cond11b
+&& cond11c) {
+stmt11;
+} else if (cond12a
+&& cond12b
+&& cond12c) {
+stmt12;
+}
+}
+
+{
+if (cond21a
+&& cond21b
+&& cond21c)
+stmt21;
+else if (cond22a
+&& cond22b
+&& cond22c)
+stmt22;
+}
+//indent end
+
+//indent run -ci4 -nlp
+{
+	if (cond11a
+	    && cond11b
+	    && cond11c) {
+		stmt11;
+	} else if (cond12a
+	    && cond12b
+	    && cond12c) {
+		stmt12;
+	}
+}
+
+{
+	if (cond21a
+	    && cond21b
+	    && cond21c)
+		stmt21;
+	else if (cond22a
+	    && cond22b
+	    && cond22c)
+		stmt22;
 }
 //indent end

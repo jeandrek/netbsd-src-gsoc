@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.inc,v 1.7 2021/04/12 03:55:40 mrg Exp $
+#	$NetBSD: Makefile.inc,v 1.9 2023/06/03 21:26:28 lukem Exp $
 
 BINDIR=		/usr/mdec
 
@@ -10,5 +10,4 @@ LINKFLAGS_UNWIND=	--no-ld-generated-unwind-info
 # Follow the suit of Makefile.kern.inc; needed for the lfs64 union
 # accessors -- they don't actually dereference the resulting pointer,
 # just use it for type-checking.
-CWARNFLAGS.clang+=	-Wno-error=address-of-packed-member
-CWARNFLAGS.gcc+=	${GCC_NO_ADDR_OF_PACKED_MEMBER}
+CWARNFLAGS+=		${CC_WNO_ADDRESS_OF_PACKED_MEMBER}

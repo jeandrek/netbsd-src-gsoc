@@ -1,4 +1,4 @@
-# $NetBSD: Makefile,v 1.20 2022/07/17 14:11:40 riastradh Exp $
+# $NetBSD: Makefile,v 1.22 2023/06/03 21:31:47 lukem Exp $
 
 .include "../Makefile.inc"
 .include "../drmkms/Makefile.inc"
@@ -59,13 +59,13 @@ CWARNFLAGS+=	-Wno-shadow
 COPTS.i915_pci.c+=	${${ACTIVE_CC} == "gcc":? -Wno-override-init :}
 COPTS.i915_pci.c+=	${${ACTIVE_CC} == "clang":? -Wno-initializer-overrides :}
 COPTS.i915_sw_fence.c+=	${${ACTIVE_CC} == "clang":? -Wno-unused-function :}
-COPTS.intel_sprite.c+=	${${ACTIVE_CC} == "gcc":? -Wno-maybe-uninitialized :}
-COPTS.intel_ddi.c+=	${GCC_NO_MAYBE_UNINITIALIZED}
-COPTS.intel_ddi.c+=	${GCC_NO_IMPLICIT_FALLTHRU}
-COPTS.intel_display.c+=	${GCC_NO_IMPLICIT_FALLTHRU}
+COPTS.intel_sprite.c+=	${CC_WNO_MAYBE_UNINITIALIZED}
+COPTS.intel_ddi.c+=	${CC_WNO_MAYBE_UNINITIALIZED}
+COPTS.intel_ddi.c+=	${CC_WNO_IMPLICIT_FALLTHROUGH}
+COPTS.intel_display.c+=	${CC_WNO_IMPLICIT_FALLTHROUGH}
 COPTS.intel_guc_submission.c+=	${${ACTIVE_CC} == "clang":? -Wno-unused-function :}
 COPTS.intel_hdmi.c+=	${${ACTIVE_CC} == "clang":? -Wno-unused-function :}
-COPTS.intel_sdvo.c+=	${GCC_NO_IMPLICIT_FALLTHRU}
+COPTS.intel_sdvo.c+=	${CC_WNO_IMPLICIT_FALLTHROUGH}
 
 # NetBSD additions.
 SRCS+=	i915_module.c

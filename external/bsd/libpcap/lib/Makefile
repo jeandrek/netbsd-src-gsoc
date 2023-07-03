@@ -1,4 +1,4 @@
-# $NetBSD: Makefile,v 1.29 2020/03/29 19:50:46 christos Exp $	
+# $NetBSD: Makefile,v 1.31 2023/06/03 21:30:21 lukem Exp $	
 
 USE_SHLIBDIR=yes
 .include <bsd.init.mk>
@@ -165,11 +165,11 @@ CLEANFILES+=	tokdefs.h scanner.h
 
 COPTS.bpf_image.c+=	-Wno-format-nonliteral
 
-COPTS.gencode.c+=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-error=implicit-fallthrough :}
-COPTS.pcap.c+=		${GCC_NO_FORMAT_TRUNCATION}
-COPTS.pcap-bpf.c+=	${GCC_NO_STRINGOP_TRUNCATION}
-COPTS.pcap-new.c+=	${GCC_NO_FORMAT_TRUNCATION}
-COPTS.pcap-rpcap.c+=	${GCC_NO_FORMAT_TRUNCATION}
+COPTS.gencode.c+=	${CC_WNO_IMPLICIT_FALLTHROUGH}
+COPTS.pcap.c+=		${CC_WNO_FORMAT_TRUNCATION}
+COPTS.pcap-bpf.c+=	${CC_WNO_STRINGOP_TRUNCATION}
+COPTS.pcap-new.c+=	${CC_WNO_FORMAT_TRUNCATION}
+COPTS.pcap-rpcap.c+=	${CC_WNO_FORMAT_TRUNCATION}
 
 CWARNFLAGS.clang+=	-Wno-format-extra-args \
 			-Wno-unneeded-internal-declaration

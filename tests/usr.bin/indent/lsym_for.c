@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_for.c,v 1.4 2022/04/24 10:36:37 rillig Exp $ */
+/* $NetBSD: lsym_for.c,v 1.9 2023/06/26 20:23:40 rillig Exp $ */
 
 /*
  * Tests for the token lsym_for, which represents the keyword 'for' that
@@ -82,6 +82,23 @@ function(void)
 //indent input
 {
 	for (CPU_INFO_FOREACH(cii, ci)) {
+	}
+}
+//indent end
+
+//indent run-equals-input
+
+
+/* Ensure that the '*' after 'list_item' is a unary operator. */
+//indent input
+{
+	for (const list_item *i = first; i != NULL; i = i->next) {
+	}
+	for (list_item **i = first; i != NULL; i = i->next) {
+	}
+	for (list_item *const *i = first; i != NULL; i = i->next) {
+	}
+	for (const char *const *i = first; i != NULL; i = i->next) {
 	}
 }
 //indent end

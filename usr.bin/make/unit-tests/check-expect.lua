@@ -1,5 +1,5 @@
 #!  /usr/bin/lua
--- $NetBSD: check-expect.lua,v 1.4 2023/05/09 19:43:12 rillig Exp $
+-- $NetBSD: check-expect.lua,v 1.7 2023/06/23 04:41:24 rillig Exp $
 
 --[[
 
@@ -19,10 +19,6 @@ expected text in the corresponding .exp file.
 # expect[+-]offset: <message>
         Each message must occur in the .exp file and refer back to the
         source line in the .mk file.
-
-# expect-all
-        Each message from the .exp file that can be matched by an
-        'expect[+-]offset' comment must actually be matched.
 ]]
 
 
@@ -58,7 +54,7 @@ local function collect_lineno_diagnostics(exp_lines)
   for _, line in ipairs(exp_lines) do
     ---@type string | nil, string, string
     local l_fname, l_lineno, l_msg =
-      line:match("^make: \"([^\"]+)\" line (%d+): (.*)")
+      line:match('^make: "([^"]+)" line (%d+): (.*)')
     if l_fname ~= nil then
       local location = ("%s:%d"):format(l_fname, l_lineno)
       if by_location[location] == nil then
@@ -72,6 +68,33 @@ local function collect_lineno_diagnostics(exp_lines)
 end
 
 
+local function missing(by_location)
+  ---@type {filename: string, lineno: number, location: string, message: string}[]
+  local missing_expectations = {}
+
+  for location, messages in pairs(by_location) do
+    for _, message in ipairs(messages) do
+      if message ~= "" and location:find(".mk:") then
+        local filename, lineno = location:match("^(%S+):(%d+)$")
+        table.insert(missing_expectations, {
+          filename = filename,
+          lineno = tonumber(lineno),
+          location = location,
+          message = message
+        })
+      end
+    end
+  end
+  table.sort(missing_expectations, function(a, b)
+    if a.filename ~= b.filename then
+      return a.filename < b.filename
+    end
+    return a.lineno < b.lineno
+  end)
+  return missing_expectations
+end
+
+
 local function check_mk(mk_fname)
   local exp_fname = mk_fname:gsub("%.mk$", ".exp")
   local mk_lines = load_lines(mk_fname)
@@ -79,7 +102,6 @@ local function check_mk(mk_fname)
   if exp_lines == nil then return end
   local by_location = collect_lineno_diagnostics(exp_lines)
   local prev_expect_line = 0
-  local match_all = false
 
   for mk_lineno, mk_line in ipairs(mk_lines) do
     for text in mk_line:gmatch("#%s*expect:%s*(.*)") do
@@ -122,22 +144,10 @@ local function check_mk(mk_fname)
           mk_fname, mk_lineno, exp_fname, text)
       end
     end
-
-    if mk_line:match("^#%s*expect%-all$") then
-      match_all = true
-    end
   end
 
-  if match_all then
-    -- XXX: The messages are not sorted in any meaningful way.
-    for location, messages in pairs(by_location) do
-      for _, message in ipairs(messages) do
-        if message ~= "" then
-          print_error("error: %s: missing 'expect' comment for '%s'",
-            location, message)
-        end
-      end
-    end
+  for _, m in ipairs(missing(by_location)) do
+    print_error("missing: %s: # expect+1: %s", m.location, m.message)
   end
 end
 

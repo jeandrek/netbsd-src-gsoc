@@ -1,6 +1,6 @@
-.\"	$NetBSD: BUILDING.mdoc,v 1.135 2022/08/21 07:10:03 lukem Exp $
+.\"	$NetBSD: BUILDING.mdoc,v 1.144 2023/06/11 20:34:14 lukem Exp $
 .\"
-.\" Copyright (c) 2001-2022 The NetBSD Foundation, Inc.
+.\" Copyright (c) 2001-2023 The NetBSD Foundation, Inc.
 .\" All rights reserved.
 .\"
 .\" This code is derived from software contributed to The NetBSD Foundation
@@ -33,9 +33,11 @@
 .\" Toolchain prefix for commands
 .ds toolprefix nb
 .
-.Dd October 13, 2020
+.Dd June 11, 2023
 .Dt BUILDING 8
 .Os NetBSD
+.\" turn off hyphenation
+.hym 999
 .
 .\" if this file is processed with real roff (doc.tmac)
 .\" now that the tmac files have been lazily read,
@@ -52,7 +54,7 @@
 .Nm BUILDING
 .Nd Procedure for building
 .Nx
-from source code.
+from source code
 .
 .Sh REQUIREMENTS
 .
@@ -76,20 +78,42 @@ compilers in order to create the toolchain
 is not required); all other tools are created as part of the
 .Nx
 build process.
-(See the environment variables section below if you need
+(See the
+.Sx Environment variables
+section below if you need
 to override or manually select your compilers.)
+.Pp
+.Em Note :
+Within this document, cross-references to manual pages are to the
+.Nx
+manual pages, not the host system manual pages.
+The
+.Xr mdoc 7
+source
+to the
+.Nx
+manual pages can be found within the source tree,
+and these and can be formatted with
+.Xr mandoc 1
+or
+.Xr nroff 1
+if those are available on the host system.
+The
+.Nx
+manual pages are also available at
+.Lk https://man.netbsd.org
 .
 .Sh FILES
 .
 .Ss Source tree layout
 .
 .Bl -tag -width "BUILDING.mdoc"
-.It Pa doc/BUILDING.mdoc
-This document (in -mdoc troff format; the original copy).
+.
 .It Pa BUILDING
 This document (in plaintext).
-.It Pa tools/compat/README
-Special notes for cross-hosting a NetBSD build on non-NetBSD platforms.
+Generated from
+.Pa doc/BUILDING.mdoc .
+.
 .It Pa Makefile
 The main Makefile for
 .Nx ;
@@ -97,16 +121,18 @@ should only be run for native builds with an appropriately up-to-date
 version of
 .Nx
 .Xr make 1 .
-Intended for expert use with knowledge of its shortcomings, it has been superseded
-by the
+Intended for expert use with knowledge of its shortcomings,
+it has been superseded by the
 .Nm build.sh
 shell script as the recommended means for building
 .Nx .
+.
 .It Pa UPDATING
 Special notes for updating from an earlier revision of
 .Nx .
 It is important to read this file before every build of an updated
 source tree.
+.
 .It Pa build.sh
 Bourne-compatible shell script used for building the host build tools
 and the
@@ -117,6 +143,7 @@ Can be used for both native and cross builds, and should be used instead of
 as it performs additional checks to prevent common issues going undetected, such
 as building with an outdated version of
 .Xr make 1 .
+.
 .It Pa crypto/dist/ , dist/ , gnu/dist/
 Sources imported verbatim from third parties, without mangling the
 existing build structure.
@@ -129,6 +156,20 @@ use the
 .Xr make 1
 .Dq reachover
 Makefile semantics when building these programs for a native host.
+.
+.It Pa distrib/ , etc/
+Sources for items used when making a full release snapshot, such as
+files installed in
+.Sy DESTDIR Ns Pa /etc
+on the destination system, boot media, and release notes.
+.
+.It Pa doc/BUILDING.mdoc
+The source to this document, in
+.Xr mdoc 7
+format.
+Used to generate
+.Pa BUILDING .
+.
 .It Pa external , sys/external
 Sources and build infrastructure for components imported (mostly) unchanged
 from upstream maintainers, sorted by applicable license.
@@ -138,12 +179,13 @@ This is (slowly) replacing the
 and
 .Pa gnu/dist
 directories.
-.It Pa distrib/ , etc/
-Sources for items used when making a full release snapshot, such as
-files installed in
-.Sy DESTDIR Ns Pa /etc
-on the destination system, boot media, and release notes.
-.It Pa tests/ , regress/
+.
+.It Pa external/mit/xorg/
+.Dq Reachover
+build structure for modular Xorg; the source is in
+.Sy X11SRCDIR .
+.
+.It Pa regress/ , tests/
 Regression test harness.
 Can be cross-compiled, but only run natively.
 .Pa tests/
@@ -153,22 +195,25 @@ test framework;
 .Pa regress/
 contains older tests that have not yet been migrated to
 .Xr atf 7 .
+.
 .It Pa sys/
 .Nx
 kernel sources.
+.
 .It Pa tools/
 .Dq Reachover
 build structure for the host build tools.
 This has a special method of determining out-of-date status.
-.It Pa bin/ ... usr.sbin/
+.
+.It Pa tools/compat/README
+Special notes for cross-hosting a NetBSD build on non-NetBSD platforms.
+.
+.It Other directories including Pa bin/ ... usr.sbin/
 Sources to the
 .Nx
 userland (non-kernel) programs.
 If any of these directories are missing, they will be skipped during the build.
-.It Pa external/mit/xorg/
-.Dq Reachover
-build structure for modular Xorg; the source is in
-.Sy X11SRCDIR .
+.
 .El
 .
 .Ss Build tree layout
@@ -176,20 +221,94 @@ build structure for modular Xorg; the source is in
 The
 .Nx
 build tree is described in
-.Xr hier 7 ,
+.Xr hier 7
+.Xr ( mdoc 7
+source in
+.Pa share/man/man7/hier.7 ) ,
 and the release layout is described in
-.Xr release 7 .
+.Xr release 7
+.Xr ( mdoc 7
+source in
+.Pa share/man/man7/release.7 ) .
 .
 .Sh CONFIGURATION
 .
 .Ss Environment variables
 .
+.de DFLT
+.Pp
+.Em Default :
+..
+.de DFLTn
+.DFLT
+.Dq no .
+..
+.de DFLTu
+.DFLT
+Unset.
+..
+.de DFLTy
+.DFLT
+.Dq yes .
+..
+.de NODEF
+.Pp
+Forced to
+.Dq no
+if
+.Sy \\$*
+is defined,
+usually in the Makefile before any
+.Xr make 1
+.Cm \&.include
+directives.
+..
+.de NOVAR
+.Pp
+Forced to
+.Dq no
+if
+.Sy \\$* .
+..
+.de YorN
+Can be set to
+.Dq yes
+or
+.Dq no .
+..
+.
 Several environment variables control the behaviour of
 .Nx
 builds.
 .
-.Bl -tag -width "MAKEOBJDIRPREFIX"
+.Bl -tag -width 14n
 .
+.\" These entries are sorted alphabetically.
+.
+.It Sy HOST_CC
+Path name to C compiler used to create the toolchain.
+.DFLT
+.Dq cc .
+.
+.It Sy HOST_CFLAGS
+Flags passed to the host C compiler.
+.DFLT
+.Dq \&-O .
+.
+.It Sy HOST_CPPFLAGS
+Flags passed to the host C/C++ pre-processor.
+.DFLTu
+.
+.It Sy HOST_CXX
+Path name to C++ compiler used to create the toolchain.
+.DFLT
+Unset, but defaults to
+.Dq c++
+where required.
+.
+.It Sy HOST_CXXFLAGS
+Flags passed to the host C++ compiler.
+.DFLTu
 .
 .It Sy HOST_SH
 Path name to a shell available on the host system
@@ -220,38 +339,53 @@ to be an absolute path; however,
 .Nm build.sh
 allows it to be a simple command name, which will be converted
 to an absolute path by searching the
-.Sy PATH .
+.Ev PATH .
+.DFLT
+.Dq sh .
 .
-.It Sy HOST_CC
-Path name to C compiler used to create the toolchain.
-.
-.It Sy HOST_CFLAGS
-Flags passed to the host C compiler.
-.
-.It Sy HOST_CXX
-Path name to C++ compiler used to create the toolchain.
-.
-.It Sy HOST_CXXFLAGS
-Flags passed to the host C++ compiler.
+.It Sy INSTALLBOOT_UBOOT_PATHS
+A colon-separated list of search paths used by
+.Xr installboot 8
+to find U-Boot packages.
+.DFLTu
 .
 .It Sy MACHINE
 Machine type, e.g.,
 .Dq macppc .
+.DFLTu
 .
 .It Sy MACHINE_ARCH
 Machine architecture, e.g.,
 .Dq powerpc .
+.DFLTu
 .
 .It Sy MAKE
 Path name to invoke
 .Xr make 1
 as.
+.DFLT
+.Dq make .
+.
+.It Sy MAKECONF
+The name of the
+.Xr make 1
+configuration file.
+See
+.Sx \*qmake\*q variables
+and
+.Xr mk.conf 5 .
+.Pp
+.Em Note :
+Only settable in the process environment.
+.DFLT
+.Dq Pa /etc/mk.conf .
 .
 .It Sy MAKEFLAGS
 Flags to invoke
 .Xr make 1
 with.
-Note that
+.Pp
+.Em Note :
 .Sy build.sh
 ignores the value of
 .Sy MAKEFLAGS
@@ -260,6 +394,12 @@ passed in the environment, but allows
 to be set via the
 .Fl V
 option.
+.DFLT
+.Dq \&-X
+on systems with a small
+.Dv ARG_MAX
+(Cygwin, Darwin, FreeBSD);
+otherwise unset.
 .
 .It Sy MAKEOBJDIR
 Directory to use as the
@@ -278,15 +418,18 @@ from the value of
 Used only if
 .Sy MAKEOBJDIRPREFIX
 is not defined.
+.Pp
+.Em Note :
 .Sy MAKEOBJDIR
 can be provided only in the environment or via the
 .Fl O
 flag of
 .Nm build.sh ;
-it cannot usefully be set inside a Makefile, including
-.Pa mk.conf
+it cannot usefully be set inside a Makefile, including in
+.Xr mk.conf 5
 or
-.Sy ${MAKECONF} .
+.Sy MAKECONF .
+.DFLTu
 .
 .It Sy MAKEOBJDIRPREFIX
 Top level directory of the object directory tree.
@@ -310,639 +453,55 @@ is used as the
 .Sy .OBJDIR
 for the current directory.
 The current directory may be read only.
+.Pp
+.Em Note :
 .Sy MAKEOBJDIRPREFIX
 can be provided only in the environment or via the
 .Fl M
 flag of
 .Nm build.sh ;
-it cannot usefully be set inside a Makefile, including
-.Pa mk.conf
+it cannot usefully be set inside a Makefile, including in
+.Xr mk.conf 5
 or
-.Sy ${MAKECONF} .
+.Sy MAKECONF .
+.DFLTu
+.
+.It Ev TMPDIR
+Top-level directory to store temporary directories used by
+.Sy build.sh
+before paths to other directories such as
+.Sy .OBJDIR
+can be determined.
+.Pp
+.Em Note :
+Must support execution of binaries.
+I.e., without
+.Xr mount 8 Ns 's
+.Fl o
+.Sy noexec
+option.
+.DFLT
+.Dq Pa /tmp .
 .
 .El
 .
 .Ss \*qmake\*q variables
 .
-.de YorN
-Can be set to
-.Dq yes
-or
-.Dq no .
-..
-.de DFLT
-.Pp
-.Em Default :
-..
-.de DFLTu
-.DFLT
-Unset.
-..
-.de DFLTy
-.DFLT
-.Dq yes
-..
-.de DFLTn
-.DFLT
-.Dq no
-..
-Several variables control the behavior of
+Variables control the behavior of
 .Nx
-builds.
+builds are documented in
+.Xr mk.conf 5
+.Xr ( mdoc 7
+source in
+.Pa share/man/man5/mk.conf.5 ) .
+.Pp
 Unless otherwise specified, these variables may be set in
 either the process environment or the
 .Xr make 1
-configuration file specified by
+configuration file
+.Xr mk.conf 5
+specified by
 .Sy MAKECONF .
-.
-.Bl -tag -width "MKCATPAGES"
-.
-.It Sy BUILDID
-Identifier for the build.
-If set, this should be a short string that is suitable for use as
-part of a file or directory name.
-The identifier will be appended to
-object directory names, and can be consulted in the
-.Xr make 1
-configuration file in order to set additional build parameters,
-such as compiler flags.
-It will also be used as part of the kernel version string,
-which can be printed by
-.Dq Li uname \-v .
-.DFLTu
-.
-.It Sy BUILDINFO
-This may be a multi-line string containing information about the build.
-This will appear in
-.Sy DESTDIR Ns Pa /etc/release ,
-and it will be stored in the
-.Va buildinfo
-variable in any kernels that are built.
-When such kernels are booted, the
-.Xr sysctl 7
-.Va kern.buildinfo
-variable will report this value.
-The string may contain backslash escape sequences, such as
-.Dq "\e\e"
-(representing a backslash character)
-and
-.Dq "\en"
-(representing a newline).
-.DFLTu
-.
-.It Sy BUILDSEED
-GCC uses random numbers when compiling C++ code.
-This variable seeds the gcc random number generator using
-the -frandom-seed flag with this value.
-By default, it is set to NetBSD-(majorversion).
-Using a fixed value causes C++ binaries to be the same when
-built from the same sources, resulting in identical (reproducible) builds.
-Additional information is available in the GCC
-documentation of -frandom-seed.
-.
-.It Sy CPUFLAGS
-Additional flags to the compiler/assembler to select
-CPU instruction set options, CPU tuning options, etc.
-.DFLTu
-.
-.It Sy DESTDIR
-Directory to contain the built
-.Nx
-system.
-If set, special options are passed to the compilation tools to
-prevent their default use of the host system's
-.Pa /usr/include , /usr/lib ,
-and so forth.
-This pathname must be an absolute path, and should
-.Em not
-end with a slash
-.Pq /
-character.
-(For installation into the system's root directory, set
-.Sy DESTDIR
-to an empty string, not to
-.Dq / ) .
-The directory must reside on a file system which supports long file
-names and hard links.
-.DFLT
-Empty string if
-.Sy USETOOLS
-is
-.Dq yes ;
-unset otherwise.
-.Pp
-.Em Note :
-.Sy build.sh
-will provide a default of
-.Pa destdir. Ns Sy MACHINE
-(in the top-level
-.Sy .OBJDIR )
-unless run in
-.Sq expert
-mode.
-.
-.It Sy MAKECONF
-The name of the
-.Xr make 1
-configuration file.
-.Em Only settable in the process environment.
-.DFLT
-.Dq /etc/mk.conf
-.
-.It Sy MAKEVERBOSE
-Level of verbosity of status messages.
-Supported values:
-.Bl -tag -width xxx
-.It 0
-No descriptive messages or commands executed by
-.Xr make 1
-are shown.
-.It 1
-Brief messages are shown describing what is being done,
-but the actual commands executed by
-.Xr make 1
-are not displayed.
-.It 2
-Descriptive messages are shown as above (prefixed with a
-.Sq # ) ,
-and ordinary commands performed by
-.Xr make 1
-are displayed.
-.It 3
-In addition to the above, all commands performed by
-.Xr make 1
-are displayed, even if they would ordinarily have been hidden
-through use of the
-.Dq \&@
-prefix in the relevant makefile.
-.It 4
-In addition to the above, commands executed by
-.Xr make 1
-are traced through use of the
-.Xr sh 1
-.Dq Fl x
-flag.
-.El
-.DFLT
-2
-.
-.It Sy MKCATPAGES
-.YorN
-Indicates whether preformatted plaintext manual pages will be created
-during a build.
-.DFLTn
-.
-.It Sy MKCROSSGDB
-.YorN
-Create a cross-gdb as a host tool.
-.DFLTn
-.
-.It Sy MKDEBUG
-.YorN
-Indicates whether debug information should be generated for all userland
-binaries compiled.
-The result is collected as an additional
-.Sy debug.tgz
-and
-.Sy xdebug.tgz
-set and installed in
-.Pa /usr/libdata/debug .
-.DFLTn
-.
-.It Sy MKDEBUGLIB
-.YorN
-Indicates whether debug information (see
-.Sy MKDEBUG )
-should also be generated for all libraries built.
-.DFLTn
-.
-.It Sy MKDOC
-.YorN
-Indicates whether system documentation destined for
-.Sy DESTDIR Ns Pa /usr/share/doc
-will be installed during a build.
-.DFLTy
-.
-.It Sy MKHTML
-.YorN
-Indicates whether preformatted HTML manual pages will be built
-and installed
-.DFLTy
-.
-.It Sy MKHOSTOBJ
-.YorN
-If set to
-.Dq yes ,
-then for programs intended to be run on the compile host,
-the name, release, and architecture of the host operating system
-will be suffixed to the name of the object directory created by
-.Dq make obj .
-(This allows multiple host systems to compile NetBSD for a single target.)
-If set to
-.Dq no ,
-then programs built to be run on the compile host will use the same
-object directory names as programs built to be run on the target.
-.DFLTn
-.
-.It Sy MKINFO
-.YorN
-Indicates whether GNU Info files will be created and installed during a build.
-GNU Info files are used for providing documentation by most of the compilation
-tools.
-.DFLTy
-.
-.It Sy MKKDEBUG
-.YorN
-Force generation of full-debug symbol versions of all kernels compiled.
-Alongside of the
-.Pa netbsd
-kernel file, an unstripped version
-.Pa netbsd.gdb
-is created.
-This is useful if a cross-gdb is built as well (see
-.Sy MKCROSSGDB ) .
-.DFLTn
-.
-.It Sy MKKMOD
-.YorN
-Indicates whether kernel modules are built and installed.
-.DFLTy
-.
-.It Sy MKLINT
-.YorN
-Indicates whether
-.Xr lint 1
-will be run against portions of the
-.Nx
-source code during the build, and whether lint libraries will be
-installed into
-.Sy DESTDIR Ns Pa /usr/libdata/lint .
-.DFLTy
-.
-.It Sy MKMAN
-.YorN
-Indicates whether manual pages will be installed during a build.
-.DFLTy
-.
-.It Sy MKNLS
-.YorN
-Indicates whether Native Language System locale zone files will be
-compiled and installed during a build.
-.DFLTy
-.
-.It Sy MKOBJ
-.YorN
-Indicates whether object directories will be created when running
-.Dq make obj .
-If set to
-.Dq no ,
-then all built files will be located inside the regular source tree.
-.DFLTy
-.Pp
-Note that setting
-.Sy MKOBJ
-to
-.Dq no
-is not recommended and may cause problems when updating the tree with
-.Xr cvs 1 .
-.
-.It Sy MKPIC
-.YorN
-Indicates whether shared objects and libraries will be created and
-installed during a build.
-If set to
-.Dq no ,
-the entire built system will be statically linked.
-.DFLT
-Platform dependent.
-As of this writing, all platforms except
-.Sy m68000
-default to
-.Dq yes .
-.
-.It Sy MKPICINSTALL
-.YorN
-Indicates whether the
-.Xr ar 1
-format libraries
-.Sy ( lib*_pic.a ) ,
-used to generate shared libraries, are installed during a build.
-.DFLTy
-.
-.It Sy MKPROFILE
-.YorN
-Indicates whether profiled libraries
-.Sy ( lib*_p.a )
-will be built and installed during a build.
-.DFLT
-.Dq yes ;
-however, some platforms turn off
-.Sy MKPROFILE
-by default at times due to toolchain problems with profiled code.
-.
-.It Sy MKREPRO
-.YorN
-Create reproducible builds.
-This enables different switches to make two builds from the same
-source tree result in the same build results.
-.DFLTn
-This may be set to
-.Dq yes
-by giving
-.Sy build.sh
-the
-.Fl P
-option.
-.
-.It Sy MKREPRO_TIMESTAMP
-Unix timestamp.
-When
-.Sy MKREPRO
-is set, the timestamp of all files in the sets will be set
-to this value.
-.DFLTu
-This may be set automatically to the latest source tree timestamp
-using
-.Xr cvslatest 1
-by giving
-.Sy build.sh
-the
-.Fl P
-option.
-.
-.It Sy MKSHARE
-.YorN
-Indicates whether files destined to reside in
-.Sy DESTDIR Ns Pa /usr/share
-will be built and installed during a build.
-If set to
-.Dq no ,
-then all of
-.Sy MKCATPAGES , MKDOC , MKINFO , MKMAN ,
-and
-.Sy MKNLS
-will be set to
-.Dq no
-unconditionally.
-.DFLTy
-.
-.It Sy MKSTRIPIDENT
-.YorN
-Indicates whether RCS IDs, for use with
-.Xr ident 1 ,
-should be stripped from program binaries and shared libraries.
-.DFLTn
-.
-.It Sy MKSTRIPSYM
-.YorN
-Indicates whether all local symbols should be stripped from shared libraries.
-If
-.Dq yes ,
-strip all local symbols from shared libraries;
-the affect is equivalent to the
-.Fl x
-option of
-.Xr  ld 1 .
-If
-.Dq no ,
-strip only temporary local symbols; the affect is equivalent
-to the
-.Fl X
-option of
-.Xr ld 1 .
-Keeping non-temporary local symbols
-such as static function names is useful on using DTrace for
-userland libraries and getting a backtrace from a rump kernel
-loading shared libraries.
-.DFLTy
-.
-.It Sy MKUNPRIVED
-.YorN
-Indicates whether an unprivileged install will occur.
-The user, group, permissions, and file flags, will not be set on
-the installed items; instead the information will be appended to
-a file called
-.Pa METALOG
-in
-.Sy DESTDIR .
-The contents of
-.Pa METALOG
-are used during the generation of the distribution tar files to ensure
-that the appropriate file ownership is stored.
-.DFLTn
-.
-.It Sy MKUPDATE
-.YorN
-Indicates whether all install operations intended to write to
-.Sy DESTDIR
-will compare file timestamps before installing, and skip the install
-phase if the destination files are up-to-date.
-This also has implications on full builds (see next subsection).
-.DFLTn
-.
-.It Sy MKX11
-.YorN
-Indicates whether X11 is built from
-.Sy X11SRCDIR .
-.DFLTn
-.
-.It Sy TOOLDIR
-Directory to hold the host tools, once built.
-If specified, must be an absolute path.
-This directory should be unique to a given host system and
-.Nx
-source tree.
-(However, multiple targets may share the same
-.Sy TOOLDIR ;
-the target-dependent files have unique names.)  If unset, a default based
-on the
-.Xr uname 1
-information of the host platform will be created in the
-.Sy .OBJDIR
-of
-.Pa src .
-.DFLTu
-.
-.It Sy USETOOLS
-Indicates whether the tools specified by
-.Sy TOOLDIR
-should be used as part of a build in progress.
-Must be set to
-.Dq yes
-if cross-compiling.
-.Bl -tag -width "never"
-.It Sy yes
-Use the tools from
-.Sy TOOLDIR .
-.It Sy no
-Do not use the tools from
-.Sy TOOLDIR ,
-but refuse to build native compilation tool components that are
-version-specific for that tool.
-.It Sy never
-Do not use the tools from
-.Sy TOOLDIR ,
-even when building native tool components.
-This is similar to the traditional
-.Nx
-build method, but does
-.Em not
-verify that the compilation tools in use are up-to-date enough in order
-to build the tree successfully.
-This may cause build or runtime problems when building the whole
-.Nx
-source tree.
-.El
-.DFLT
-.Dq yes ,
-unless
-.Sy TOOLCHAIN_MISSING
-is set to
-.Dq yes .
-.Pp
-.Sy USETOOLS
-is also set to
-.Dq no
-when using
-.Aq bsd.*.mk
-outside the
-.Nx
-source tree.
-.
-.It Sy X11SRCDIR
-Directory containing the modular Xorg source.
-If specified, must be an absolute path.
-The main modular Xorg source is found in
-.Sy X11SRCDIR Ns Pa /external/mit .
-.DFLT
-.Sy NETBSDSRCDIR Ns Pa /../xsrc ,
-if that exists; otherwise
-.Pa /usr/xsrc .
-.
-.El
-.
-.Ss \*qmake\*q variables for full builds
-These variables only affect the top level
-.Dq Makefile
-and do not affect manually building subtrees of the
-.Nx
-source code.
-.
-.Bl -tag -width "INSTALLWORLDDIR"
-.
-.It Sy INSTALLWORLDDIR
-Location for the
-.Dq make installworld
-target to install to.
-If specified, must be an absolute path.
-.DFLT
-.Dq /
-.
-.It Sy MKOBJDIRS
-.YorN
-Indicates whether object directories will be created automatically
-(via a
-.Dq make obj
-pass) at the start of a build.
-.DFLTn
-.Pp
-If using
-.Sy build.sh ,
-the default is
-.Dq yes .
-This may be set back to
-.Dq no
-by giving
-.Sy build.sh
-the
-.Fl o
-option.
-.
-.It Sy MKUPDATE
-.YorN
-If set, then in addition to the effects described for
-.Sy MKUPDATE=yes
-above, this implies the effects of
-.Sy NOCLEANDIR
-(i.e.,
-.Dq make cleandir
-is avoided).
-.DFLTn
-.Pp
-If using
-.Sy build.sh ,
-this may be set by giving the
-.Fl u
-option.
-.
-.It Sy NBUILDJOBS
-Now obsolete.
-Use the
-.Xr make 1
-option
-.Fl j ,
-instead.
-See below.
-.DFLTu
-.
-.It Sy NOCLEANDIR
-If set, avoids the
-.Dq make cleandir
-phase of a full build.
-This has the effect of allowing only changed
-files in a source tree to be recompiled.
-This can speed up builds when updating only a few files in the tree.
-.DFLTu
-.Pp
-See also
-.Sy MKUPDATE .
-.
-.It Sy NODISTRIBDIRS
-If set, avoids the
-.Dq make distrib-dirs
-phase of a full build.
-This skips running
-.Xr mtree 8
-on
-.Sy DESTDIR ,
-useful on systems where building as an unprivileged user, or where it is
-known that the system-wide mtree files have not changed.
-.DFLTu
-.
-.It Sy NOINCLUDES
-If set, avoids the
-.Dq make includes
-phase of a full build.
-This has the effect of preventing
-.Xr make 1
-from thinking that some programs are out-of-date simply because the
-system include files have changed.
-However, this option should not be used when updating the entire
-.Nx
-source tree arbitrarily; it is suggested to use
-.Sy MKUPDATE=yes
-instead in that case.
-.DFLTu
-.
-.It Sy RELEASEDIR
-If set, specifies the directory to which a
-.Xr release 7
-layout will be written at the end of a
-.Dq make release .
-If specified, must be an absolute path.
-.DFLTu
-.Pp
-.Em Note :
-.Sy build.sh
-will provide a default of
-.Pa releasedir
-(in the top-level
-.Sy .OBJDIR )
-unless run in
-.Sq expert
-mode.
-.
-.El
 .
 .Sh BUILDING
 .
@@ -977,22 +536,22 @@ This is set automatically when building from the top level, or when using
 .Sy build.sh .
 .
 .It Fl n
-Display the commands that would have been executed, but do not
+Show the commands that would have been executed, but do not
 actually execute them.
 This will still cause recursion to take place.
 .
 .It Fl V Ar var
-Print
+Show
 .Xr make 1 Ns 's
 idea of the value of
 .Ar var .
 Does not build any targets.
 .
-.It Em var=value
+.It Ar var Ns Sy = Ns Ar value
 Set the variable
-.Em var
+.Ar var
 to
-.Em value ,
+.Ar value ,
 overriding any setting specified by the process environment, the
 .Sy MAKECONF
 configuration file, or the system Makefile segments.
@@ -1219,7 +778,8 @@ is attempted, RELEASEDIR must be populated by
 .Dq make release
 or equivalent.
 .Pp
-Note that other, smaller, CD-ROM images may be created in the
+.Em Note :
+Other, smaller, CD-ROM images may be created in the
 .Sy RELEASEDIR/RELEASEMACHINEDIR Ns Pa /installation/cdrom
 directory by
 .Dq "make release" .
@@ -1227,7 +787,8 @@ These smaller images usually contain the same tools as the larger images in
 .Sy RELEASEDIR Ns Pa /images ,
 but do not contain additional content such as the distribution sets.
 .Pp
-Note that the mac68k port still uses an older method of creating
+.Em Note :
+The mac68k port still uses an older method of creating
 CD-ROM images.
 This requires the
 .Xr mkisofs 1
@@ -1263,7 +824,8 @@ is attempted, RELEASEDIR must be populated by
 .Dq make sourcesets release
 or equivalent.
 .Pp
-Note that other, smaller, CD-ROM images may be created in the
+.Em Note :
+Other, smaller, CD-ROM images may be created in the
 .Sy RELEASEDIR/RELEASEMACHINEDIR Ns Pa /installation/cdrom
 directory by
 .Dq make release .
@@ -1271,7 +833,8 @@ These smaller images usually contain the same tools as the larger images in
 .Sy RELEASEDIR Ns Pa /images ,
 but do not contain additional content such as the distribution sets.
 .Pp
-Note that the mac68k port still uses an older method of creating
+.Em Note :
+The mac68k port still uses an older method of creating
 CD-ROM images.
 This requires the
 .Xr mkisofs 1
@@ -1355,7 +918,9 @@ relies on information in
 Can only be run after building the regression tests in the directory
 .Dq regress .
 Runs those compiled regression tests on the local host.
-Note that most tests are now managed instead using
+.Pp
+.Em Note :
+Most tests are now managed instead using
 .Xr atf 7 ;
 this target should probably run those as well but currently does not.
 .
@@ -1393,7 +958,7 @@ but if that fails, then the following set of commands may be used instead:
 If
 .Sy build.sh
 detects that it is being executed under an unsuitable shell, it attempts
-to exec a suitable shell instead, or prints an error message.
+to exec a suitable shell instead, or shows an error message.
 If
 .Sy HOST_SH
 is not set explicitly, then
@@ -1405,7 +970,7 @@ is executed (if that can be determined),
 or using the first copy of
 .Pa sh
 found in
-.Sy PATH .
+.Ev PATH .
 .Pp
 All cross-compile builds, and most native builds, of the entire system
 should make use of
@@ -1465,9 +1030,12 @@ This command first runs the
 .Sy distribution
 operation.
 .
+.It Sy help
+Show a help message, and exit.
+.
 .It Sy makewrapper
 Create the
-.Sy \*[toolprefix]make-MACHINE
+.Sy \*[toolprefix]make- Ns Sy MACHINE
 wrapper.
 This operation is automatically performed for any of the other
 operations.
@@ -1502,7 +1070,9 @@ to
 .Ar idir ,
 using
 .Dq make installworld .
-Note that files that are part of the
+.Pp
+.Em Note :
+Files that are part of the
 .Dq etc
 or
 .Dq xetc
@@ -1527,7 +1097,7 @@ directory, which is typically
 The new kernel will be built in a subdirectory of
 .Sy KERNOBJDIR ,
 which is typically
-.Pa sys/arch/MACHINE/compile
+.Pa sys/arch/ Ns Sy MACHINE Ns Pa /compile
 or an associated object directory.
 .Pp
 This command does
@@ -1574,7 +1144,7 @@ Install a
 copy of the kernel previously built by
 .Sy kernel Ns = Ns Ar kconf
 into
-.Sy RELEASEDIR/RELEASEMACHINEDIR Ns Pa /binary/kernel ,
+.Sy RELEASEDIR Ns Pa / Ns Sy RELEASEMACHINEDIR Ns Pa /binary/kernel ,
 usually as
 .Pa netbsd- Ns Ar kconf Ns Pa .gz ,
 although the
@@ -1613,7 +1183,7 @@ Perform
 .Dq make live-image .
 .
 .It Sy list-arch
-Prints a list of valid
+Show a list of valid
 .Sy MACHINE
 and
 .Sy MACHINE_ARCH
@@ -1671,7 +1241,7 @@ to
 This will also append the build identifier to the name of the
 .Dq make
 wrapper script so that the resulting name is of the form
-.Dq Sy \*[toolprefix]make-MACHINE-BUILDID .
+.Dq Sy \*[toolprefix]make- Ns Sy MACHINE Ns Sy -BUILDID .
 .
 .It Fl C Ar cdextras
 Append
@@ -1735,7 +1305,7 @@ It is highly recommended that you know what you are doing when
 you use this option.
 .
 .It Fl h
-Print a help message.
+Show a help message, and exit.
 .
 .It Fl j Ar njob
 Run up to
@@ -1893,7 +1463,8 @@ it is determined by complex rules that are influenced
 by the values of several variables and
 by the location of the source directory.
 .Pp
-Note that placing the
+.Em Note :
+Placing the
 .Ar obj
 directory location outside of the default source tree hierarchy makes
 it easier to manually clear out old files in the event the
@@ -1903,7 +1474,8 @@ operation is unable to do so.
 .Sx CAVEATS
 below.)
 .Pp
-Note also that use of one of
+.Em Note :
+The use of one of
 .Fl M
 or
 .Fl O
@@ -1912,6 +1484,7 @@ from the same source tree without cleaning between builds (in which
 case, one would specify distinct
 .Ar obj
 locations for each).
+.
 .It Fl o
 Set the value of
 .Sy MKOBJDIRS
@@ -1921,6 +1494,13 @@ Otherwise, it will be automatically set to
 .Dq yes .
 This default is opposite to the behaviour when not using
 .Sy build.sh .
+.
+.It Fl P
+Set the value of
+.Sy MKREPRO
+and
+.Sy MKREPRO_TIMESTAMP
+to the latest source CVS timestamp for reproducible builds.
 .
 .It Fl R Ar rel
 Set the value of
@@ -1991,9 +1571,10 @@ wrapper script (see below) in a custom location,
 specified by
 .Ar wrapper .
 This allows, for instance, to place the wrapper in
-.Sy PATH
+.Ev PATH
 automatically.
-Note that
+.Pp
+.Em Note :
 .Ar wrapper
 is the full name of the file, not just a directory name.
 If a relative path is specified, it will be converted to an
@@ -2017,6 +1598,9 @@ Unset ("zap") the environment variable
 This is propagated to the
 .Sy \*[toolprefix]make
 wrapper.
+.
+.It Fl ?
+Show a help message, and exit.
 .
 .El
 .
@@ -2051,7 +1635,7 @@ and unset variables specified with
 .Fl Z .
 .Pp
 This script can be symlinked into a directory listed in
-.Sy PATH ,
+.Ev PATH ,
 or called with an absolute path.
 .
 .Sh EXAMPLES
@@ -2059,23 +1643,23 @@ or called with an absolute path.
 .Bl -enum
 .
 .It
-.Li "% ./build.sh [options] tools kernel=GENERIC"
+.Li "% ./build.sh [OPTIONS] tools kernel=GENERIC"
 .Pp
 Build a new toolchain, and use the new toolchain to
 configure and build a new GENERIC kernel.
 .
 .It
-.Li "% ./build.sh [options] -U distribution"
+.Li "% ./build.sh [OPTIONS] -U distribution"
 .Pp
 Using unprivileged mode,
 build a complete distribution to a
 .Sy DESTDIR
 directory that
 .Sy build.sh
-selects (and will display).
+selects (and will show).
 .
 .It
-.Li "# ./build.sh [options] -U install=/"
+.Li "# ./build.sh [OPTIONS] -U install=/"
 .Pp
 As root, install to
 .Pa /
@@ -2089,7 +1673,7 @@ are correctly applied to the files as they're copied to
 .Pa / .
 .
 .It
-.Li "% ./build.sh [options] -U -u release"
+.Li "% ./build.sh [OPTIONS] -U -u release"
 .Pp
 Using unprivileged mode,
 build a complete release to
@@ -2098,7 +1682,7 @@ and
 .Sy RELEASEDIR
 directories that
 .Sy build.sh
-selects (and will display).
+selects (and will show).
 .Sy MKUPDATE=yes
 .Pq Fl u
 is set to prevent the
@@ -2107,30 +1691,34 @@ so that if this is run after example 2, it doesn't need to redo that
 portion of the release build.
 .El
 .
-.Sh OBSOLETE VARIABLES
-.
-.Bl -tag -width "NBUILDJOBS"
-.
-.It Sy NBUILDJOBS
-Use the
-.Xr make 1
-option
-.Fl j
-instead.
-.
-.It Sy USE_NEW_TOOLCHAIN
-The new toolchain is now the default.
-To disable, use
-.Sy TOOLCHAIN_MISSING=yes .
-.El
 .Sh SEE ALSO
+.Xr config 1 ,
+.Xr ctags 1 ,
+.Xr ex 1 ,
+.Xr gzip 1 ,
+.Xr lint 1 ,
 .Xr make 1 ,
+.Xr mandoc 1 ,
+.Xr mkisofs 1 ,
+.Xr nroff 1 ,
+.Xr vi 1 ,
+.Xr mk.conf 5 ,
+.Xr atf 7 ,
 .Xr hier 7 ,
+.Xr mdoc 7 ,
 .Xr release 7 ,
 .Xr etcupdate 8 ,
+.Xr installboot 8 ,
+.Xr mount 8 ,
 .Xr postinstall 8 ,
 .Xr sysinst 8 ,
 .Pa pkgsrc/sysutils/cdrtools
+.Pp
+.Em Note :
+The
+.Nx
+manual pages are also available at
+.Lk https://man.netbsd.org
 .
 .Sh HISTORY
 .
