@@ -212,7 +212,6 @@ ath_pci_attach(device_t parent, device_t self, void *aux)
 		goto bad3;
 
 	if (pmf_device_register(self, ath_pci_suspend, ath_pci_resume)) {
-		pmf_class_network_register(self, &sc->sc_if);
 		pmf_device_suspend(self, &sc->sc_qual);
 	} else
 		aprint_error_dev(self, "couldn't establish power handler\n");

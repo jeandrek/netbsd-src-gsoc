@@ -262,9 +262,7 @@ enum {
 	ATH_DEBUG_ANY		= 0xffffffff
 };
 #define	IFF_DUMPPKTS(sc, m)					\
-	((sc->sc_debug & (m)) ||				\
-	    (sc->sc_if.if_flags & (IFF_DEBUG | IFF_LINK2))	\
-	    == (IFF_DEBUG | IFF_LINK2))
+	(sc->sc_debug & (m))
 #define	DPRINTF(sc, m, fmt, ...) do {				\
 	if (sc->sc_debug & (m))					\
 		printf(fmt, __VA_ARGS__);			\
@@ -276,9 +274,7 @@ enum {
 static	void ath_printrxbuf(struct ath_buf *bf, int);
 static	void ath_printtxbuf(struct ath_buf *bf, int);
 #else
-#define IFF_DUMPPKTS(sc, m)					\
-	((sc->sc_if.if_flags & (IFF_DEBUG | IFF_LINK2))		\
-	    == (IFF_DEBUG | IFF_LINK2))
+#define IFF_DUMPPKTS(sc, m)	false
 #define DPRINTF(m, fmt, ...)
 #define KEYPRINTF(sc, k, ix, mac)
 #endif
