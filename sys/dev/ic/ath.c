@@ -968,38 +968,14 @@ ath_rxorn_proc(void *arg, int pending)
 static void
 ath_bmiss_proc(void *arg, int pending)
 {
-#if 0
 	struct ath_softc *sc = arg;
 	struct ieee80211com *ic = &sc->sc_ic;
 	NET_LOCK_GIANT_FUNC_INIT();
 
 	DPRINTF(sc, ATH_DEBUG_ANY, "%s: pending %u\n", __func__, pending);
-	KASSERTMSG(ic->ic_opmode == IEEE80211_M_STA,
-		"unexpect operating mode %u", ic->ic_opmode);
-	if (ic->ic_state == IEEE80211_S_RUN) {
-		u_int64_t lastrx = sc->sc_lastrx;
-		u_int64_t tsf = ath_hal_gettsf64(sc->sc_ah);
-
-		DPRINTF(sc, ATH_DEBUG_BEACON,
-		    "%s: tsf %" PRIu64 " lastrx %" PRId64
-		    " (%" PRIu64 ") bmiss %u\n",
-		    __func__, tsf, tsf - lastrx, lastrx,
-		    ic->ic_bmisstimeout*1024);
-		/*
-		 * Workaround phantom bmiss interrupts by sanity-checking
-		 * the time of our last rx'd frame.  If it is within the
-		 * beacon miss interval then ignore the interrupt.  If it's
-		 * truly a bmiss we'll get another interrupt soon and that'll
-		 * be dispatched up for processing.
-		 */
-		if (tsf - lastrx > ic->ic_bmisstimeout*1024) {
-			NET_LOCK_GIANT();
-			ieee80211_beacon_miss(ic);
-			NET_UNLOCK_GIANT();
-		} else
-			sc->sc_stats.ast_bmiss_phantom++;
-	}
-#endif
+	NET_LOCK_GIANT();
+	ieee80211_beacon_miss(ic);
+	NET_UNLOCK_GIANT();
 }
 
 static void
@@ -1924,9 +1900,6 @@ ath_calcrxfilter(struct ath_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ath_hal *ah = sc->sc_ah;
-#if 0
-	struct ifnet *ifp = &sc->sc_if;
-#endif
 	u_int32_t rfilt;
 
 	rfilt = (ath_hal_getrxfilter(ah) & HAL_RX_FILTER_PHYERR)
@@ -2989,7 +2962,7 @@ ath_handle_micerror(struct ieee80211com *ic,
 	/* XXX discard MIC errors on !data frames */
 	ni = ieee80211_find_rxnode_withkey(ic, (const struct ieee80211_frame_min *) wh, keyix);
 	if (ni != NULL) {
-		/* ieee80211_notify_michael_failure(ic, wh, keyix); */
+		ieee80211_notify_michael_failure(ni->ni_vap, wh, keyix);
 		ieee80211_free_node(ni);
 	}
 }
@@ -4894,7 +4867,6 @@ bad:
 static void
 ath_setup_stationkey(struct ieee80211_node *ni)
 {
-#if 0
 	struct ieee80211vap *vap = ni->ni_vap;
 	struct ath_softc *sc = vap->iv_ic->ic_softc;
 	ieee80211_keyix keyix, rxkeyix;
@@ -4913,7 +4885,6 @@ ath_setup_stationkey(struct ieee80211_node *ni)
 		/* NB: this will create a pass-thru key entry */
 		ath_keyset(sc, &ni->ni_ucastkey, ni->ni_macaddr, vap->iv_bss);
 	}
-#endif
 }
 
 /*
@@ -4929,10 +4900,8 @@ ath_newassoc(struct ieee80211_node *ni, int isnew)
 
 	ath_rate_newassoc(sc, ATH_NODE(ni), isnew);
 	if (isnew &&
-	    (ic->ic_flags & IEEE80211_F_PRIVACY) == 0 && sc->sc_hasclrkey) {
-		KASSERTMSG(ni->ni_ucastkey.wk_keyix == IEEE80211_KEYIX_NONE,
-		    "new assoc with a unicast key already setup (keyix %u)",
-		    ni->ni_ucastkey.wk_keyix);
+	    (ic->ic_flags & IEEE80211_F_PRIVACY) == 0 && sc->sc_hasclrkey &&
+	    ni->ni_ucastkey.wk_keyix == IEEE80211_KEYIX_NONE) {
 		ath_setup_stationkey(ni);
 	}
 }
