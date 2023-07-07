@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_lparen_or_lbracket.c,v 1.8 2023/05/11 18:13:55 rillig Exp $ */
+/* $NetBSD: lsym_lparen_or_lbracket.c,v 1.19 2023/06/17 22:09:24 rillig Exp $ */
 
 /*
  * Tests for the token lsym_lparen_or_lbracket, which represents a '(' or '['
@@ -144,9 +144,9 @@ function(void)
 //indent run-equals-input
 
 
-/* This is the maximum supported number of parentheses. */
 //indent input
 int zero = (((((((((((((((((((0)))))))))))))))))));
+int many = ((((((((((((((((((((((((((((((((0))))))))))))))))))))))))))))))));
 //indent end
 
 //indent run-equals-input -di0
@@ -194,14 +194,33 @@ function(void)
 		(cond) ? 123 : 456;
 
 	/* C99 compound literal */
-	origin = (struct point){
-		0, 0
-	};
+	origin = (struct point){0, 0};
 
 	/* GCC statement expression */
 	/* expr = ({if(expr)debug();expr;}); */
 }
 //indent end
+
+
+/*
+ * Test a few variants of C99 compound expressions, as the '{' and '}' must not
+ * be treated as block delimiters.
+ */
+//indent input
+{
+	return (struct point){0, 0};
+	return (struct point){
+		0, 0
+	};
+	return (struct point){.x = 0, .y = 0};
+	return (struct point){
+		.x = 0,
+		.y = 0,
+	};
+}
+//indent end
+
+//indent run-equals-input
 
 
 /*
@@ -223,7 +242,7 @@ int array[] = {
 //indent input
 void cover_want_blank_before_lparen(void)
 {
-	/* ps.prev_token can never be 'newline'. */
+	/* ps.prev_lsym can never be 'newline'. */
 	int newline =
 	(3);
 
@@ -249,8 +268,7 @@ void cover_want_blank_before_lparen(void)
 	switch (expr) {}
 #define preprocessing
 	(preprocessing)();
-	/* $ XXX: lsym_form_feed should be skipped, just as newline. */
-	(lsym_form_feed)();	/* XXX: should be skipped */
+	(lsym_form_feed)();
 	for(;;);
 	do(lsym_do)=3;while(0);
 	if(cond);else(lsym_else)();
@@ -269,18 +287,18 @@ void cover_want_blank_before_lparen(void)
 void
 cover_want_blank_before_lparen(void)
 {
-	/* ps.prev_token can never be 'newline'. */
+	/* ps.prev_lsym can never be 'newline'. */
 	int newline =
-	(3);
+		(3);
 
 	int lparen_or_lbracket = a[(3)];
 	int rparen_or_rbracket = a[3](5);
 	+(unary_op);
 	3 + (binary_op);
-	a++ (postfix_op);	/* unlikely to be seen in practice */
+	a++(postfix_op);	/* unlikely to be seen in practice */
 	cond ? (question) : (5);
 	switch (expr) {
-	case (case_label):;
+	case (case_label): ;
 	}
 	a ? 3 : (colon);
 	(semicolon) = 3;
@@ -297,7 +315,7 @@ cover_want_blank_before_lparen(void)
 	}
 #define preprocessing
 	(preprocessing)();
-	(lsym_form_feed)();	/* XXX: should be skipped */
+	(lsym_form_feed)();
 	for (;;);
 	do
 		(lsym_do) = 3;
@@ -318,3 +336,43 @@ cover_want_blank_before_lparen(void)
 //indent end
 
 /* See t_errors.sh, test case 'compound_literal'. */
+
+
+/*
+ * Ensure that a designated initializer after a comma is not indented further
+ * than necessary, as in most other contexts, there is no space before a '['.
+ */
+//indent input
+int arr[] = {
+['0'] = 1,
+['1'] = 2,
+};
+//indent end
+
+//indent run -di0
+int arr[] = {
+	['0'] = 1,
+	['1'] = 2,
+};
+//indent end
+
+
+/* In an initializer, a '(' does not start a function definition. */
+//indent input
+{
+type var = {
+.CONCAT(a, b)
+= init,
+};
+}
+
+//indent end
+
+//indent run
+{
+	type		var = {
+		.CONCAT(a, b)
+		= init,
+	};
+}
+//indent end

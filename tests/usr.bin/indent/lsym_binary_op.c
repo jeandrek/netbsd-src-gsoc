@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_binary_op.c,v 1.7 2023/05/13 06:52:48 rillig Exp $ */
+/* $NetBSD: lsym_binary_op.c,v 1.12 2023/06/14 08:25:15 rillig Exp $ */
 
 /*
  * Tests for the token lsym_binary_op, which represents a binary operator in
@@ -77,14 +77,13 @@ int var = expr * *ptr;
 
 
 /*
- * When indent tokenizes some operators, it allows for
- * arbitrary repetitions of the operator character, followed by an
- * arbitrary amount of '='.  This is used for operators like '&&' or
- * '|||==='.
+ * Before 2023-06-04, indent allowed for arbitrary repetitions of some operator
+ * characters, followed by an arbitrary amount of '='.  This could be used for
+ * operators like '&&' or '|||==='.
  *
- * Before 2021-03-07 22:11:01, the comment '//' was treated as an
- * operator as well, and so was the comment '/////', leading to
- * unexpected results.
+ * Before 2021-03-07 22:11:01, the comment '//' was treated as a binary
+ * operator as well, and so was the comment '/////', leading to unexpected
+ * spacing.
  *
  * See lexi.c, lexi, "default:".
  */
@@ -99,7 +98,16 @@ long_run_of_operators(void)
 }
 //indent end
 
-//indent run-equals-input
+//indent run
+void
+long_run_of_operators(void)
+{
+	if (a && && && &b)
+		return;
+	if (a || |= == b)
+		return;
+}
+//indent end
 
 
 /*
@@ -139,7 +147,7 @@ joined_unary_and_binary_operators(void)
  * Ensure that the result of the indentation does not depend on whether a
  * token from the input starts in column 1 or 9.
  *
- * See process_binary_op, ps.curr_col_1.
+ * See process_binary_op.
  */
 //indent input
 int col_1 //
@@ -168,6 +176,30 @@ int		col_9		//
  */
 //indent input
 int conditional = condition ? number : number;
+//indent end
+
+//indent run-equals-input -di0
+
+
+// After a ']', a '*' is a binary operator.
+//indent input
+int x = arr[3]*y;
+//indent end
+
+//indent run -di0
+int x = arr[3] * y;
+//indent end
+
+
+/*
+ * Ensure that after an assignment, a '*=' operator is properly spaced, like
+ * any other binary operator.
+ */
+//indent input
+{
+	a = a;
+	a *= b *= c;
+}
 //indent end
 
 //indent run-equals-input -di0

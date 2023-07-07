@@ -1,4 +1,4 @@
-/*	$NetBSD: make.h,v 1.319 2023/03/28 14:39:31 rillig Exp $	*/
+/*	$NetBSD: make.h,v 1.324 2023/06/24 07:02:24 rillig Exp $	*/
 
 /*
  * Copyright (c) 1988, 1989, 1990, 1993
@@ -539,6 +539,14 @@ typedef enum CondResult {
 	CR_ERROR		/* Unknown directive or parse error */
 } CondResult;
 
+typedef struct {
+	enum GuardKind {
+		GK_VARIABLE,
+		GK_TARGET
+	} kind;
+	char *name;
+} Guard;
+
 /* Names of the variables that are "local" to a specific target. */
 #define TARGET	"@"		/* Target of dependency */
 #define OODATE	"?"		/* All out-of-date sources */
@@ -778,8 +786,8 @@ void Arch_End(void);
 bool Arch_ParseArchive(char **, GNodeList *, GNode *);
 void Arch_Touch(GNode *);
 void Arch_TouchLib(GNode *);
-void Arch_UpdateMTime(GNode *gn);
-void Arch_UpdateMemberMTime(GNode *gn);
+void Arch_UpdateMTime(GNode *);
+void Arch_UpdateMemberMTime(GNode *);
 void Arch_FindLib(GNode *, SearchPath *);
 bool Arch_LibOODate(GNode *) MAKE_ATTR_USE;
 bool Arch_IsLib(GNode *) MAKE_ATTR_USE;
@@ -793,6 +801,7 @@ void Compat_Make(GNode *, GNode *);
 extern unsigned int cond_depth;
 CondResult Cond_EvalCondition(const char *) MAKE_ATTR_USE;
 CondResult Cond_EvalLine(const char *) MAKE_ATTR_USE;
+Guard *Cond_ExtractGuard(const char *) MAKE_ATTR_USE;
 void Cond_EndFile(void);
 
 /* dir.c; see also dir.h */
@@ -820,7 +829,7 @@ int For_Eval(const char *) MAKE_ATTR_USE;
 bool For_Accum(const char *, int *) MAKE_ATTR_USE;
 void For_Run(unsigned, unsigned);
 bool For_NextIteration(struct ForLoop *, Buffer *);
-char *ForLoop_Details(struct ForLoop *);
+char *ForLoop_Details(const struct ForLoop *);
 void ForLoop_Free(struct ForLoop *);
 void For_Break(struct ForLoop *);
 
@@ -857,6 +866,8 @@ void Parse_PushInput(const char *, unsigned, unsigned, Buffer,
 void Parse_MainName(GNodeList *);
 int Parse_NumErrors(void) MAKE_ATTR_USE;
 unsigned int CurFile_CondMinDepth(void) MAKE_ATTR_USE;
+void Parse_GuardElse(void);
+void Parse_GuardEndif(void);
 
 
 /* suff.c */
@@ -1181,7 +1192,7 @@ pp_skip_hspace(char **pp)
 }
 
 #if defined(lint)
-extern void do_not_define_rcsid(void); /* for lint */
+void do_not_define_rcsid(void); /* for lint */
 # define MAKE_RCSID(id) extern void do_not_define_rcsid(void)
 #elif defined(MAKE_NATIVE)
 # include <sys/cdefs.h>

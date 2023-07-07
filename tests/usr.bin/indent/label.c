@@ -1,4 +1,4 @@
-/*	$NetBSD: label.c,v 1.6 2023/05/13 09:40:47 rillig Exp $	*/
+/*	$NetBSD: label.c,v 1.9 2023/06/04 18:58:30 rillig Exp $	*/
 
 /* See FreeBSD r303489 */
 
@@ -8,6 +8,8 @@ void t(void) {
 	{
 		case 1:	/* test */
 		case 2:		/* test */
+		case 3: /* test */
+		case 4: /* test */
 	}
 CLEANUP:
 	;
@@ -20,11 +22,11 @@ U: ;
 void
 t(void)
 {
-	switch (1)
-/* $ TODO: Move the '{' up to the ')'. */
-	{
+	switch (1) {
 	case 1:			/* test */
 	case 2:			/* test */
+	case 3:			/* test */
+	case 4:			/* test */
 	}
 CLEANUP:
 	;
@@ -59,8 +61,8 @@ L_3:	;
 L__4:	;
 L___5:	;
 L____6:	;
-L_____7:;
-L______8:;
+L_____7: ;
+L______8: ;
 }
 //indent end
 

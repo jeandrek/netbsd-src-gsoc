@@ -50,6 +50,10 @@ extern int daemon(int, int);
 #include "PlatformCommon.h"
 #include "DNSCommon.h"
 
+#ifndef MDNSD_USER
+#define MDNSD_USER "nobody"
+#endif
+
 #define CONFIG_FILE "/etc/mdnsd.conf"
 static domainname DynDNSZone;                // Default wide-area zone for service registration
 static domainname DynDNSHostname;
@@ -88,7 +92,7 @@ mDNSlocal void mDNS_StatusCallback(mDNS *const m, mStatus result)
 static void Reconfigure(mDNS *m)
 {
     mDNSAddr DynDNSIP;
-    const mDNSAddr dummy = { mDNSAddrType_IPv4, { { { 1, 1, 1, 1 } } } };;
+    const mDNSAddr dummy = { mDNSAddrType_IPv4, { { { 198, 51, 100, 42 } } } };;
     mDNS_SetPrimaryInterfaceInfo(m, NULL, NULL, NULL);
     mDNS_Lock(m);
     if (ParseDNSServers(m, uDNS_SERVERS_FILE) < 0)
@@ -190,11 +194,21 @@ int main(int argc, char **argv)
     // Now that we're finished with anything privileged, switch over to running as "nobody"
     if (mStatus_NoError == err)
     {
-        const struct passwd *pw = getpwnam("nobody");
+        const struct passwd *pw = getpwnam(MDNSD_USER);
         if (pw != NULL)
+	{
+            setgid(pw->pw_gid);
             setuid(pw->pw_uid);
+	}
         else
-            LogMsg("WARNING: mdnsd continuing as root because user \"nobody\" does not exist");
+#ifdef MDNSD_NOROOT
+        {
+            LogMsg("WARNING: mdnsd exiting because user \""MDNSD_USER"\" does not exist");
+            err = mStatus_Invalid;
+        }
+#else
+            LogMsg("WARNING: mdnsd continuing as root because user \""MDNSD_USER"\" does not exist");
+#endif
     }
 
     if (mStatus_NoError == err)

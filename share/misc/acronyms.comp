@@ -1,4 +1,4 @@
-$NetBSD: acronyms.comp,v 1.352 2023/05/15 20:54:53 andvar Exp $
+$NetBSD: acronyms.comp,v 1.356 2023/06/15 13:11:20 jschauma Exp $
 3WHS	three-way handshake
 8VSB	8-state vestigial side band modulation
 AA	anti-aliasing
@@ -280,6 +280,7 @@ CMP	chip multi-processing
 CMS	content management system
 CMYK	cyan magenta yellow black
 CN	{common,canonical} name
+CNA	CVE Numbering Authority
 CNC	computer numerical control
 CNR	carrier-to-noise ratio
 COA	change of authority
@@ -311,6 +312,7 @@ CPT	command pass through
 CPU	central processing unit
 CR	carriage return
 CRC	cyclic redundancy check
+CRDT	conflict-free replicated data type
 CRL	carrier recovery loop
 CRLF	carriage return line feed
 CSPM	cloud security posture management
@@ -441,9 +443,11 @@ DOM	document object model
 DOS	denial of service
 DOS	disk operating system
 DP	DisplayPort
+DPAA	data path acceleration architecture
 DPC	deferred procedure call
 DPCM	differential pulse code modulation
 DPD	dead peer detection
+DPDK	data plane development kit
 DPI	deep packet inspection
 DPI	dots per inch
 DPL	descriptor privilege level
@@ -1730,6 +1734,7 @@ UDI	uniform driver interface
 UDMA	ultra DMA
 UDO	ultra density optical
 UDP	User Datagram Protocol
+UDS	Unix Domain Socket
 UEFI	unified extensible firmware interface
 UFO	UDP fragmentation offload
 UFS	Unix File System

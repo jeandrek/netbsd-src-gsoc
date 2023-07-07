@@ -1,4 +1,4 @@
-/* $NetBSD: lint1.h,v 1.164 2023/04/22 17:49:15 rillig Exp $ */
+/* $NetBSD: lint1.h,v 1.169 2023/06/29 12:52:06 rillig Exp $ */
 
 /*
  * Copyright (c) 1996 Christopher G. Demetriou.  All Rights Reserved.
@@ -109,9 +109,10 @@ typedef struct {
 	 * See the operators table in ops.def, columns "l r".
 	 */
 	bool	v_unsigned_since_c90;
+	bool	v_char_constant;
 	union {
-		int64_t	_v_quad;	/* integers */
-		ldbl_t	_v_ldbl;	/* floats */
+		int64_t		_v_quad;	/* integers */
+		long double	_v_ldbl;	/* floats */
 	} v_u;
 } val_t;
 
@@ -178,21 +179,17 @@ struct lint1_type {
 		enumeration	*_t_enum;
 		struct	sym *_t_args;	/* arguments (if t_proto) */
 	} t_u;
-	struct {
-		unsigned int	_t_flen:8;	/* length of bit-field */
-		unsigned int	_t_foffs:24;	/* offset of bit-field */
-	} t_b;
-	struct	lint1_type *t_subt; /* element type (if ARRAY),
-				 * return value (if FUNC),
-				 * target type (if PTR) */
+	unsigned int	t_bit_field_width:8;
+	unsigned int	t_bit_field_offset:24;
+	struct	lint1_type *t_subt;	/* element type (if ARRAY),
+					 * return value (if FUNC),
+					 * target type (if PTR) */
 };
 
 #define	t_dim	t_u._t_dim
 #define	t_sou	t_u._t_sou
 #define	t_enum	t_u._t_enum
 #define	t_args	t_u._t_args
-#define	t_flen	t_b._t_flen
-#define	t_foffs	t_b._t_foffs
 
 /*
  * types of symbols
@@ -314,7 +311,7 @@ typedef	struct tnode {
 			struct	tnode *_tn_right;	/* right operand */
 		} tn_s;
 		sym_t	*_tn_sym;	/* symbol if op == NAME */
-		val_t	*_tn_val;	/* value if op == CON */
+		val_t	_tn_val;	/* value if op == CON */
 		strg_t	*_tn_string;	/* string if op == STRING */
 	} tn_u;
 } tnode_t;
@@ -375,7 +372,7 @@ typedef	struct dinfo {
 	bool	d_nonempty_decl:1; /* if at least one tag is declared
 				 * ... in the current function decl. */
 	bool	d_vararg:1;
-	bool	d_proto:1;	/* current function decl. is prototype */
+	bool	d_proto:1;	/* current function decl. is a prototype */
 	bool	d_notyp:1;	/* set if no type specifier was present */
 	bool	d_asm:1;	/* set if d_ctx == AUTO and asm() present */
 	bool	d_packed:1;
@@ -485,25 +482,30 @@ check_printf(const char *fmt, ...)
 #  define message_at(msgid, pos, args...) \
 	wrap_check_printf_at(message_at, msgid, pos, ##args)
 
-#  define wrap_check_printf(func, msgid, args...)			\
+#  define wrap_check_printf(func, cond, msgid, args...)			\
 	({								\
-		debug_step("%s:%d: %s", __FILE__, __LINE__, __func__);	\
+		if (/* CONSTCOND */cond)				\
+			debug_step("%s:%d: %s %d '%s' in %s",		\
+			    __FILE__, __LINE__,	#func, msgid,		\
+			    __CONCAT(MSG_, msgid), __func__);		\
 		check_printf(__CONCAT(MSG_, msgid), ##args);		\
 		(func)(msgid, ##args);					\
 		/* LINTED 129 */					\
 	})
 
-#  define error(msgid, args...) wrap_check_printf(error, msgid, ##args)
-#  define warning(msgid, args...) wrap_check_printf(warning, msgid, ##args)
-#  define gnuism(msgid, args...) wrap_check_printf(gnuism, msgid, ##args)
-#  define c99ism(msgid, args...) wrap_check_printf(c99ism, msgid, ##args)
-#  define c11ism(msgid, args...) wrap_check_printf(c11ism, msgid, ##args)
+#  define error(msgid, args...) wrap_check_printf(error, true, msgid, ##args)
+#  define warning(msgid, args...) wrap_check_printf(warning, true, msgid, ##args)
+#  define gnuism(msgid, args...) wrap_check_printf(gnuism, !allow_gcc || (!allow_trad && !allow_c99), msgid, ##args)
+#  define c99ism(msgid, args...) wrap_check_printf(c99ism, !allow_c99 && (!allow_gcc || !allow_trad), msgid, ##args)
+#  define c11ism(msgid, args...) wrap_check_printf(c11ism, !allow_c11 && !allow_gcc, msgid, ##args)
 #endif
 
 #ifdef DEBUG
 #  define query_message(query_id, args...)				\
 	do {								\
-		debug_step("%s:%d: %s", __FILE__, __LINE__, __func__);	\
+		debug_step("%s:%d: query %d '%s' in %s",		\
+		    __FILE__, __LINE__,					\
+		    query_id, __CONCAT(MSG_Q, query_id), __func__);	\
 		check_printf(__CONCAT(MSG_Q, query_id), ##args);	\
 		(query_message)(query_id, ##args);			\
 	} while (false)
@@ -527,20 +529,20 @@ static inline bool
 constant_is_nonzero(const tnode_t *tn)
 {
 	lint_assert(tn->tn_op == CON);
-	lint_assert(tn->tn_type->t_tspec == tn->tn_val->v_tspec);
-	return is_nonzero_val(tn->tn_val);
+	lint_assert(tn->tn_type->t_tspec == tn->tn_val.v_tspec);
+	return is_nonzero_val(&tn->tn_val);
 }
 
 static inline bool
 is_zero(const tnode_t *tn)
 {
-	return tn != NULL && tn->tn_op == CON && !is_nonzero_val(tn->tn_val);
+	return tn != NULL && tn->tn_op == CON && !is_nonzero_val(&tn->tn_val);
 }
 
 static inline bool
 is_nonzero(const tnode_t *tn)
 {
-	return tn != NULL && tn->tn_op == CON && is_nonzero_val(tn->tn_val);
+	return tn != NULL && tn->tn_op == CON && is_nonzero_val(&tn->tn_val);
 }
 
 static inline bool

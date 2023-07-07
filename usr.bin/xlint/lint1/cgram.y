@@ -1,5 +1,5 @@
 %{
-/* $NetBSD: cgram.y,v 1.435 2023/04/22 17:49:15 rillig Exp $ */
+/* $NetBSD: cgram.y,v 1.438 2023/06/29 09:58:36 rillig Exp $ */
 
 /*
  * Copyright (c) 1996 Christopher G. Demetriou.  All Rights Reserved.
@@ -35,7 +35,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: cgram.y,v 1.435 2023/04/22 17:49:15 rillig Exp $");
+__RCSID("$NetBSD: cgram.y,v 1.438 2023/06/29 09:58:36 rillig Exp $");
 #endif
 
 #include <limits.h>
@@ -888,12 +888,12 @@ struct_or_union_specifier:	/* C99 6.7.2.1 */
 	| struct_or_union identifier_sym {
 		dcs->d_tagtyp = make_tag_type($2, $1, true, false);
 	  } braced_struct_declaration_list {
-		$$ = complete_tag_struct_or_union(dcs->d_tagtyp, $4);
+		$$ = complete_struct_or_union($4);
 	  }
 	| struct_or_union {
 		dcs->d_tagtyp = make_tag_type(NULL, $1, true, false);
 	  } braced_struct_declaration_list {
-		$$ = complete_tag_struct_or_union(dcs->d_tagtyp, $3);
+		$$ = complete_struct_or_union($3);
 	  }
 	| struct_or_union error {
 		symtyp = FVFT;
@@ -988,23 +988,23 @@ struct_declaration:		/* C99 6.7.2.1 */
 
 notype_struct_declarators:
 	  notype_struct_declarator {
-		$$ = declarator_1_struct_union($1);
+		$$ = declare_member($1);
 	  }
 	| notype_struct_declarators {
 		symtyp = FMEMBER;
 	  } T_COMMA type_struct_declarator {
-		$$ = concat_lists($1, declarator_1_struct_union($4));
+		$$ = concat_lists($1, declare_member($4));
 	  }
 	;
 
 type_struct_declarators:
 	  type_struct_declarator {
-		$$ = declarator_1_struct_union($1);
+		$$ = declare_member($1);
 	  }
 	| type_struct_declarators {
 		symtyp = FMEMBER;
 	  } T_COMMA type_struct_declarator {
-		$$ = concat_lists($1, declarator_1_struct_union($4));
+		$$ = concat_lists($1, declare_member($4));
 	  }
 	;
 
@@ -1040,12 +1040,12 @@ enum_specifier:			/* C99 6.7.2.2 */
 	| enum gcc_attribute_specifier_list_opt identifier_sym {
 		dcs->d_tagtyp = make_tag_type($3, ENUM, true, false);
 	  } enum_declaration /*gcc_attribute_specifier_list_opt*/ {
-		$$ = complete_tag_enum(dcs->d_tagtyp, $5);
+		$$ = complete_enum($5);
 	  }
 	| enum gcc_attribute_specifier_list_opt {
 		dcs->d_tagtyp = make_tag_type(NULL, ENUM, true, false);
 	  } enum_declaration /*gcc_attribute_specifier_list_opt*/ {
-		$$ = complete_tag_enum(dcs->d_tagtyp, $4);
+		$$ = complete_enum($4);
 	  }
 	| enum error {
 		symtyp = FVFT;
@@ -1387,16 +1387,16 @@ type_name:			/* C99 6.7.6 */
 
 abstract_declaration:		/* specific to lint */
 	  begin_type_qualifier_list end_type {
-		$$ = declare_1_abstract(abstract_name());
+		$$ = declare_abstract_type(abstract_name());
 	  }
 	| begin_type_specifier_qualifier_list end_type {
-		$$ = declare_1_abstract(abstract_name());
+		$$ = declare_abstract_type(abstract_name());
 	  }
 	| begin_type_qualifier_list end_type abstract_declarator {
-		$$ = declare_1_abstract($3);
+		$$ = declare_abstract_type($3);
 	  }
 	| begin_type_specifier_qualifier_list end_type abstract_declarator {
-		$$ = declare_1_abstract($3);
+		$$ = declare_abstract_type($3);
 	  }
 	;
 
@@ -1726,27 +1726,27 @@ expression_statement:		/* C99 6.8.3 */
 selection_statement:		/* C99 6.8.4 */
 	  if_without_else %prec T_THEN {
 		save_warning_flags();
-		if2();
-		if3(false);
+		stmt_if_then_stmt();
+		stmt_if_else_stmt(false);
 	  }
 	| if_without_else T_ELSE {
 		save_warning_flags();
-		if2();
+		stmt_if_then_stmt();
 	  } statement {
 		clear_warning_flags();
-		if3(true);
+		stmt_if_else_stmt(true);
 	  }
 	| if_without_else T_ELSE error {
 		clear_warning_flags();
-		if3(false);
+		stmt_if_else_stmt(false);
 	  }
 	| switch_expr statement {
 		clear_warning_flags();
-		switch2();
+		stmt_switch_expr_stmt();
 	  }
 	| switch_expr error {
 		clear_warning_flags();
-		switch2();
+		stmt_switch_expr_stmt();
 	  }
 	;
 
@@ -1757,14 +1757,14 @@ if_without_else:		/* see C99 6.8.4 */
 
 if_expr:			/* see C99 6.8.4 */
 	  T_IF T_LPAREN expression T_RPAREN {
-		if1($3);
+		stmt_if_expr($3);
 		clear_warning_flags();
 	  }
 	;
 
 switch_expr:			/* see C99 6.8.4 */
 	  T_SWITCH T_LPAREN expression T_RPAREN {
-		switch1($3);
+		stmt_switch_expr($3);
 		clear_warning_flags();
 	  }
 	;
@@ -1772,29 +1772,29 @@ switch_expr:			/* see C99 6.8.4 */
 iteration_statement:		/* C99 6.8.5 */
 	  while_expr statement {
 		clear_warning_flags();
-		while2();
+		stmt_while_expr_stmt();
 	  }
 	| while_expr error {
 		clear_warning_flags();
-		while2();
+		stmt_while_expr_stmt();
 	  }
 	| do_statement do_while_expr {
-		do2($2);
+		stmt_do_while_expr($2);
 		seen_fallthrough = false;
 	  }
 	| do error {
 		clear_warning_flags();
-		do2(NULL);
+		stmt_do_while_expr(NULL);
 	  }
 	| for_exprs statement {
 		clear_warning_flags();
-		for2();
+		stmt_for_exprs_stmt();
 		end_declaration_level();
 		block_level--;
 	  }
 	| for_exprs error {
 		clear_warning_flags();
-		for2();
+		stmt_for_exprs_stmt();
 		end_declaration_level();
 		block_level--;
 	  }
@@ -1802,7 +1802,7 @@ iteration_statement:		/* C99 6.8.5 */
 
 while_expr:			/* see C99 6.8.5 */
 	  T_WHILE T_LPAREN expression T_RPAREN {
-		while1($3);
+		stmt_while_expr($3);
 		clear_warning_flags();
 	  }
 	;
@@ -1815,7 +1815,7 @@ do_statement:			/* see C99 6.8.5 */
 
 do:				/* see C99 6.8.5 */
 	  T_DO {
-		do1();
+		stmt_do();
 	  }
 	;
 
@@ -1840,36 +1840,36 @@ for_exprs:			/* see C99 6.8.5 */
 	    expression_opt T_RPAREN {
 		/* variable declaration in for loop */
 		c99ism(325);
-		for1(NULL, $6, $8);
+		stmt_for_exprs(NULL, $6, $8);
 		clear_warning_flags();
 	    }
 	| for_start
 	    expression_opt T_SEMI
 	    expression_opt T_SEMI
 	    expression_opt T_RPAREN {
-		for1($2, $4, $6);
+		stmt_for_exprs($2, $4, $6);
 		clear_warning_flags();
 	  }
 	;
 
 jump_statement:			/* C99 6.8.6 */
 	  goto identifier T_SEMI {
-		do_goto(getsym($2));
+		stmt_goto(getsym($2));
 	  }
 	| goto error T_SEMI {
 		symtyp = FVFT;
 	  }
 	| T_CONTINUE T_SEMI {
-		do_continue();
+		stmt_continue();
 	  }
 	| T_BREAK T_SEMI {
-		do_break();
+		stmt_break();
 	  }
 	| T_RETURN sys T_SEMI {
-		do_return($2, NULL);
+		stmt_return($2, NULL);
 	  }
 	| T_RETURN sys expression T_SEMI {
-		do_return($2, $3);
+		stmt_return($2, $3);
 	  }
 	;
 
@@ -2151,9 +2151,9 @@ cgram_print(FILE *output, int token, YYSTYPE val)
 #endif
 
 static void
-cgram_declare(sym_t *decl, bool initflg, sbuf_t *renaming)
+cgram_declare(sym_t *decl, bool has_initializer, sbuf_t *renaming)
 {
-	declare(decl, initflg, renaming);
+	declare(decl, has_initializer, renaming);
 	if (renaming != NULL)
 		freeyyv(&renaming, T_NAME);
 }

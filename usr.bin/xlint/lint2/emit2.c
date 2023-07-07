@@ -1,4 +1,4 @@
-/* $NetBSD: emit2.c,v 1.30 2023/02/02 22:23:30 rillig Exp $ */
+/* $NetBSD: emit2.c,v 1.32 2023/06/29 10:31:33 rillig Exp $ */
 
 /*
  * Copyright (c) 1996 Christopher G. Demetriou.  All Rights Reserved.
@@ -34,7 +34,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: emit2.c,v 1.30 2023/02/02 22:23:30 rillig Exp $");
+__RCSID("$NetBSD: emit2.c,v 1.32 2023/06/29 10:31:33 rillig Exp $");
 #endif
 
 #include "lint2.h"
@@ -51,15 +51,15 @@ static void
 outtype(type_t *tp)
 {
 #ifdef INT128_SIZE
-	static const char tt[NTSPEC] = "???BCCCSSIILLQQJJDDDVTTTPAF?XXX";
-	static const char ss[NTSPEC] = "???  su u u u u us l sue   ?s l";
+	static const char tt[NTSPEC] = "???BCCCSSIILLQQJJDDD?XXXVTTTPAF";
+	static const char ss[NTSPEC] = "???  su u u u u us l?s l sue   ";
 #else
-	static const char tt[NTSPEC] = "???BCCCSSIILLQQDDDVTTTPAF?XXX";
-	static const char ss[NTSPEC] = "???  su u u u us l sue   ?s l";
+	static const char tt[NTSPEC] = "???BCCCSSIILLQQDDD?XXXVTTTPAF";
+	static const char ss[NTSPEC] = "???  su u u u us l?s l sue   ";
 #endif
 
 	while (tp != NULL) {
-		tspec_t	ts = tp->t_tspec;
+		tspec_t ts = tp->t_tspec;
 		if (ts == INT && tp->t_is_enum)
 			ts = ENUM;
 		if (!ch_isupper(tt[ts]))
@@ -166,7 +166,7 @@ outdef(hte_t *hte, sym_t *sym)
 static void
 dumpname(hte_t *hte)
 {
-	sym_t	*sym, *def;
+	sym_t *sym, *def;
 
 	/* static and undefined symbols are not written */
 	if (hte->h_static || !hte->h_def)

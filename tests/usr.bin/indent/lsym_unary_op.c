@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_unary_op.c,v 1.6 2023/05/13 06:52:48 rillig Exp $ */
+/* $NetBSD: lsym_unary_op.c,v 1.12 2023/06/17 22:09:24 rillig Exp $ */
 
 /*
  * Tests for the token lsym_unary_op, which represents a unary operator.
@@ -77,3 +77,42 @@ unary_operators(void)
 //indent end
 
 //indent run-equals-input -di0
+
+
+/*
+ * Ensure that a '*' is not interpreted as unary operator in situations that
+ * may look like a cast expression.
+ */
+//indent input
+{
+	sbuf_t *sb = *(sbuf_t **)sp;
+	return (int)(a * (float)b);
+	a = (2 * b == c);
+}
+//indent end
+
+//indent run-equals-input -di0
+
+
+/* All asterisks from a pointer type are merged into a single token. */
+//indent input
+{
+char*
+*
+*
+*x;
+char
+*
+*
+*
+*x;
+}
+//indent end
+
+//indent run
+{
+	char	    ****x;
+	char
+		    ****x;
+}
+//indent end

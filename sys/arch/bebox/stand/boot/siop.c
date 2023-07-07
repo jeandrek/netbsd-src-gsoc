@@ -1,4 +1,4 @@
-/*	$NetBSD: siop.c,v 1.11 2022/06/03 12:10:50 andvar Exp $	*/
+/*	$NetBSD: siop.c,v 1.14 2023/06/19 08:40:29 msaitoh Exp $	*/
 /*
  * Copyright (c) 2010 KIYOHARA Takashi
  * All rights reserved.
@@ -406,7 +406,7 @@ reset:
 			if (target != adp->xs->target ||
 			    lun != adp->xs->lun ||
 			    tag != 0) {
-				printf("unknwon resellun:"
+				printf("unknown resellun:"
 				    " target %d lun %d tag %d\n",
 				    target, lun, tag);
 				goto reset;
@@ -885,7 +885,7 @@ scsi_interpret_sense(struct siop_adapter *adp, struct scsi_xfer *xs)
 {
 	struct scsi_sense_data *sense;
 	u_int8_t key;
-	int error;
+	int error = 0;
 	uint32_t info;
 	static const char *error_mes[] = {
 		"soft error (corrected)",
@@ -961,7 +961,6 @@ scsi_interpret_sense(struct siop_adapter *adp, struct scsi_xfer *xs)
 				xs->resid = 0;	/* not short read */
 			}
 		case SKEY_EQUAL:
-			error = 0;
 			break;
 		case SKEY_NOT_READY:
 			if (adp->sd->sc_flags & FLAGS_REMOVABLE)
@@ -990,10 +989,9 @@ scsi_interpret_sense(struct siop_adapter *adp, struct scsi_xfer *xs)
 			error = EROFS;
 			break;
 		case SKEY_BLANK_CHECK:
-			error = 0;
 			break;
 		case SKEY_ABORTED_COMMAND:
-			/* XXX XXX initialize 'error' */
+			error = EIO;
 			break;
 		case SKEY_VOLUME_OVERFLOW:
 			error = ENOSPC;

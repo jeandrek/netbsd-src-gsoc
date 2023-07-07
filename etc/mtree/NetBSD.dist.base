@@ -1,4 +1,4 @@
-#	$NetBSD: NetBSD.dist.base,v 1.248 2023/05/10 15:52:50 christos Exp $
+#	$NetBSD: NetBSD.dist.base,v 1.250 2023/05/26 22:26:11 riastradh Exp $
 #	@(#)4.4BSD.dist	8.1 (Berkeley) 6/13/93
 
 # Do not customize this file as it may be overwritten on upgrades.

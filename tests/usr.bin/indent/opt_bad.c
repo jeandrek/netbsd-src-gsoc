@@ -1,4 +1,4 @@
-/* $NetBSD: opt_bad.c,v 1.10 2023/05/14 16:47:06 rillig Exp $ */
+/* $NetBSD: opt_bad.c,v 1.12 2023/06/26 14:54:40 rillig Exp $ */
 
 /*
  * Tests for the options '-bad' and '-nbad'.
@@ -12,14 +12,6 @@
 
 /* Test global declarations. */
 //indent input
-int global_variable;
-void function_declaration(void);
-#if 0
-#endif
-/* comment */
-//indent end
-
-//indent run -bad
 int		global_variable;
 void		function_declaration(void);
 #if 0
@@ -27,7 +19,9 @@ void		function_declaration(void);
 /* comment */
 //indent end
 
-//indent run-equals-prev-output -nbad
+//indent run-equals-input -bad
+
+//indent run-equals-input -nbad
 
 
 /* See FreeBSD r303599. */
@@ -110,8 +104,10 @@ comments(void)
 {
 	int local_var_1;	/* comment */
 	int local_var_2;	/* comment */
-
+// $ Indent does not look ahead much, so it doesn't know whether this comment
+// $ will be followed by a declaration or a statement.
 	/* comment line */
+
 	function_call();
 }
 //indent end
@@ -165,3 +161,21 @@ initializer_with_blank(void)
 //indent end
 
 //indent run-equals-input -ldi0 -nbad
+
+
+//indent input
+{
+	// $ The '}' in an initializer does not finish a declaration,
+	// $ only a semicolon does.
+	int decl1[2][2] = {
+		{1, 2},
+		{3, 4},
+	};
+	/* comment */
+	int decl2;
+	// $ If the declaration is followed by a '}' that terminates the block
+	// $ statement, * there is no need for a blank line before the '}'.
+}
+//indent end
+
+//indent run-equals-input -bad -di0

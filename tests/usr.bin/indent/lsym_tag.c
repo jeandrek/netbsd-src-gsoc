@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_tag.c,v 1.7 2023/05/15 14:12:03 rillig Exp $ */
+/* $NetBSD: lsym_tag.c,v 1.10 2023/06/17 22:09:24 rillig Exp $ */
 
 /*
  * Tests for the token lsym_tag, which represents one of the keywords
@@ -134,3 +134,46 @@ struct outer {
 //indent end
 
 //indent run-equals-input -di0
+
+
+/*
+ * The initializer of an enum constant needs to be indented like any other
+ * initializer, especially the continuation lines.
+ */
+//indent input
+enum multi_line {
+	ml1 = 1
+	    + 2
+	    + offsetof(struct s, member)
+	    + 3,
+	ml2 = 1
+	    + 2
+	    + offsetof(struct s, member)
+	    + 3,
+};
+//indent end
+
+//indent run-equals-input -ci4
+
+//indent run-equals-input -ci4 -nlp
+
+
+/*
+ * When 'typedef' or a tag is followed by a name, that name marks a type and a
+ * following '*' marks a pointer type.
+ */
+//indent input
+{
+	// $ Syntactically invalid but shows that '*' is not multiplication.
+	a = struct x * y;
+	a = (struct x * y)z;
+}
+//indent end
+
+//indent run
+{
+	// $ Everything before the '*' is treated as a declaration.
+	a = struct x   *y;
+	a = (struct x *y)z;
+}
+//indent end

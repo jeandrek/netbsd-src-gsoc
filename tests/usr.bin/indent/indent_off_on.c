@@ -1,4 +1,4 @@
-/* $NetBSD: indent_off_on.c,v 1.11 2023/05/16 08:04:04 rillig Exp $ */
+/* $NetBSD: indent_off_on.c,v 1.15 2023/06/04 22:20:04 rillig Exp $ */
 
 /*
  * Tests for the comments 'INDENT OFF' and 'INDENT ON', which temporarily
@@ -134,8 +134,8 @@ int format( void ) {{{
 /* No formatting takes place here. */
 int format( void ) {{{
 /*INDENT ON*/
-}
-}
+		}
+	}
 }
 //indent end
 
@@ -183,7 +183,7 @@ void		indent_on(void);
 /* INDENT: OFF */
 void		indent_still_on(void);	/* due to the colon in the middle */
 /* $ The extra comment got moved to a separate line, but indenting is still */
-/* $ off because the 'INDENT OFF' comment was not in a line of its own. */
+/* $ on because the 'INDENT OFF' comment was not in a line of its own. */
 /* INDENT OFF */
 /* extra comment */
 void		indent_still_on(void);	/* due to the extra comment to the
@@ -235,4 +235,41 @@ int still_on;
 int still_on;
 /* INDENT OFF */
 int   finally_off   ;
+//indent end
+
+
+/*
+ * Ensure that in 'INDENT OFF' mode, no blank line is added between lines, even
+ * when requested via the -bacc option.
+ */
+//indent input
+/* INDENT OFF */
+int declaration;
+#if 0
+#endif
+int declaration;
+/* INDENT ON */
+//indent end
+
+//indent run-equals-input -bacc
+
+
+/*
+ * If an 'INDENT OFF' comment directly follows a line continuation, the line
+ * continuation is dropped but the rest of the line is still formatted.
+ */
+//indent input
+int x ; \
+/* INDENT OFF */
+  int y ;
+/* INDENT ON */
+int z ;
+//indent end
+
+//indent run
+int		x;
+/* INDENT OFF */
+  int y ;
+/* INDENT ON */
+int		z;
 //indent end

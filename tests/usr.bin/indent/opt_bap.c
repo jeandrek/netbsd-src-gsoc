@@ -1,4 +1,4 @@
-/* $NetBSD: opt_bap.c,v 1.6 2022/04/24 09:04:12 rillig Exp $ */
+/* $NetBSD: opt_bap.c,v 1.11 2023/06/23 20:44:51 rillig Exp $ */
 
 /*
  * Tests for the options '-bap' and '-nbap' ("blank line after procedure
@@ -7,9 +7,6 @@
  * The option '-bap' forces a blank line after every function body.
  *
  * The option '-nbap' keeps everything as is.
- *
- * FIXME: These options don't have any effect since at least 2000.
- * TODO: Investigate how nobody could have noticed this for 20 years.
  */
 
 //indent input
@@ -39,18 +36,18 @@ static void
 one_liner(void)
 {
 }
-/* $ FIXME: needs a blank line here */
+
 static void
 several_lines(void)
 {
 	action();
 }
-/* $ FIXME: needs a blank line here */
+
 int
 main(void)
 {
 }
-/* $ FIXME: needs a blank line here */
+
 int		global_variable;
 
 void
@@ -68,4 +65,82 @@ has_several_blank_lines_below(void)
 int		the_end;
 //indent end
 
-//indent run-equals-prev-output -nbap
+//indent run -nbap
+static void
+one_liner(void)
+{
+}
+static void
+several_lines(void)
+{
+	action();
+}
+int
+main(void)
+{
+}
+int		global_variable;
+
+void
+already_has_blank_line_below(void)
+{
+}
+
+void
+has_several_blank_lines_below(void)
+{
+}
+
+
+
+int		the_end;
+//indent end
+
+
+/*
+ * Don't insert a blank line between the end of a function body and an '#endif'
+ * line, as both are closing elements.
+ */
+//indent input
+#if 0
+void
+example(void)
+{
+}
+#endif
+//indent end
+
+//indent run-equals-input -bap
+
+
+/*
+ * A preprocessing line after the end of a function body does not force a blank
+ * line, as these lines are from a different syntactic layer.
+ */
+//indent input
+#if 0
+void
+f(void)
+{
+}
+#else
+#endif
+//indent end
+
+//indent run-equals-input -bacc -bap
+
+
+/*
+ * Do not add a blank line between the end of a function body and an '#undef',
+ * as this is a common way to undefine a function-local macro.
+ */
+//indent input
+#define replace
+{
+}
+#undef replace
+//indent end
+
+//indent run-equals-input -bap
+
+//indent run-equals-input -bap -bacc

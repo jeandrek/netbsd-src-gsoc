@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.1 2023/05/07 16:21:19 christos Exp $
+#	$NetBSD: Makefile,v 1.3 2023/05/26 22:26:10 riastradh Exp $
 
 LIB=	devcrypto
 SRCS=	e_devcrypto.c

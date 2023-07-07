@@ -1,4 +1,4 @@
-# $NetBSD: t_integration.sh,v 1.79 2023/04/10 23:52:49 rillig Exp $
+# $NetBSD: t_integration.sh,v 1.81 2023/06/24 07:45:36 rillig Exp $
 #
 # Copyright (c) 2008, 2010 The NetBSD Foundation, Inc.
 # All rights reserved.
@@ -25,7 +25,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-lint1=/usr/libexec/lint1
+: "${lint1:=/usr/libexec/lint1}"
 : "${archsubdir:=archsubdir_must_be_set}"
 
 
@@ -138,7 +138,15 @@ check_lint1()
 	atf_check lua "$(atf_get_srcdir)/check-expect.lua" "$src"
 
 	if [ "$exp_ln" != '/dev/null' ]; then
-		atf_check -o "file:$exp_ln" cat "$wrk_ln"
+		# Remove comments and whitespace from the .exp-ln file.
+		sed \
+		    -e '/^#/d' \
+		    -e '/^$/d' \
+		    -e 's,^#.*,,' \
+		    -e 's,\([^%]\)[[:space:]],\1,g' \
+		    < "$exp_ln" > "./${exp_ln##*/}"
+
+		atf_check -o "file:${exp_ln##*/}" cat "$wrk_ln"
 	fi
 }
 

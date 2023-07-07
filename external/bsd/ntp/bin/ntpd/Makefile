@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.29 2023/05/09 20:51:14 christos Exp $
+#	$NetBSD: Makefile,v 1.32 2023/06/03 21:31:46 lukem Exp $
 
 .include <bsd.own.mk>
 
@@ -87,15 +87,15 @@ CPPFLAGS+=-I${IDIST}/include -I${IDIST}/sntp/libopts -I${IDIST}/ntpd -I.
 .PATH: ${DIST}
 YHEADER=1
 
-COPTS.ntp_control.c+=		${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-error=maybe-uninitialized :}
+COPTS.ntp_control.c+=		${CC_WNO_MAYBE_UNINITIALIZED}
 COPTS.ntp_loopfilter.c+=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 8:? -Wno-error=restrict :}
-COPTS.ntp_loopfilter.c+=	${GCC_NO_FORMAT_TRUNCATION}
-COPTS.ntp_crypto.c+=		${GCC_NO_FORMAT_TRUNCATION}
-COPTS.refclock_jjy.c+=		${GCC_NO_STRINGOP_TRUNCATION} ${GCC_NO_FORMAT_TRUNCATION}
-COPTS.refclock_parse.c+=	${GCC_NO_FORMAT_TRUNCATION}
-COPTS.refclock_leitch.c+=	${GCC_NO_FORMAT_TRUNCATION}
-COPTS.refclock_neoclock4x.c+=	${GCC_NO_FORMAT_TRUNCATION}
-COPTS.ntp_io.c+=        	${GCC_NO_ADDR_OF_PACKED_MEMBER}
+COPTS.ntp_loopfilter.c+=	${CC_WNO_FORMAT_TRUNCATION}
+COPTS.ntp_crypto.c+=		${CC_WNO_FORMAT_TRUNCATION}
+COPTS.refclock_jjy.c+=		${CC_WNO_STRINGOP_TRUNCATION} ${CC_WNO_FORMAT_TRUNCATION}
+COPTS.refclock_parse.c+=	${CC_WNO_FORMAT_TRUNCATION}
+COPTS.refclock_leitch.c+=	${CC_WNO_FORMAT_TRUNCATION}
+COPTS.refclock_neoclock4x.c+=	${CC_WNO_FORMAT_TRUNCATION}
+COPTS.ntp_io.c+=        	${CC_WNO_ADDRESS_OF_PACKED_MEMBER}
 COPTS.ntp_crypto.c+=		-Wno-error=deprecated-declarations
 
 CLEANFILES+=${MAN}

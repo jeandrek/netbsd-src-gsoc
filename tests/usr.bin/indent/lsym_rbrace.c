@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_rbrace.c,v 1.4 2022/04/24 09:04:12 rillig Exp $ */
+/* $NetBSD: lsym_rbrace.c,v 1.7 2023/06/08 06:47:14 rillig Exp $ */
 
 /*
  * Tests for the token lsym_rbrace, which represents a '}' in these contexts:
@@ -43,11 +43,12 @@ void function(void) {{{ body(); }}}
 //indent run
 void
 function(void)
-/* $ FIXME: Each '{' must be properly indented. */
-{{{
+{
+	{
+		{
 			body();
-}
-}
+		}
+	}
 }
 //indent end
 
@@ -64,14 +65,34 @@ origin(void)
 }
 //indent end
 
-//indent run
-struct point
-origin(void)
+//indent run-equals-input
+
+
+//indent input
 {
-	return (struct point){
-		.x = 0,
-/* $ FIXME: All initializers must be indented to the same level. */
-			.y = 0,
+int numbers[][] = {
+{11},
+{21},
+{31},
+};
+int numbers[][] = {{11},
+{21},
+{31},
+};
+}
+//indent end
+
+//indent run -di0
+{
+	int numbers[][] = {
+		{11},
+		{21},
+		{31},
+	};
+	int numbers[][] = {{11},
+	// $ FIXME: Must be indented.
+	{21},
+	{31},
 	};
 }
 //indent end

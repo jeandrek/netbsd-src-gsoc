@@ -1,5 +1,6 @@
-#	$NetBSD: Makefile,v 1.11 2021/09/18 01:47:08 christos Exp $
+#	$NetBSD: Makefile,v 1.13 2023/06/03 09:09:07 lukem Exp $
 
+HOSTPROG_CXX=	1
 LIBISPRIVATE=	yes
 
 # For ../Makefile.inc and bsd.own.mk
@@ -23,7 +24,7 @@ COPTS.opts-common.c+=	-Wno-stack-protector
 COPTS.rs6000-common.c+=	-Wno-stack-protector
 COPTS.arm-common.c+=	-Wno-stack-protector
 .if ${MACHINE_CPU} == "sh3"
-COPTS.opts.c+=		${GCC_NO_FORMAT_TRUNCATION}
+COPTS.opts.c+=		${CC_WNO_FORMAT_TRUNCATION}
 .endif
 
 GENPROG_ERROR_DEPENDS=errors.lo
@@ -42,8 +43,6 @@ HOST_CPPFLAGS+=	-DGENERATOR_FILE
 
 MKPIC:=		no
 MKPICLIB:=	no
-
-HOSTPROG_CXX=	1
 
 .include <bsd.lib.mk>
 

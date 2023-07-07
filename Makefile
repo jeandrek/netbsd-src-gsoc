@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.335 2022/08/21 07:10:03 lukem Exp $
+#	$NetBSD: Makefile,v 1.337 2023/06/11 10:43:51 lukem Exp $
 
 #
 # This is the top-level makefile for building NetBSD. For an outline of
@@ -88,8 +88,8 @@
 #   do-top-obj:      creates the top level object directory.
 #   do-tools-obj:    creates object directories for the host toolchain.
 #   do-tools:        builds host toolchain.
-#   params:          record the values of variables that might affect the
-#                    build.
+#   params:          create params file with various make(1) parameters.
+#   show-params:     show various make(1) parameters.
 #   obj:             creates object directories.
 #   do-distrib-dirs: creates the distribution directories.
 #   includes:        installs include files.
@@ -445,9 +445,6 @@ check-tools: .PHONY
 	@echo '*** May result in a failed build or corrupt binaries!'
 .elif defined(EXTERNAL_TOOLCHAIN)
 	@echo '*** Using external toolchain rooted at ${EXTERNAL_TOOLCHAIN}.'
-.endif
-.if defined(NBUILDJOBS)
-	@echo '*** WARNING: NBUILDJOBS is obsolete; use -j directly instead!'
 .endif
 
 # Delete or sanitise a leftover METALOG from a previous build.

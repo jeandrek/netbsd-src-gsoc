@@ -1,4 +1,4 @@
-#	$NetBSD: t_ipsec_tunnel_ipcomp.sh,v 1.2 2017/08/03 03:16:27 ozaki-r Exp $
+#	$NetBSD: t_ipsec_tunnel_ipcomp.sh,v 1.4 2023/06/19 08:28:09 knakahara Exp $
 #
 # Copyright (c) 2017 Internet Initiative Japan Inc.
 # All rights reserved.

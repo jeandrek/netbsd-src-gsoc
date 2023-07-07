@@ -193,7 +193,6 @@ struct ath_softc {
 	device_t 		sc_dev;
 	device_suspensor_t	sc_suspensor;
 	pmf_qual_t		sc_qual;
-	struct ethercom		sc_ec;		/* interface common */
 	struct ath_stats	sc_stats;	/* interface statistics */
 	struct ieee80211com	sc_ic;		/* IEEE 802.11 common */
 	struct ifqueue		sc_sendq;
@@ -313,7 +312,6 @@ struct ath_softc {
 	struct callout		sc_watchdog_ch;	/* callout for watchdog */
 	u_int			sc_flags;	/* misc flags */
 };
-#define	sc_if			sc_ec.ec_if
 #define	sc_tx_th		u_tx_rt.th
 #define	sc_rx_th		u_rx_rt.th
 

@@ -1,4 +1,4 @@
-/*	$NetBSD: emit.c,v 1.15 2023/03/28 14:44:34 rillig Exp $	*/
+/*	$NetBSD: emit.c,v 1.17 2023/05/22 17:53:27 rillig Exp $	*/
 # 3 "emit.c"
 
 /*
@@ -307,3 +307,11 @@ struct compound_expression_in_initializer compound = {
 		[0] = "zero",
 	},
 };
+
+/*
+ * Before decl.c 1.312 and init.c 1.242 from 2023-05-22, the type that ended up
+ * in the .ln file was 'A0cC', which was wrong as it had array size 0 instead
+ * of the correct 8.  That type had been taken too early, before looking at the
+ * initializer.
+ */
+const char array_of_unknown_size[] = "unknown";

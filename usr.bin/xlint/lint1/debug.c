@@ -1,4 +1,4 @@
-/* $NetBSD: debug.c,v 1.30 2023/04/22 20:17:19 rillig Exp $ */
+/* $NetBSD: debug.c,v 1.36 2023/06/24 20:50:54 rillig Exp $ */
 
 /*-
  * Copyright (c) 2021 The NetBSD Foundation, Inc.
@@ -35,7 +35,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: debug.c,v 1.30 2023/04/22 20:17:19 rillig Exp $");
+__RCSID("$NetBSD: debug.c,v 1.36 2023/06/24 20:50:54 rillig Exp $");
 #endif
 
 #include <stdlib.h>
@@ -49,13 +49,26 @@ __RCSID("$NetBSD: debug.c,v 1.30 2023/04/22 20:17:19 rillig Exp $");
 static int debug_indentation = 0;
 
 
-void __printflike(1, 2)
+static FILE *
+debug_file(void)
+{
+	/*
+	 * Using stdout preserves the order between the debug messages and
+	 * lint's diagnostics.
+	 *
+	 * Using stderr preserves the order between lint's debug messages and
+	 * yacc's debug messages (see the -y option).
+	 */
+	return stdout;
+}
+
+void
 debug_printf(const char *fmt, ...)
 {
 	va_list va;
 
 	va_start(va, fmt);
-	(void)vfprintf(stdout, fmt, va);
+	(void)vfprintf(debug_file(), fmt, va);
 	va_end(va);
 }
 
@@ -84,26 +97,26 @@ void
 debug_enter_func(const char *func)
 {
 
-	printf("%*s+ %s\n", 2 * debug_indentation++, "", func);
+	fprintf(debug_file(), "%*s+ %s\n", 2 * debug_indentation++, "", func);
 }
 
-void __printflike(1, 2)
+void
 debug_step(const char *fmt, ...)
 {
 	va_list va;
 
 	debug_print_indent();
 	va_start(va, fmt);
-	(void)vfprintf(stdout, fmt, va);
+	(void)vfprintf(debug_file(), fmt, va);
 	va_end(va);
-	printf("\n");
+	fprintf(debug_file(), "\n");
 }
 
 void
 debug_leave_func(const char *func)
 {
 
-	printf("%*s- %s\n", 2 * --debug_indentation, "", func);
+	fprintf(debug_file(), "%*s- %s\n", 2 * --debug_indentation, "", func);
 }
 
 static void
@@ -171,20 +184,22 @@ debug_node(const tnode_t *tn) // NOLINT(misc-no-recursion)
 		break;
 	case CON:
 		if (is_floating(tn->tn_type->t_tspec))
-			debug_printf(", value %Lg", tn->tn_val->v_ldbl);
+			debug_printf(", value %Lg", tn->tn_val.v_ldbl);
 		else if (is_uinteger(tn->tn_type->t_tspec))
 			debug_printf(", value %llu",
-			    (unsigned long long)tn->tn_val->v_quad);
+			    (unsigned long long)tn->tn_val.v_quad);
 		else if (is_integer(tn->tn_type->t_tspec))
 			debug_printf(", value %lld",
-			    (long long)tn->tn_val->v_quad);
+			    (long long)tn->tn_val.v_quad);
 		else {
 			lint_assert(tn->tn_type->t_tspec == BOOL);
 			debug_printf(", value %s",
-			    tn->tn_val->v_quad != 0 ? "true" : "false");
+			    tn->tn_val.v_quad != 0 ? "true" : "false");
 		}
-		if (tn->tn_val->v_unsigned_since_c90)
+		if (tn->tn_val.v_unsigned_since_c90)
 			debug_printf(", unsigned_since_c90");
+		if (tn->tn_val.v_char_constant)
+			debug_printf(", char_constant");
 		debug_printf("\n");
 		break;
 	case STRING:
@@ -207,7 +222,9 @@ debug_node(const tnode_t *tn) // NOLINT(misc-no-recursion)
 		debug_indent_inc();
 		lint_assert(tn->tn_left != NULL);
 		debug_node(tn->tn_left);
-		lint_assert(is_binary(tn) == (tn->tn_right != NULL));
+		if (op != INCBEF && op != INCAFT
+		    && op != DECBEF && op != DECAFT)
+			lint_assert(is_binary(tn) == (tn->tn_right != NULL));
 		if (tn->tn_right != NULL)
 			debug_node(tn->tn_right);
 		debug_indent_dec();
@@ -382,13 +399,13 @@ debug_dinfo(const dinfo_t *d) // NOLINT(misc-no-recursion)
 	if (d->d_type != NULL) {
 		debug_printf(" '%s'", type_name(d->d_type));
 	} else {
-		if (d->d_abstract_type != NOTSPEC)
+		if (d->d_abstract_type != NO_TSPEC)
 			debug_printf(" %s", tspec_name(d->d_abstract_type));
-		if (d->d_complex_mod != NOTSPEC)
+		if (d->d_complex_mod != NO_TSPEC)
 			debug_printf(" %s", tspec_name(d->d_complex_mod));
-		if (d->d_sign_mod != NOTSPEC)
+		if (d->d_sign_mod != NO_TSPEC)
 			debug_printf(" %s", tspec_name(d->d_sign_mod));
-		if (d->d_rank_mod != NOTSPEC)
+		if (d->d_rank_mod != NO_TSPEC)
 			debug_printf(" %s", tspec_name(d->d_rank_mod));
 	}
 	if (d->d_redeclared_symbol != NULL)

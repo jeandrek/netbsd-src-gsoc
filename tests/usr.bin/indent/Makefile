@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.46 2023/05/13 13:24:01 rillig Exp $
+#	$NetBSD: Makefile,v 1.49 2023/06/16 23:51:32 rillig Exp $
 
 .include <bsd.own.mk>
 
@@ -48,8 +48,7 @@ FILES+=		lsym_sizeof.c
 FILES+=		lsym_storage_class.c
 FILES+=		lsym_switch.c
 FILES+=		lsym_tag.c
-FILES+=		lsym_type_in_parentheses.c
-FILES+=		lsym_type_outside_parentheses.c
+FILES+=		lsym_type.c
 FILES+=		lsym_typedef.c
 FILES+=		lsym_unary_op.c
 FILES+=		lsym_while.c
@@ -109,10 +108,9 @@ FILES+=		psym_lbrace.c
 FILES+=		psym_rbrace.c
 FILES+=		psym_semicolon.c
 FILES+=		psym_stmt.c
-FILES+=		psym_stmt_list.c
 FILES+=		psym_switch_expr.c
 FILES+=		psym_while_expr.c
-FILES+=		t_options.awk
+FILES+=		t_options.lua
 
 add-test: .PHONY
 	@set -eu; \

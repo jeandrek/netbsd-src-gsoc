@@ -1,4 +1,4 @@
-/* $NetBSD: lsym_form_feed.c,v 1.6 2023/05/11 18:13:55 rillig Exp $ */
+/* $NetBSD: lsym_form_feed.c,v 1.8 2023/05/21 10:18:44 rillig Exp $ */
 
 /*
  * Tests for the token lsym_form_feed, which represents a form feed, a special
@@ -17,7 +17,7 @@ void function_2(void);
 
 
 /*
- * Test form feed after 'if (expr)', which is handled in search_stmt.
+ * Test form feed after 'if (expr)', even though it does not occur in practice.
  */
 //indent input
 void function(void)
@@ -34,7 +34,7 @@ void
 function(void)
 {
 	if (expr)
-		/* <-- form feed */
+				/* <-- form feed */
 	{
 	}
 }

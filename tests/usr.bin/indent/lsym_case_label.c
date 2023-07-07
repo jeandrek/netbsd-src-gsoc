@@ -1,9 +1,8 @@
-/* $NetBSD: lsym_case_label.c,v 1.6 2022/04/24 09:04:12 rillig Exp $ */
+/* $NetBSD: lsym_case_label.c,v 1.11 2023/06/15 09:19:07 rillig Exp $ */
 
 /*
- * Tests for the token lsym_case_label, which represents either the keyword
- * 'case' or the keyword 'default', which are both used in 'switch'
- * statements.
+ * Tests for the tokens lsym_case and lsym_default, which represent the
+ * keywords 'case' and 'default', which are both used in 'switch' statements.
  *
  * Since C11, the keyword 'default' is used in _Generic selections as well.
  *
@@ -67,8 +66,7 @@ function(void)
 	case 1:	{
 			break;
 		}
-	/* $ FIXME: missing space between ':' and '{'. */
-	case 11:{
+	case 11: {
 			break;
 		}
 	}
@@ -94,22 +92,34 @@ const char *type_name = _Generic(
 // $ XXX: It's strange to align the arguments at the parenthesis even though
 // $ XXX: the first argument is already on a separate line.
 				 ' ',
-// $ TODO: indent the type names
-int:				 "character constants have type 'int'",
-char:				 "character constants have type 'char'",
-default:
-// $ TODO: remove the newline after 'default:'
-				 "character constants have some other type"
+// $ The indentation is so large that the strings would spill over the right
+// $ margin.  To prevent that, the code is right-aligned.  Since the base
+// $ indentation of this declaration is 0, the code might even start at the
+// $ beginning of the line.
+				 int: "character constants have type 'int'",
+			       char: "character constants have type 'char'",
+			 default: "character constants have some other type"
 );
 //indent end
 
-//indent run -di0 -nlp
-const char *type_name = _Generic(
-	' ',
-// $ TODO: indent the type names
-int:	"character constants have type 'int'",
-char:	"character constants have type 'char'",
-default:
-	"character constants have some other type"
-);
+//indent run-equals-input -di0 -nlp
+
+
+/*
+ * Multi-line case expressions are rare but still should be processed in a
+ * sensible way.
+ */
+//indent input
+{
+	switch (expr) {
+// $ FIXME: The line containing the 'case' must be indented like a 'case'.
+		case 1
+		    + 2
+// $ FIXME: This continuation line must be indented by 4 columns.
+	+ 3:
+		stmt;
+	}
+}
 //indent end
+
+//indent run-equals-input -ci4

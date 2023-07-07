@@ -1,4 +1,4 @@
-.\"	$NetBSD: paxctl.8,v 1.16 2016/11/08 08:21:52 wiz Exp $
+.\"	$NetBSD: paxctl.8,v 1.20 2023/06/23 10:27:12 uwe Exp $
 .\"
 .\" Copyright 2006 Elad Efrat <elad@NetBSD.org>
 .\" Copyright 2008 Christos Zoulas <christos@NetBSD.org>
@@ -23,7 +23,7 @@
 .\" (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
-.Dd November 7, 2016
+.Dd June 23, 2023
 .Dt PAXCTL 8
 .Os
 .Sh NAME
@@ -31,7 +31,7 @@
 .Nd list and modify PaX flags associated with an ELF program
 .Sh SYNOPSIS
 .Nm
-.Ar flags
+.Op Fl 0 | Ar flags
 .Ar program ...
 .Sh DESCRIPTION
 The
@@ -44,45 +44,45 @@ can be found in the
 .Xr security 7
 manpage.
 .Pp
-Each flag can be prefixed either with a
-.Dq +
+To view existing flags on a
+.Ar program ,
+execute
+.Nm
+without any flags.
+.Pp
+If
+.Fl 0
+option is specified, all PaX flags
+.Pq including reserved bits
+are cleared.
+Otherwise, each flag can be prefixed either with a
+.Sq Cm +
 or a
-.Dq -
+.Sq Fl
 sign to add or remove the flag, respectively.
 .Pp
 The following flags are available:
-.Bl -tag -width flag
-.It a
-Explicitly disable PaX ASLR (Address Space Layout Randomization) for
-.Ar program .
-.It A
-Explicitly enable PaX ASLR for
-.Ar program .
-.It g
-Explicitly disable PaX Segvguard for
-.Ar program .
-.It G
-Explicitly enable PaX Segvguard for
-.Ar program .
-.It m
+.Pp
+.Bl -tag -width Ds -compact
+.It Cm a
+Explicitly disable PaX ASLR (Address Space Layout Randomization).
+.It Cm A
+Explicitly enable PaX ASLR.
+.Pp
+.It Cm g
+Explicitly disable PaX Segvguard.
+.It Cm G
+Explicitly enable PaX Segvguard.
+.Pp
+.It Cm m
 Explicitly disable PaX MPROTECT
 .Po Xr mprotect 2
 restrictions
-.Pc
-for
-.Ar program .
-.It M
-Explicitly enable PaX MPROTECT
-.Po Xr mprotect 2
-restrictions
-.Pc
-for
-.Ar program .
+.Pc .
+.It Cm M
+Explicitly enable PaX MPROTECT.
 .El
-.Pp
-To view existing flags on a file, execute
-.Nm
-without any flags.
+.
 .Sh SEE ALSO
 .Xr mprotect 2 ,
 .Xr sysctl 3 ,
@@ -109,11 +109,12 @@ The
 .Nm
 utility currently uses
 .Xr elf 5
-.Dq note
-sections to mark executables as having PaX flags enabled.
+note sections to mark executables as having PaX flags enabled.
 This will be done using
 .Xr fileassoc 9
 in the future so that we can control who does the marking and
 not altering the binary file signature.
-(Note this also means that
-at present any flags set do not survive binary file upgrades.)
+.Po
+Note this also means that
+at present any flags set do not survive binary file upgrades
+.Pc .

@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.1 2018/12/08 23:24:02 christos Exp $
+#	$NetBSD: Makefile,v 1.3 2023/05/26 22:26:10 riastradh Exp $
 
 LIB=	padlock
 SRCS=	e_padlock.c

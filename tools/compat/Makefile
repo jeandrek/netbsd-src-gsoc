@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.90 2021/09/18 01:47:10 christos Exp $
+#	$NetBSD: Makefile,v 1.92 2023/05/30 18:27:04 lukem Exp $
 
 HOSTLIB=	nbcompat
 
@@ -166,5 +166,6 @@ INSTALL=	${INSTALL_OBJ}/xinstall
 # Run "${TOOLDIR}/bin/nbmake-${MACHINE} regen" by hand after editing
 # configure.ac.  See more detailed instructions in configure.ac.
 regen:
-	cd ${.CURDIR} && ${TOOLDIR}/bin/${_TOOL_PREFIX}autoconf
-	cd ${.CURDIR} && ${TOOLDIR}/bin/${_TOOL_PREFIX}autoheader
+	${_MKMSG_REGEN} configure nbtool_config.h.in
+	cd ${.CURDIR} && ${TOOLDIR}/bin/${_TOOL_PREFIX}autoreconf \
+		${${MAKEVERBOSE} >= 2 :? -v :}
