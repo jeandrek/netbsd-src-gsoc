@@ -123,6 +123,8 @@ Static void	athn_iter_func(void *, struct ieee80211_node *);
 #endif
 Static void	athn_newassoc(struct ieee80211_node *, int);
 Static void	athn_next_scan(void *);
+Static void	athn_scan_start(struct ieee80211com *);
+Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_radiotap_attach(struct athn_softc *);
 Static void	athn_start(struct athn_softc *);
@@ -162,9 +164,6 @@ PUBLIC int
 athn_attach(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-#if 0
-	size_t max_nnodes;
-#endif
 	int error;
 
 	/* Read hardware revision. */
@@ -241,13 +240,6 @@ athn_attach(struct athn_softc *sc)
 	 * TKIP keys consume 2 entries in the cache.
 	 */
 	KASSERT(sc->sc_kc_entries / 2 > IEEE80211_WEP_NKID);
-#if 0 /* XXX */
-	max_nnodes = (sc->sc_kc_entries / 2) - IEEE80211_WEP_NKID;
-	if (sc->sc_max_aid != 0)	/* we have an override */
-		ic->ic_max_aid = sc->sc_max_aid;
-	if (ic->ic_max_aid > max_nnodes)
-		ic->ic_max_aid = max_nnodes;
-#endif
 
 	DPRINTFN(DBG_INIT, sc, "using %s loop power control\n",
 	    (sc->sc_flags & ATHN_FLAG_OLPC) ? "open" : "closed");
@@ -394,6 +386,8 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_set_key = athn_set_key;
 	ic->ic_delete_key = athn_delete_key;
 #endif
+	ic->ic_scan_start = athn_scan_start;
+	ic->ic_scan_end = athn_scan_end;
 	ic->ic_getradiocaps = athn_get_radiocaps;
 	ic->ic_set_channel = athn_set_channel;
 
@@ -413,8 +407,10 @@ athn_vap_create(struct ieee80211com *ic,
     int flags, const uint8_t bssid[IEEE80211_ADDR_LEN],
     const uint8_t macaddr[IEEE80211_ADDR_LEN])
 {
+	struct athn_softc *sc = ic->ic_softc;
 	struct athn_vap *avp;
 	struct ieee80211vap *vap;
+	size_t max_nnodes;
 
 	avp = kmem_zalloc(sizeof(*avp), KM_SLEEP);
 	vap = &avp->av_vap;
@@ -426,6 +422,12 @@ athn_vap_create(struct ieee80211com *ic,
 
 	/* Use common softint-based if_input */
 	vap->iv_ifp->if_percpuq = if_percpuq_create(vap->iv_ifp);
+
+	max_nnodes = (sc->sc_kc_entries / 2) - IEEE80211_WEP_NKID;
+	if (sc->sc_max_aid != 0)	/* we have an override */
+		vap->iv_max_aid = sc->sc_max_aid;
+	if (vap->iv_max_aid > max_nnodes)
+		vap->iv_max_aid = max_nnodes;
 
 	/* Override 802.11 state transition machine. */
 	avp->av_newstate = vap->iv_newstate;
@@ -2579,6 +2581,18 @@ athn_next_scan(void *arg)
 		ieee80211_next_scan(ic);
 	splx(s);
 #endif
+}
+
+Static void
+athn_scan_start(struct ieee80211com *ic)
+{
+	ic->ic_flags |= IEEE80211_F_SCAN;
+}
+
+Static void
+athn_scan_end(struct ieee80211com *ic)
+{
+	ic->ic_flags &= ~IEEE80211_F_SCAN;
 }
 
 Static void
