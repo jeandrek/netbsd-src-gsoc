@@ -675,6 +675,7 @@ void	athn_config_nonpcie(struct athn_softc *);
 void	athn_config_pcie(struct athn_softc *);
 void	athn_get_delta_slope(uint32_t, uint32_t *, uint32_t *);
 void	athn_inc_tx_trigger_level(struct athn_softc *);
+void	athn_start(struct athn_softc *);
 void	athn_stop(struct athn_softc *, int);
 void	athn_stop_tx_dma(struct athn_softc *, int);
 int	athn_tx_pending(struct athn_softc *, int);

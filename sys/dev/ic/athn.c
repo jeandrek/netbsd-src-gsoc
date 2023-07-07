@@ -77,9 +77,6 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 
 #define Static static
 
-#define IS_UP_AND_RUNNING(ifp) \
-	(((ifp)->if_flags & IFF_UP) && ((ifp)->if_flags & IFF_RUNNING))
-
 #ifdef ATHN_DEBUG
 int athn_debug = 0;
 #endif
@@ -127,7 +124,6 @@ Static void	athn_scan_start(struct ieee80211com *);
 Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_radiotap_attach(struct athn_softc *);
-Static void	athn_start(struct athn_softc *);
 Static int	athn_transmit(struct ieee80211com *ic, struct mbuf *m);
 Static int	athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		    const struct ieee80211_bpf_params *bpfp);
@@ -376,7 +372,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_transmit = athn_transmit;
 	ic->ic_raw_xmit = athn_raw_xmit;
 	ic->ic_node_alloc = athn_node_alloc;
-	if (0) ic->ic_newassoc = athn_newassoc;
+	ic->ic_newassoc = athn_newassoc;
 	if (ic->ic_updateslot == NULL)
 		ic->ic_updateslot = athn_updateslot;
 #ifdef notyet_edca
@@ -630,10 +626,6 @@ PUBLIC int
 athn_intr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
-	struct ifnet *ifp = &sc->sc_if;
-
-	if (!IS_UP_AND_RUNNING(ifp))
-		return 0;
 
 	if (!device_activation(sc->sc_dev, DEVACT_LEVEL_DRIVER))
 		/*
@@ -658,10 +650,6 @@ Static void
 athn_softintr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
-	struct ifnet *ifp = &sc->sc_if;
-
-	if (!IS_UP_AND_RUNNING(ifp))
-		return;
 
 	if (!device_activation(sc->sc_dev, DEVACT_LEVEL_DRIVER))
 		/*
@@ -2745,7 +2733,7 @@ athn_updateslot(struct ieee80211com *ic)
 	AR_WRITE_BARRIER(sc);
 }
 
-Static void
+PUBLIC void
 athn_start(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;

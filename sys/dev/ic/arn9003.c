@@ -940,7 +940,6 @@ Static int
 ar9003_rx_process(struct athn_softc *sc, int qid)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct ifnet *ifp = &sc->sc_if;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
 	struct ar_rx_status *ds;
@@ -980,7 +979,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 
 			len = MS(ds->ds_status2, AR_RXS2_DATA_LEN);
 			m = bf->bf_m;
-			m_set_rcvif(m, ifp);
+			/* m_set_rcvif(m, ifp); */
 			m->m_data = (void *)&ds[1];
 			m->m_pkthdr.len = m->m_len = len;
 			wh = mtod(m, struct ieee80211_frame *);
@@ -990,7 +989,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 			    0 /* XXX: keyix */);
 #endif
 		}
-		if_statinc(ifp, if_ierrors);
+		/* if_statinc(ifp, if_ierrors); */
 		goto skip;
 	}
 
@@ -999,7 +998,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	    len > ATHN_RXBUFSZ - sizeof(*ds))) {
 		DPRINTFN(DBG_RX, sc, "corrupted descriptor length=%zd\n",
 		    len);
-		if_statinc(ifp, if_ierrors);
+		/* if_statinc(ifp, if_ierrors); */
 		goto skip;
 	}
 
@@ -1007,7 +1006,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	m1 = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 	if (__predict_false(m1 == NULL)) {
 		/* ic->ic_stats.is_rx_nobuf++; */
-		if_statinc(ifp, if_ierrors);
+		/* if_statinc(ifp, if_ierrors); */
 		goto skip;
 	}
 
@@ -1026,7 +1025,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 		    BUS_DMA_NOWAIT | BUS_DMA_READ);
 		KASSERT(error != 0);
 		bf->bf_daddr = bf->bf_map->dm_segs[0].ds_addr;
-		if_statinc(ifp, if_ierrors);
+		/* if_statinc(ifp, if_ierrors); */
 		goto skip;
 	}
 	bf->bf_desc = mtod(m1, struct ar_rx_status *);
@@ -1036,7 +1035,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	bf->bf_m = m1;
 
 	/* Finalize mbuf. */
-	m_set_rcvif(m, ifp);
+	/* m_set_rcvif(m, ifp); */
 	/* Strip Rx status descriptor from head. */
 	m->m_data = (void *)&ds[1];
 	m->m_pkthdr.len = m->m_len = len;
@@ -1097,7 +1096,6 @@ ar9003_rx_intr(struct athn_softc *sc, int qid)
 Static int
 ar9003_tx_process(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
 	struct athn_txq *txq;
 	struct athn_node *an;
 	struct athn_tx_buf *bf;
@@ -1126,12 +1124,12 @@ ar9003_tx_process(struct athn_softc *sc)
 		return 0;
 	}
 	SIMPLEQ_REMOVE_HEAD(&txq->head, bf_list);
-	if_statinc(ifp, if_opackets);
+	/* if_statinc(ifp, if_opackets); */
 
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES)
-		if_statinc(ifp, if_oerrors);
+		/* if_statinc(ifp, if_oerrors); */
 
 	if (ds->ds_status3 & AR_TXS3_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
@@ -1186,7 +1184,6 @@ ar9003_tx_process(struct athn_softc *sc)
 Static void
 ar9003_tx_intr(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
 	int s;
 
 	s = splnet();
@@ -1195,8 +1192,8 @@ ar9003_tx_intr(struct athn_softc *sc)
 		continue;
 
 	if (!SIMPLEQ_EMPTY(&sc->sc_txbufs)) {
-		ifp->if_flags &= ~IFF_OACTIVE;
-		ifp->if_start(ifp); /* in softint */
+		sc->sc_flags &= ~ATHN_FLAG_OACTIVE;
+		athn_start(sc); /* in softint */
 	}
 
 	splx(s);
@@ -1210,7 +1207,6 @@ Static int
 ar9003_swba_intr(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct ifnet *ifp = &sc->sc_if;
 	struct ieee80211_node *ni = ic->ic_bss;
 	struct athn_tx_buf *bf = sc->sc_bcnbuf;
 	struct ieee80211_frame *wh;
@@ -1328,7 +1324,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 
 		if (sc->sc_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) {
 			ieee80211_free_node(ni);
-			if_statinc(ifp, if_oerrors);
+			/* if_statinc(ifp, if_oerrors); */
 			break;
 		}
 	}
