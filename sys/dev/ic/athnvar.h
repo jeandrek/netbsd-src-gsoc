@@ -478,6 +478,7 @@ struct athn_softc {
 
 	callout_t			sc_scan_to;
 	callout_t			sc_calib_to;
+	callout_t			sc_watchdog_to;
 	struct ieee80211_amrr		sc_amrr;
 
 	u_int				sc_flags;

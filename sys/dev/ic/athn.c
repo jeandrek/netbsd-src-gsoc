@@ -128,9 +128,7 @@ Static int	athn_transmit(struct ieee80211com *ic, struct mbuf *m);
 Static int	athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		    const struct ieee80211_bpf_params *bpfp);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
-#if 0
-Static void	athn_watchdog(struct ifnet *);
-#endif
+Static void	athn_watchdog(void *);
 Static void	athn_write_serdes(struct athn_softc *,
 		    const struct athn_serdes *);
 Static void	athn_softintr(void *);
@@ -273,6 +271,8 @@ athn_attach(struct athn_softc *sc)
 	callout_setfunc(&sc->sc_scan_to, athn_next_scan, sc);
 	callout_init(&sc->sc_calib_to, 0);
 	callout_setfunc(&sc->sc_calib_to, athn_calib_to, sc);
+	callout_init(&sc->sc_watchdog_to, 0);
+	callout_setfunc(&sc->sc_watchdog_to, athn_watchdog, sc);
 
 	sc->sc_amrr.amrr_min_success_threshold = 1;
 	sc->sc_amrr.amrr_max_success_threshold = 15;
@@ -2782,7 +2782,7 @@ athn_start(struct athn_softc *sc)
 		}
 
 		sc->sc_tx_timer = 5;
-		/* ifp->if_timer = 1; */
+		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
 	}
 }
 
@@ -2812,13 +2812,10 @@ athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 	return sc->sc_ops.tx(sc, m, ni, 0);
 }
 
-#if 0
 Static void
-athn_watchdog(struct ifnet *ifp)
+athn_watchdog(void *arg)
 {
-	struct athn_softc *sc = ifp->if_softc;
-
-	ifp->if_timer = 0;
+	struct athn_softc *sc = arg;
 
 	if (sc->sc_tx_timer > 0) {
 		if (--sc->sc_tx_timer == 0) {
@@ -2826,14 +2823,12 @@ athn_watchdog(struct ifnet *ifp)
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
 			(void)athn_init(sc);
-			if_statinc(ifp, if_oerrors);
+			/* if_statinc(ifp, if_oerrors); */
 			return;
 		}
-		ifp->if_timer = 1;
+		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
 	}
-	ieee80211_watchdog(&sc->sc_ic);
 }
-#endif
 
 #if 0
 Static void
