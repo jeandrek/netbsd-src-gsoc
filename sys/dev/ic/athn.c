@@ -114,6 +114,7 @@ Static void	athn_scan_start(struct ieee80211com *);
 Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
+Static void	athn_watchdog(void *);
 Static void	athn_write_serdes(struct athn_softc *,
 		    const struct athn_serdes *);
 Static void	athn_softintr(void *);
@@ -266,6 +267,8 @@ athn_attach(struct athn_softc *sc)
 
 	callout_init(&sc->sc_calib_to, 0);
 	callout_setfunc(&sc->sc_calib_to, athn_calib_to, sc);
+	callout_init(&sc->sc_watchdog_to, 0);
+	callout_setfunc(&sc->sc_watchdog_to, athn_watchdog, sc);
 
 /* XXX */
 #if 0
@@ -2697,37 +2700,29 @@ athn_start(struct athn_softc *sc)
 			continue;
 		}
 
-		/* XXX ???
 		sc->sc_tx_timer = 5;
-		i*fp->if_timer = 1;
-		*/
+		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
 		/* ieee80211_free_node(ni); */
 	}
 }
 
-/* XXX disable watchdog for now */
-#ifdef notyet
 Static void
-athn_watchdog(struct ifnet *i*fp)
+athn_watchdog(void *arg)
 {
-	struct athn_softc *sc = i*fp->if_softc;
-
-	i*fp->if_timer = 0;
+	struct athn_softc *sc = arg;
 
 	if (sc->sc_tx_timer > 0) {
 		if (--sc->sc_tx_timer == 0) {
 			aprint_error_dev(sc->sc_dev, "device timeout\n");
 			/* see athn_init, no need to call athn_stop here */
-			/* athn_stop(i*fp, 0); */
-			(void)athn_init(i*fp);
-			if_statinc(i*fp, if_oerrors);
+			/* athn_stop(ifp, 0); */
+			(void)athn_init(sc);
+			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
 			return;
 		}
-		i*fp->if_timer = 1;
+		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
 	}
-	ieee80211_watchdog(&sc->sc_ic);
 }
-#endif
 
 
 /* XXX what do we do with the ethercom stuff??? */
