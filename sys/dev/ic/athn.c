@@ -293,8 +293,7 @@ athn_attach(struct athn_softc *sc)
 	    IEEE80211_C_MONITOR |	/* Monitor mode supported. */
 	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
 	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
-	    IEEE80211_C_PMGT |		/* Power saving supported. */
-	    IEEE80211_C_8023ENCAP;	/* XXX remove this */
+	    IEEE80211_C_PMGT;		/* Power saving supported. */
 
 #ifndef IEEE80211_NO_HT
 	if (sc->sc_flags & ATHN_FLAG_11N) {
@@ -2774,9 +2773,6 @@ athn_start(struct athn_softc *sc)
 
 		/* bpf_mtap(ifp, m, BPF_D_OUT); */
 
-		if ((m = ieee80211_encap(TAILQ_FIRST(&ic->ic_vaps), ni, m))
-		    == NULL)
-			continue;
 		/* bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT); */
 
 		if (sc->sc_ops.tx(sc, m, ni, 0) != 0) {
