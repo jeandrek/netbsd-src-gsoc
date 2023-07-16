@@ -979,7 +979,6 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 
 			len = MS(ds->ds_status2, AR_RXS2_DATA_LEN);
 			m = bf->bf_m;
-			/* m_set_rcvif(m, ifp); */
 			m->m_data = (void *)&ds[1];
 			m->m_pkthdr.len = m->m_len = len;
 			wh = mtod(m, struct ieee80211_frame *);
@@ -1124,12 +1123,11 @@ ar9003_tx_process(struct athn_softc *sc)
 		return 0;
 	}
 	SIMPLEQ_REMOVE_HEAD(&txq->head, bf_list);
-	/* if_statinc(ifp, if_opackets); */
 
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES)
-		/* if_statinc(ifp, if_oerrors); */
+		/* if_statinc(ifp, if_oerrors) */;
 
 	if (ds->ds_status3 & AR_TXS3_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
@@ -1164,9 +1162,8 @@ ar9003_tx_process(struct athn_softc *sc)
 	    BUS_DMASYNC_POSTWRITE);
 	bus_dmamap_unload(sc->sc_dmat, bf->bf_map);
 
-	m_freem(bf->bf_m);
+	ieee80211_tx_complete(bf->bf_ni, bf->bf_m, 0);
 	bf->bf_m = NULL;
-	ieee80211_free_node(bf->bf_ni);
 	bf->bf_ni = NULL;
 
 	/* Link Tx buffer back to global free list. */
