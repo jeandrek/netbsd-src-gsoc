@@ -524,16 +524,20 @@ athn_get_radiocaps(struct ieee80211com *ic, int maxchans,
 #else /* XXX HT40 etc.? */
 	uint8_t bands[IEEE80211_MODE_BYTES];
         
-	memset(bands, 0, sizeof(bands));   
-	setbit(bands, IEEE80211_MODE_11B); 
-	setbit(bands, IEEE80211_MODE_11G); 
-	setbit(bands, IEEE80211_MODE_11NG);
-	if (sc->sc_flags & ATHN_FLAG_11G)
+	if (sc->sc_flags & ATHN_FLAG_11G) {
+	  	memset(bands, 0, sizeof(bands));
+		setbit(bands, IEEE80211_MODE_11B);
+		setbit(bands, IEEE80211_MODE_11G);
+		setbit(bands, IEEE80211_MODE_11NG);
 		ieee80211_add_channels_default_2ghz(chans, maxchans, nchans,
 		    bands, 0);
-	if (sc->sc_flags & ATHN_FLAG_11A)
+	}
+	if (sc->sc_flags & ATHN_FLAG_11A) {
+	  	memset(bands, 0, sizeof(bands));
+		setbit(bands, IEEE80211_MODE_11A);
 		ieee80211_add_channel_list_5ghz(chans, maxchans, nchans,
 		    athn_5ghz_chans, __arraycount(athn_5ghz_chans), bands, 0);
+	}
 #endif
 }
 
