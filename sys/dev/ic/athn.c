@@ -350,16 +350,6 @@ athn_attach(struct athn_softc *sc)
 	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX,
 	    &ic->ic_nchans, ic->ic_channels);
 
-#if 0
-	if (!ifp->if_init)
-		ifp->if_init = athn_init;
-	if (!ifp->if_ioctl)
-		ifp->if_ioctl = athn_ioctl;
-	if (!ifp->if_start)
-		ifp->if_start = athn_start;
-	if (!ifp->if_watchdog)
-		ifp->if_watchdog = athn_watchdog;
-#endif
 	IFQ_SET_MAXLEN(&sc->sc_sendq, IFQ_MAXLEN);
 	IFQ_LOCK_INIT(&sc->sc_sendq);
 	ic->ic_name = device_xname(sc->sc_dev);
@@ -385,8 +375,6 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_scan_end = athn_scan_end;
 	ic->ic_getradiocaps = athn_get_radiocaps;
 	ic->ic_set_channel = athn_set_channel;
-
-	/* XXX we should create at least one vap here??? */
 
 	if (sc->sc_media_change == NULL)
 		sc->sc_media_change = athn_media_change;
@@ -533,14 +521,19 @@ athn_get_radiocaps(struct ieee80211com *ic, int maxchans,
 			ic->ic_channels[chan].ic_flags = IEEE80211_CHAN_A;
 		}
 	}
-#else /* XXX */
+#else /* XXX HT40 etc.? */
 	uint8_t bands[IEEE80211_MODE_BYTES];
         
 	memset(bands, 0, sizeof(bands));   
 	setbit(bands, IEEE80211_MODE_11B); 
 	setbit(bands, IEEE80211_MODE_11G); 
 	setbit(bands, IEEE80211_MODE_11NG);
-	ieee80211_add_channels_default_2ghz(chans, maxchans, nchans, bands, 0);
+	if (sc->sc_flags & ATHN_FLAG_11G)
+		ieee80211_add_channels_default_2ghz(chans, maxchans, nchans,
+		    bands, 0);
+	if (sc->sc_flags & ATHN_FLAG_11A)
+		ieee80211_add_channel_list_5ghz(chans, maxchans, nchans,
+		    athn_5ghz_chans, __arraycount(athn_5ghz_chans), bands, 0);
 #endif
 }
 
