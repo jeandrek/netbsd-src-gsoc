@@ -48,6 +48,13 @@ typedef struct ath_task {
 #define TASK_RUN_OR_ENQUEUE(__task)	\
 	softint_schedule((__task)->t_soft_ih);
 
+typedef kmutex_t ath_lock_t;
+#define ATH_LOCK_INIT(_sc)		mutex_init(&(_sc)->sc_lock, MUTEX_DEFAULT, IPL_SOFTNET)
+#define ATH_LOCK_DESTROY(_sc)		mutex_destroy(&(_sc)->sc_lock)
+#define ATH_LOCK(_sc)			mutex_enter(&(_sc)->sc_lock)
+#define ATH_UNLOCK(_sc)			mutex_exit(&(_sc)->sc_lock)
+#define	ATH_TXQ_LOCK_ASSERT(_tq)	do { KASSERTMSG(mutex_owned(&(_sc)->sc_lock), "softc lock unheld"); } while (/*CONSTCOND*/true)
+
 typedef kmutex_t ath_txq_lock_t;
 #define	ATH_TXQ_LOCK_INIT(_sc, _tq)	mutex_init(&(_tq)->axq_lock, MUTEX_DEFAULT, IPL_NET)
 #define	ATH_TXQ_LOCK_DESTROY(_tq)	mutex_destroy(&(_tq)->axq_lock)
@@ -61,10 +68,6 @@ typedef kmutex_t ath_txbuf_lock_t;
 #define	ATH_TXBUF_LOCK(_sc)		mutex_enter(&(_sc)->sc_txbuflock)
 #define	ATH_TXBUF_UNLOCK(_sc)		mutex_exit(&(_sc)->sc_txbuflock)
 #define	ATH_TXBUF_LOCK_ASSERT(_sc)	do { KASSERTMSG(mutex_owned(&(_sc)->sc_txbuflock), "txbuf lock unheld"); } while (/*CONSTCOND*/true)
-
-#define	NET_LOCK_GIANT_FUNC_INIT()	int s
-#define	NET_LOCK_GIANT()		s = splnet()
-#define	NET_UNLOCK_GIANT()		splx(s)
 
 #define	ATH_SYSCTL_INT_SUBR(__rw, __name, __descr)			     \
 	sysctl_createv(log, 0, &rnode, &cnode, CTLFLAG_PERMANENT|(__rw),     \

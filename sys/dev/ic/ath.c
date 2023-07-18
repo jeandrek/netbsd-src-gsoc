@@ -300,6 +300,8 @@ ath_attach(u_int16_t devid, struct ath_softc *sc)
 	ic->ic_softc = sc;
 	ic->ic_name = device_xname(sc->sc_dev);
 
+	ATH_LOCK_INIT(sc);
+
 	ah = ath_hal_attach(devid, sc, sc->sc_st, sc->sc_sh, &status);
 	if (ah == NULL) {
 		device_printf(sc->sc_dev,
@@ -727,7 +729,6 @@ ath_detach(struct ath_softc *sc)
 	if ((sc->sc_flags & ATH_ATTACHED) == 0)
 		return (0);
 
-	s = splnet();
 	ath_stop(sc, 1);
 	/* bpf_detach(ifp); */
 	/*
@@ -752,7 +753,7 @@ ath_detach(struct ath_softc *sc)
 	ath_tx_cleanup(sc);
 	sysctl_teardown(&sc->sc_sysctllog);
 	ath_hal_detach(sc->sc_ah);
-	splx(s);
+	ATH_LOCK_DESTROY(sc);
 
 	return 0;
 }
@@ -1042,15 +1043,15 @@ ath_init(struct ath_softc *sc)
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ath_hal *ah = sc->sc_ah;
 	HAL_STATUS status;
-	int error = 0, s;
+	int error = 0;
 
 	if (device_is_active(sc->sc_dev)) {
-		s = splnet();
+		ATH_LOCK(sc);
 	} else if (!pmf_device_subtree_resume(sc->sc_dev, &sc->sc_qual) ||
 		   !device_is_active(sc->sc_dev))
 		return 0;
 	else
-		s = splnet();
+		ATH_LOCK(sc);
 
 	/*
 	 * Stop anything previously setup.  This is safe
@@ -1126,7 +1127,7 @@ ath_init(struct ath_softc *sc)
 	else
 #endif
 done:
-	splx(s);
+	ATH_UNLOCK(sc);
 	return error;
 }
 
@@ -1136,7 +1137,7 @@ ath_stop_locked(struct ath_softc *sc, int disable)
 	struct ath_hal *ah = sc->sc_ah;
 
 
-	/* KASSERT() IPL_NET */
+	ATH_LOCK_ASSERT(sc);
 	/*
 	 * Shutdown the hardware and driver:
 	 *    reset 802.11 state machine
@@ -1179,11 +1180,9 @@ ath_stop_locked(struct ath_softc *sc, int disable)
 static void
 ath_stop(struct ath_softc *sc, int disable)
 {
-	int s;
-
-	s = splnet();
+	ATH_LOCK(sc);
 	ath_stop_locked(sc, disable);
-	splx(s);
+	ATH_UNLOCK(sc);
 }
 
 static void
@@ -1402,9 +1401,9 @@ ath_transmit(struct ieee80211com *ic, struct mbuf *m)
 	struct ath_softc *sc = ic->ic_softc;
 	int s;
 
-	s = splnet();
+	ATH_LOCK(sc);
 	IF_ENQUEUE(&sc->sc_sendq, m);
-	splx(s);
+	ATH_UNLOCK(sc);
 
 	if (!(sc->sc_flags & ATH_OACTIVE)) {
 		ath_start(sc);

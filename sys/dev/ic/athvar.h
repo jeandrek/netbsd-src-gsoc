@@ -205,6 +205,7 @@ struct ath_softc {
 	HAL_BUS_TAG		sc_st;		/* bus space tag */
 	HAL_BUS_HANDLE		sc_sh;		/* bus space handle */
 	bus_dma_tag_t		sc_dmat;	/* bus DMA tag */
+	ath_lock_t		sc_lock;	/* master lock */
 	struct ath_hal		*sc_ah;		/* Atheros HAL */
 	struct ath_ratectrl	*sc_rc;		/* tx rate control support */
 	struct ath_tx99		*sc_tx99;	/* tx99 adjunct state */
