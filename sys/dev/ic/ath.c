@@ -1364,7 +1364,8 @@ ath_start(struct ath_softc *sc)
 		    !ath_txfrag_setup(sc, &frags, m, ni)) {
 			DPRINTF(sc, ATH_DEBUG_ANY,
 				"%s: out of txfrag buffers\n", __func__);
-			/* ic->ic_stats.is_tx_nobuf++; */	/* XXX */
+			if (ni->ni_vap != NULL)
+				ni->ni_vap->iv_stats.is_tx_nobuf++;
 			ath_freetx(m);
 			goto bad;
 		}
@@ -1373,7 +1374,7 @@ ath_start(struct ath_softc *sc)
 		next = m->m_nextpkt;
 		if (ath_tx_start(sc, ni, bf, m)) {
 	bad:
-			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
+			if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
 			ATH_TXBUF_LOCK(sc);
 			STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
 			ath_txfrag_cleanup(sc, &frags, ni);
@@ -5270,7 +5271,7 @@ ath_watchdog(void *arg)
 			if (sc->sc_txintrperiod > 1)
 				sc->sc_txintrperiod--;
 			ath_reset(sc);
-			/*if_statinc(ifp, if_oerrors);*/
+			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
 			sc->sc_stats.ast_watchdog++;
 			break;
 		} else
