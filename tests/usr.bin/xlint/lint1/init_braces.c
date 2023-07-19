@@ -1,4 +1,4 @@
-/*	$NetBSD: init_braces.c,v 1.3 2023/06/28 15:04:07 rillig Exp $	*/
+/*	$NetBSD: init_braces.c,v 1.8 2023/07/07 19:45:22 rillig Exp $	*/
 # 3 "init_braces.c"
 
 /*
@@ -8,6 +8,8 @@
  *	C99 6.7.8
  *	C11 6.7.9
  */
+
+/* lint1-extra-flags: -X 351 */
 
 void
 init_int(void)
@@ -62,8 +64,9 @@ init_string(void)
 	char name4[] = {{{{ "" }}}};
 }
 
+/* C11 6.7.2.1p13 */
 unsigned long
-init_nested_struct_and_union(void)
+init_anonymous_struct_and_union(void)
 {
 	struct time {
 		unsigned long ns;
@@ -83,10 +86,8 @@ init_nested_struct_and_union(void)
 	};
 
 	struct outer var = {	/* struct outer */
-		{		/* unnamed union */
-			{	/* unnamed struct */
-/* FIXME: GCC and Clang both compile this initializer. */
-/* expect+1: error: type 'struct time' does not have member 'times' [101] */
+		{		/* anonymous union */
+			{	/* anonymous struct */
 				.times = {
 					.t0 = { .ns = 0, },
 					.t1 = { .ns = 0, },
@@ -96,4 +97,38 @@ init_nested_struct_and_union(void)
 	};
 
 	return var.times.t0.ns;
+}
+
+// Initializers may designate members from unnamed struct/union members.
+// Example code adapted from jemalloc 5.1.0, jemalloc.c, init_lock.
+unsigned char
+init_unnamed_union(void)
+{
+	struct init_unnamed_union {
+		union {
+			struct {
+				struct padded_union {
+					unsigned char pad1[3];
+					union {
+						unsigned char u1;
+						unsigned char u2;
+					};
+					unsigned char pad2[3];
+				} padded_union;
+			};
+		};
+	};
+
+	struct init_unnamed_union var = {
+		{
+			{
+				.padded_union = {
+					.pad1 = { 0, 0, 0 },
+					.u1 = 0,
+					.pad2 = { 0, 0, 0 },
+				},
+			}
+		},
+	};
+	return var.padded_union.u1;
 }
