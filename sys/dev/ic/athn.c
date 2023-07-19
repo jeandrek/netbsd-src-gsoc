@@ -2820,7 +2820,7 @@ athn_watchdog(void *arg)
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
 			(void)athn_init(sc);
-			/* if_statinc(ifp, if_oerrors); */
+			ieee80211_stat_add(&ic->ic_ierrors, 1);
 			return;
 		}
 		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);

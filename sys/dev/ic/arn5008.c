@@ -825,7 +825,7 @@ ar5008_rx_process(struct athn_softc *sc)
 			/* HW will not "move" RXDP in this case, so do it. */
 			AR_WRITE(sc, AR_RXDP, nbf->bf_daddr);
 			AR_WRITE_BARRIER(sc);
-			/* if_statinc(ifp, if_ierrors); */
+			ieee80211_stat_add(&ic->ic_ierrors, 1);
 			goto skip;
 		}
 		return EBUSY;
@@ -834,7 +834,7 @@ ar5008_rx_process(struct athn_softc *sc)
 	if (__predict_false(ds->ds_status1 & AR_RXS1_MORE)) {
 		/* Drop frames that span multiple Rx descriptors. */
 		DPRINTFN(DBG_RX, sc, "dropping split frame\n");
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 	if (!(ds->ds_status8 & AR_RXS8_FRAME_OK)) {
@@ -858,14 +858,14 @@ ar5008_rx_process(struct athn_softc *sc)
 			ieee80211_notify_michael_failure(ic, wh, 0 /* XXX: keyix */);
 #endif
 		}
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
 	len = MS(ds->ds_status1, AR_RXS1_DATA_LEN);
 	if (__predict_false(len < (int)IEEE80211_MIN_LEN || len > ATHN_RXBUFSZ)) {
 		DPRINTFN(DBG_RX, sc, "corrupted descriptor length=%d\n", len);
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
@@ -873,7 +873,7 @@ ar5008_rx_process(struct athn_softc *sc)
 	m1 = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 	if (__predict_false(m1 == NULL)) {
 		/* ic->ic_stats.is_rx_nobuf++; */
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
@@ -893,7 +893,7 @@ ar5008_rx_process(struct athn_softc *sc)
 		    mtod(bf->bf_m, void *), ATHN_RXBUFSZ, NULL,
 		    BUS_DMA_NOWAIT | BUS_DMA_READ);
 		KASSERT(error != 0);
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
@@ -907,7 +907,6 @@ ar5008_rx_process(struct athn_softc *sc)
 	bf->bf_m = m1;
 
 	/* Finalize mbuf. */
-	/* m_set_rcvif(m, ifp); */
 	m->m_pkthdr.len = m->m_len = len;
 
 	s = splnet();
@@ -986,7 +985,7 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status1 & AR_TXS1_EXCESSIVE_RETRIES)
-		/* if_statinc(ifp, if_oerrors) */;
+		if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
 
 	if (ds->ds_status1 & AR_TXS1_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
@@ -1164,8 +1163,8 @@ ar5008_swba_intr(struct athn_softc *sc)
 		}
 
 		if (sc->sc_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) {
+			if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
 			ieee80211_free_node(ni);
-			/* if_statinc(ifp, if_oerrors); */
 			break;
 		}
 	}

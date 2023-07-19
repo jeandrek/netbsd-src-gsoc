@@ -988,7 +988,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 			    0 /* XXX: keyix */);
 #endif
 		}
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
@@ -997,7 +997,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	    len > ATHN_RXBUFSZ - sizeof(*ds))) {
 		DPRINTFN(DBG_RX, sc, "corrupted descriptor length=%zd\n",
 		    len);
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
@@ -1005,7 +1005,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	m1 = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 	if (__predict_false(m1 == NULL)) {
 		/* ic->ic_stats.is_rx_nobuf++; */
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 
@@ -1024,7 +1024,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 		    BUS_DMA_NOWAIT | BUS_DMA_READ);
 		KASSERT(error != 0);
 		bf->bf_daddr = bf->bf_map->dm_segs[0].ds_addr;
-		/* if_statinc(ifp, if_ierrors); */
+		ieee80211_stat_add(&ic->ic_ierrors, 1);
 		goto skip;
 	}
 	bf->bf_desc = mtod(m1, struct ar_rx_status *);
@@ -1127,7 +1127,7 @@ ar9003_tx_process(struct athn_softc *sc)
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES)
-		/* if_statinc(ifp, if_oerrors) */;
+		if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
 
 	if (ds->ds_status3 & AR_TXS3_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
@@ -1321,7 +1321,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 
 		if (sc->sc_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) {
 			ieee80211_free_node(ni);
-			/* if_statinc(ifp, if_oerrors); */
+			if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
 			break;
 		}
 	}
