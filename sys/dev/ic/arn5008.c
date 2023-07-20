@@ -985,7 +985,7 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status1 & AR_TXS1_EXCESSIVE_RETRIES)
-		if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
+		if_statinc(bf->bf_ni->ni_vap->iv_ifp, if_oerrors);
 
 	if (ds->ds_status1 & AR_TXS1_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
@@ -1012,7 +1012,7 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 	    BUS_DMASYNC_POSTWRITE);
 	bus_dmamap_unload(sc->sc_dmat, bf->bf_map);
 
-	iee80211_tx_complete(bf->bf_ni, bf->bf_m, 0);
+	ieee80211_tx_complete(bf->bf_ni, bf->bf_m, 0);
 	bf->bf_m = NULL;
 	bf->bf_ni = NULL;
 

@@ -124,6 +124,7 @@ Static void	athn_scan_start(struct ieee80211com *);
 Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_radiotap_attach(struct athn_softc *);
+Static void	athn_update_mcast(struct ieee80211com *ic);
 Static int	athn_transmit(struct ieee80211com *ic, struct mbuf *m);
 Static int	athn_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		    const struct ieee80211_bpf_params *bpfp);
@@ -364,6 +365,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_newassoc = athn_newassoc;
 	if (ic->ic_updateslot == NULL)
 		ic->ic_updateslot = athn_updateslot;
+	ic->ic_update_mcast = athn_update_mcast;
 #ifdef notyet_edca
 	ic->ic_updateedca = athn_updateedca;
 #endif
@@ -498,8 +500,8 @@ Static void
 athn_get_radiocaps(struct ieee80211com *ic, int maxchans,
     int *nchans, struct ieee80211_channel chans[])
 {
-#if 0
 	struct athn_softc *sc = ic->ic_softc;
+#if 0
 	uint8_t chan;
 	size_t i;
 
@@ -2729,6 +2731,12 @@ athn_updateslot(struct ieee80211com *ic)
 	AR_WRITE_BARRIER(sc);
 }
 
+Static void
+athn_update_mcast(struct ieee80211com *ic)
+{
+	/* XXX */
+}
+
 PUBLIC void
 athn_start(struct athn_softc *sc)
 {
@@ -2820,7 +2828,7 @@ athn_watchdog(void *arg)
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
 			(void)athn_init(sc);
-			ieee80211_stat_add(&ic->ic_ierrors, 1);
+			ieee80211_stat_add(&sc->sc_ic.ic_ierrors, 1);
 			return;
 		}
 		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);

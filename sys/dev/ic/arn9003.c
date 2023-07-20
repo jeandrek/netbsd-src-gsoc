@@ -1127,7 +1127,7 @@ ar9003_tx_process(struct athn_softc *sc)
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES)
-		if_statinc(ni->ni_vap->iv_ifp, if_oerrors);
+		if_statinc(bf->bf_ni->ni_vap->iv_ifp, if_oerrors);
 
 	if (ds->ds_status3 & AR_TXS3_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
