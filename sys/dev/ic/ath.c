@@ -784,6 +784,7 @@ ath_convert_opmode(enum ieee80211_opmode opmode)
 	case IEEE80211_M_MONITOR:	return HAL_M_MONITOR;
 	default:
 		KASSERTMSG(false, "unsupported operating mode %u", opmode);
+		return 0;
 	}
 }
 
