@@ -157,7 +157,7 @@ static void	ath_beacon_setup(struct ath_softc *, struct ath_buf *);
 static void	ath_beacon_proc(void *, int);
 static void	ath_bstuck_proc(void *, int);
 static void	ath_beacon_free(struct ath_softc *);
-static void	ath_beacon_config(struct ath_softc *);
+static void	ath_beacon_config(struct ieee80211vap *);
 static void	ath_descdma_cleanup(struct ath_softc *sc,
 			struct ath_descdma *, ath_bufhead *);
 static int	ath_desc_alloc(struct ath_softc *);
@@ -777,21 +777,14 @@ ath_suspend(struct ath_softc *sc)
 static HAL_OPMODE
 ath_convert_opmode(enum ieee80211_opmode opmode)
 {
-#define	N(a)	(sizeof(a) / sizeof(a[0]))
-	static const HAL_OPMODE opmodes[] = {
-		HAL_M_IBSS,		/* IEEE80211_M_IBSS */
-		HAL_M_STA,		/* IEEE80211_M_STA */
-		0,			/* IEEE80211_M_WDS */
-		0,			/* IEEE80211_M_AHDEMO */
-		HAL_M_HOSTAP,		/* IEEE80211_M_HOSTAP */
-		HAL_M_MONITOR,		/* IEEE80211_M_MONITOR */
-		0			/* IEEE80211_M_MBSS */
-	};
-
-	KASSERTMSG(opmode < N(opmodes), "unexpected operating mode %u", opmode);
-	KASSERTMSG(opmodes[opmode] != 0, "operating mode %u undefined", opmode);
-	return opmodes[opmode];
-#undef N
+	switch (opmode) {
+	case IEEE80211_M_IBSS:		return HAL_M_IBSS;
+	case IEEE80211_M_STA:		return HAL_M_STA;
+	case IEEE80211_M_HOSTAP:	return HAL_M_HOSTAP;
+	case IEEE80211_M_MONITOR:	return HAL_M_MONITOR;
+	default:
+		KASSERTMSG(false, "unsupported operating mode %u", opmode);
+	}
 }
 
 bool
@@ -2087,7 +2080,6 @@ ath_beaconq_setup(struct ath_hal *ah)
 /*
  * Setup the transmit queue parameters for the beacon queue.
  */
-#if 0
 static int
 ath_beaconq_config(struct ath_softc *sc)
 {
@@ -2125,7 +2117,6 @@ ath_beaconq_config(struct ath_softc *sc)
 	}
 #undef ATH_EXPONENT_TO_VALUE
 }
-#endif
 
 /*
  * Allocate and setup an initial beacon frame.
@@ -2441,15 +2432,15 @@ ath_beacon_free(struct ath_softc *sc)
  * we've associated with.
  */
 static void
-ath_beacon_config(struct ath_softc *sc)
+ath_beacon_config(struct ieee80211vap *vap)
 {
-#if 0
 #define	TSF_TO_TU(_h,_l) \
 	((((u_int32_t)(_h)) << 22) | (((u_int32_t)(_l)) >> 10))
 #define	FUDGE	2
+	struct ieee80211com *ic = vap->iv_ic;
+	struct ath_softc *sc = ic->ic_softc;
 	struct ath_hal *ah = sc->sc_ah;
-	struct ieee80211com *ic = &sc->sc_ic;
-	struct ieee80211_node *ni = ic->ic_bss;
+	struct ieee80211_node *ni = vap->iv_bss;
 	u_int32_t nexttbtt, intval, tsftu;
 	u_int64_t tsf;
 
@@ -2522,11 +2513,15 @@ ath_beacon_config(struct ath_softc *sc)
 		 * TU's and then calculate based on the beacon interval.
 		 * Note that we clamp the result to at most 10 beacons.
 		 */
+#if 0 /* XXX */
 		bs.bs_bmissthreshold = howmany(ic->ic_bmisstimeout, intval);
 		if (bs.bs_bmissthreshold > 10)
 			bs.bs_bmissthreshold = 10;
 		else if (bs.bs_bmissthreshold <= 0)
 			bs.bs_bmissthreshold = 1;
+#else
+		bs.bs_bmissthreshold = 10;
+#endif
 
 		/*
 		 * Calculate sleep duration.  The configuration is
@@ -2610,7 +2605,6 @@ ath_beacon_config(struct ath_softc *sc)
 	sc->sc_syncbeacon = 0;
 #undef UNDEF
 #undef TSF_TO_TU
-#endif
 }
 
 static int
@@ -2928,7 +2922,7 @@ ath_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m,
 			 * Resync beacon timers using the tsf of the beacon
 			 * frame we just received.
 			 */
-			ath_beacon_config(sc);
+			ath_beacon_config(vap);
 		}
 		/* fall thru... */
 	case IEEE80211_FC0_SUBTYPE_PROBE_RESP:
@@ -4824,7 +4818,7 @@ ath_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 			    vap->iv_bss->ni_tstamp.tsf != 0)
 				sc->sc_syncbeacon = 1;
 			else
-				ath_beacon_config(sc);
+				ath_beacon_config(vap);
 			break;
 		case IEEE80211_M_STA:
 			/*
