@@ -774,6 +774,26 @@ ath_suspend(struct ath_softc *sc)
 #endif
 }
 
+static HAL_OPMODE
+ath_convert_opmode(enum ieee80211_opmode opmode)
+{
+#define	N(a)	(sizeof(a) / sizeof(a[0]))
+	static const HAL_OPMODE opmodes[] = {
+		HAL_M_IBSS,		/* IEEE80211_M_IBSS */
+		HAL_M_STA,		/* IEEE80211_M_STA */
+		0,			/* IEEE80211_M_WDS */
+		0,			/* IEEE80211_M_AHDEMO */
+		HAL_M_HOSTAP,		/* IEEE80211_M_HOSTAP */
+		HAL_M_MONITOR,		/* IEEE80211_M_MONITOR */
+		0			/* IEEE80211_M_MBSS */
+	};
+
+	KASSERTMSG(opmode < N(opmodes), "unexpected operating mode %u", opmode);
+	KASSERTMSG(opmodes[opmode] != 0, "operating mode %u undefined", opmode);
+	return opmodes[opmode];
+#undef N
+}
+
 bool
 ath_resume(struct ath_softc *sc)
 {
@@ -785,7 +805,8 @@ ath_resume(struct ath_softc *sc)
 #if notyet
 	ath_hal_setpower(ah, HAL_PM_AWAKE);
 #else
-	ath_hal_reset(ah, ic->ic_opmode, &sc->sc_curchan, HAL_M_IBSS, &status);
+	ath_hal_reset(ah, ath_convert_opmode(ic->ic_opmode),
+		&sc->sc_curchan, HAL_M_IBSS, &status);
 #endif
 
 	/*
@@ -1068,7 +1089,8 @@ ath_init(struct ath_softc *sc)
 	ath_settkipmic(sc);
 	sc->sc_curchan.channel = ic->ic_curchan->ic_freq;
 	sc->sc_curchan.channelFlags = ath_chan2flags(ic, ic->ic_curchan);
-	if (!ath_hal_reset(ah, ic->ic_opmode, &sc->sc_curchan, AH_FALSE, &status)) {
+	if (!ath_hal_reset(ah, ath_convert_opmode(ic->ic_opmode),
+	    &sc->sc_curchan, AH_FALSE, &status)) {
 		device_printf(sc->sc_dev, "unable to reset hardware; hal status %u\n",
 			status);
 		error = EIO;
@@ -1228,7 +1250,8 @@ ath_reset(struct ath_softc *sc)
 	ath_stoprecv(sc);		/* stop recv side */
 	ath_settkipmic(sc);		/* configure TKIP MIC handling */
 	/* NB: indicate channel change so we do a full reset */
-	if (!ath_hal_reset(ah, ic->ic_opmode, &sc->sc_curchan, AH_TRUE, &status))
+	if (!ath_hal_reset(ah, ath_convert_opmode(ic->ic_opmode),
+	    &sc->sc_curchan, AH_TRUE, &status))
 		device_printf(sc->sc_dev, "%s: unable to reset hardware; hal status %u\n",
 			__func__, status);
 	ath_update_txpow(sc);		/* update tx power state */
@@ -4496,7 +4519,8 @@ ath_chan_set(struct ath_softc *sc, struct ieee80211_channel *chan)
 		ath_hal_intrset(ah, 0);		/* disable interrupts */
 		ath_draintxq(sc);		/* clear pending tx frames */
 		ath_stoprecv(sc);		/* turn off frame recv */
-		if (!ath_hal_reset(ah, ic->ic_opmode, &hchan, AH_TRUE, &status)) {
+		if (!ath_hal_reset(ah, ath_convert_opmode(ic->ic_opmode),
+		    &hchan, AH_TRUE, &status)) {
 			printf("%s: unable to reset "
 			    "channel %u (%u MHz, flags 0x%x hal flags 0x%x)\n",
 			    __func__, ieee80211_chan2ieee(ic, chan),
