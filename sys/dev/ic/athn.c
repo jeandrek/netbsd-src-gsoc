@@ -86,6 +86,7 @@ Static struct ieee80211vap *
 		    int, enum ieee80211_opmode, int,
 		    const uint8_t [IEEE80211_ADDR_LEN],
 		    const uint8_t [IEEE80211_ADDR_LEN]);
+Static void	athn_vap_delete(struct ieee80211vap *);
 Static void	athn_parent(struct ieee80211com *);
 Static int	athn_clock_rate(struct athn_softc *);
 Static const char *
@@ -358,6 +359,7 @@ athn_attach(struct athn_softc *sc)
 	ieee80211_ifattach(ic);
 
 	ic->ic_vap_create = athn_vap_create;
+	ic->ic_vap_delete = athn_vap_delete;
 	ic->ic_parent = athn_parent;
 	ic->ic_transmit = athn_transmit;
 	ic->ic_raw_xmit = athn_raw_xmit;
@@ -422,6 +424,16 @@ athn_vap_create(struct ieee80211com *ic,
 	    ieee80211_media_status, macaddr);
 	ic->ic_opmode = opmode;
 	return vap;
+}
+
+Static void
+athn_vap_delete(struct ieee80211vap *vap)
+{
+	struct athn_vap *avp = ATHN_VAP(vap);
+
+	/* bpf_detach(vap->iv_ifp); */
+	ieee80211_vap_detach(vap);
+	kmem_free(avp, sizeof(*avp));
 }
 
 Static void
