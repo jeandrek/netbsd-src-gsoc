@@ -46,6 +46,10 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_vht.c,v 1.1.2.3 2019/06/10 22:09:46 christ
 #include <sys/kernel.h>
 #include <sys/systm.h> 
 #include <sys/endian.h>
+
+#ifdef __NetBSD__
+#include <sys/once.h>
+#endif
  
 #include <sys/socket.h>
 
@@ -127,7 +131,11 @@ vht_send_action_placeholder(struct ieee80211_node *ni,
 	return (EINVAL);
 }
 
-static __unused void
+#ifdef __NetBSD__
+static int
+#else
+static void
+#endif
 ieee80211_vht_init(void) 
 {
 
@@ -144,6 +152,10 @@ ieee80211_vht_init(void)
 	    WLAN_ACTION_VHT_GROUPID_MGMT, vht_send_action_placeholder);
 	ieee80211_send_action_register(IEEE80211_ACTION_CAT_VHT,
 	    WLAN_ACTION_VHT_OPMODE_NOTIF, vht_send_action_placeholder);
+
+#ifdef __NetBSD__
+	return 0;
+#endif
 }
 
 SYSINIT(wlan_vht, SI_SUB_DRIVERS, SI_ORDER_FIRST, ieee80211_vht_init, NULL);
@@ -151,6 +163,11 @@ SYSINIT(wlan_vht, SI_SUB_DRIVERS, SI_ORDER_FIRST, ieee80211_vht_init, NULL);
 void
 ieee80211_vht_attach(struct ieee80211com *ic)
 {
+#ifdef __NetBSD__
+	static ONCE_DECL(vht_init_once);
+
+	RUN_ONCE(&vht_init_once, ieee80211_vht_init);
+#endif
 }
 
 void

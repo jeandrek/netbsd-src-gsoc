@@ -57,6 +57,9 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_mesh.c,v 1.1.2.5 2019/06/10 22:09:46 chris
 #include <sys/sockio.h>
 #include <sys/endian.h>
 #include <sys/errno.h>
+#ifdef __NetBSD__
+#include <sys/once.h>
+#endif
 #include <sys/proc.h>
 #include <sys/sysctl.h>
 
@@ -572,7 +575,11 @@ mesh_gatemode_cb(void *arg)
 	mesh_gatemode_setup(vap);
 }
 
-static __unused void
+#ifdef __NetBSD__
+static int
+#else
+static void
+#endif
 ieee80211_mesh_init(void)
 {
 
@@ -626,6 +633,9 @@ ieee80211_mesh_init(void)
 	 */
 	ieee80211_mesh_register_proto_metric(&mesh_metric_airtime);
 
+#ifdef __NetBSD__
+	return 0;
+#endif
 }
 SYSINIT(wlan_mesh, SI_SUB_DRIVERS, SI_ORDER_FIRST, ieee80211_mesh_init, NULL);
 
@@ -633,6 +643,11 @@ void
 ieee80211_mesh_attach(struct ieee80211com *ic)
 {
 	ic->ic_vattach[IEEE80211_M_MBSS] = mesh_vattach;
+#ifdef __NetBSD__
+	static ONCE_DECL(mesh_init_once);
+
+	RUN_ONCE(&mesh_init_once, ieee80211_mesh_init);
+#endif
 }
 
 void
