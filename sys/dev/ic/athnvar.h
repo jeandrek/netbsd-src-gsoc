@@ -418,8 +418,8 @@ struct athn_ops {
 	void	(*rx_enable)(struct athn_softc *);
 	int	(*intr_status)(struct athn_softc *);
 	int	(*intr)(struct athn_softc *);
-	int	(*tx)(struct athn_softc *, struct mbuf *,
-		    struct ieee80211_node *, int);
+	int	(*tx)(struct ieee80211_node *, struct mbuf *,
+		    const struct ieee80211_bpf_params *);
 
 	/* PHY callbacks. */
 	void	(*set_rf_mode)(struct athn_softc *,
@@ -456,8 +456,7 @@ struct athn_softc {
 	device_suspensor_t		sc_suspensor;
 	pmf_qual_t			sc_qual;
 	struct ieee80211com		sc_ic;
-	struct ethercom			sc_ec;
-#define sc_if	sc_ec.ec_if
+	struct ifaltq			sc_sendq;
 	void				*sc_soft_ih;
 
 #if 0
@@ -468,9 +467,6 @@ struct athn_softc {
 	void				(*sc_disable_aspm)(struct athn_softc *);
 	void				(*sc_enable_extsynch)(
 					    struct athn_softc *);
-
-	int				(*sc_newstate)(struct ieee80211com *,
-					    enum ieee80211_state, int);
 
 	bus_dma_tag_t			sc_dmat;
 
@@ -496,6 +492,7 @@ struct athn_softc {
 #define ATHN_FLAG_AN_TOP2_FIXUP		(1 << 12)
 #define ATHN_FLAG_NON_ENTERPRISE	(1 << 13)
 #define ATHN_FLAG_3TREDUCE_CHAIN	(1 << 14)
+#define ATHN_FLAG_TX_BUSY			(1 << 15)
 
 	uint8_t				sc_ngpiopins;
 	int				sc_led_pin;
@@ -625,6 +622,7 @@ void	athn_detach(struct athn_softc *);
 void	athn_suspend(struct athn_softc *);
 bool	athn_resume(struct athn_softc *);
 int	athn_intr(void *);
+void athn_start(struct athn_softc *);
 
 /* used by if_athn_usb.c */
 void	athn_btcoex_init(struct athn_softc *);
@@ -638,14 +636,14 @@ void	athn_rx_start(struct athn_softc *);
 void	athn_set_bss(struct athn_softc *, struct ieee80211_node *);
 int	athn_set_chan(struct athn_softc *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
-void	athn_set_hostap_timers(struct athn_softc *);
+void	athn_set_hostap_timers(struct ieee80211vap *);
 void	athn_set_led(struct athn_softc *, int);
 void	athn_set_opmode(struct athn_softc *);
 int	athn_set_power_awake(struct athn_softc *);
 void	athn_set_power_sleep(struct athn_softc *);
 void	athn_set_rxfilter(struct athn_softc *, uint32_t);
-void	athn_set_sta_timers(struct athn_softc *);
-void	athn_updateslot(struct ifnet *);
+void	athn_set_sta_timers(struct ieee80211vap *);
+void	athn_updateslot(struct ieee80211com *);
 
 #ifdef notyet_edca
 void	athn_updateedca(struct ieee80211com *);
@@ -666,7 +664,7 @@ void	athn_config_nonpcie(struct athn_softc *);
 void	athn_config_pcie(struct athn_softc *);
 void	athn_get_delta_slope(uint32_t, uint32_t *, uint32_t *);
 void	athn_inc_tx_trigger_level(struct athn_softc *);
-void	athn_stop(struct ifnet *, int);
+void	athn_stop(struct athn_softc *, int);
 void	athn_stop_tx_dma(struct athn_softc *, int);
 int	athn_tx_pending(struct athn_softc *, int);
 int	athn_txtime(struct athn_softc *, int, int, u_int);

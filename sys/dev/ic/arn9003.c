@@ -70,8 +70,6 @@ __KERNEL_RCSID(0, "$NetBSD: arn9003.c,v 1.15 2020/01/29 14:09:58 thorpej Exp $")
 
 Static void	ar9003_calib_iq(struct athn_softc *);
 Static int	ar9003_calib_tx_iq(struct athn_softc *);
-Static int	ar9003_compute_predistortion(struct athn_softc *,
-		    const uint32_t *, const uint32_t *);
 Static void	ar9003_disable_ofdm_weak_signal(struct athn_softc *);
 Static void	ar9003_disable_phy(struct athn_softc *);
 Static int	ar9003_dma_alloc(struct athn_softc *);
@@ -80,10 +78,7 @@ Static void	ar9003_do_calib(struct athn_softc *);
 Static void	ar9003_do_noisefloor_calib(struct athn_softc *);
 Static void	ar9003_enable_antenna_diversity(struct athn_softc *);
 Static void	ar9003_enable_ofdm_weak_signal(struct athn_softc *);
-Static void	ar9003_enable_predistorter(struct athn_softc *, int);
 Static int	ar9003_find_rom(struct athn_softc *);
-Static void	ar9003_force_txgain(struct athn_softc *, uint32_t);
-Static int	ar9003_get_desired_txgain(struct athn_softc *, int, int);
 Static int	ar9003_get_iq_corr(struct athn_softc *, int32_t[], int32_t[]);
 Static void	ar9003_gpio_config_input(struct athn_softc *, int);
 Static void	ar9003_gpio_config_output(struct athn_softc *, int, int);
@@ -96,9 +91,6 @@ Static void	ar9003_init_chains(struct athn_softc *);
 Static int	ar9003_intr_status(struct athn_softc *);
 Static int	ar9003_intr(struct athn_softc *);
 Static void	ar9003_next_calib(struct athn_softc *);
-Static void	ar9003_paprd_enable(struct athn_softc *);
-Static int	ar9003_paprd_tx_tone(struct athn_softc *);
-Static void	ar9003_paprd_tx_tone_done(struct athn_softc *);
 Static int	ar9003_read_eep_data(struct athn_softc *, uint32_t, void *,
 		    int);
 Static int	ar9003_read_eep_word(struct athn_softc *, uint32_t,
@@ -135,10 +127,9 @@ Static void	ar9003_set_rf_mode(struct athn_softc *,
 		    struct ieee80211_channel *);
 Static void	ar9003_set_rxchains(struct athn_softc *);
 Static void	ar9003_set_spur_immunity_level(struct athn_softc *, int);
-Static void	ar9003_set_training_gain(struct athn_softc *, int);
 Static int	ar9003_swba_intr(struct athn_softc *);
-Static int	ar9003_tx(struct athn_softc *, struct mbuf *,
-		    struct ieee80211_node *, int);
+Static int	ar9003_tx(struct ieee80211_node *, struct mbuf *,
+		    const struct ieee80211_bpf_params *);
 Static int	ar9003_tx_alloc(struct athn_softc *);
 Static void	ar9003_tx_free(struct athn_softc *);
 Static void	ar9003_tx_intr(struct athn_softc *);
@@ -937,7 +928,7 @@ Static int
 ar9003_rx_process(struct athn_softc *sc, int qid)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct ifnet *ifp = &sc->sc_if;
+	struct ifnet *ifp;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
 	struct ar_rx_status *ds;
@@ -945,7 +936,6 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	struct ieee80211_node *ni;
 	struct mbuf *m, *m1;
 	size_t len;
-	u_int32_t rstamp;
 	int error, rssi, s;
 
 	bf = SIMPLEQ_FIRST(&rxq->head);
@@ -959,6 +949,15 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	ds = mtod(bf->bf_m, struct ar_rx_status *);
 	if (!(ds->ds_status1 & AR_RXS1_DONE))
 		return EBUSY;
+
+	m = bf->bf_m;
+	/* Grab a reference to the source node. */
+	wh = mtod(m, struct ieee80211_frame *);
+	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)wh);
+	if (ni)
+ 		ifp = ni->ni_vap->iv_ifp;
+ 	else
+ 		ifp = NULL;
 
 	/* Check that it is a valid Rx status descriptor. */
 	if ((ds->ds_info & (AR_RXI_DESC_ID_M | AR_RXI_DESC_TX |
@@ -978,16 +977,17 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 			/* Report Michael MIC failures to net80211. */
 
 			len = MS(ds->ds_status2, AR_RXS2_DATA_LEN);
-			m = bf->bf_m;
-			m_set_rcvif(m, ifp);
+			if (ifp)
+				m_set_rcvif(m, ifp);
 			m->m_data = (void *)&ds[1];
 			m->m_pkthdr.len = m->m_len = len;
 			wh = mtod(m, struct ieee80211_frame *);
-
-			ieee80211_notify_michael_failure(ic, wh,
-			    0 /* XXX: keyix */);
+			
+			if (ni)
+				ieee80211_notify_michael_failure(ni->ni_vap, wh, 0 /* XXX: keyix */);
 		}
-		if_statinc(ifp, if_ierrors);
+		if (ifp)
+			if_statinc(ifp, if_ierrors);
 		goto skip;
 	}
 
@@ -996,15 +996,18 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	    len > ATHN_RXBUFSZ - sizeof(*ds))) {
 		DPRINTFN(DBG_RX, sc, "corrupted descriptor length=%zd\n",
 		    len);
-		if_statinc(ifp, if_ierrors);
+		if (ifp)
+			if_statinc(ifp, if_ierrors);
 		goto skip;
 	}
 
 	/* Allocate a new Rx buffer. */
 	m1 = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 	if (__predict_false(m1 == NULL)) {
-		ic->ic_stats.is_rx_nobuf++;
-		if_statinc(ifp, if_ierrors);
+		/* XXX */
+		//ic->ic_stats.is_rx_nobuf++;
+		if (ifp)
+			if_statinc(ifp, if_ierrors);
 		goto skip;
 	}
 
@@ -1023,26 +1026,26 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 		    BUS_DMA_NOWAIT | BUS_DMA_READ);
 		KASSERT(error != 0);
 		bf->bf_daddr = bf->bf_map->dm_segs[0].ds_addr;
-		if_statinc(ifp, if_ierrors);
+		if (ifp)
+			if_statinc(ifp, if_ierrors);
 		goto skip;
 	}
 	bf->bf_desc = mtod(m1, struct ar_rx_status *);
 	bf->bf_daddr = bf->bf_map->dm_segs[0].ds_addr;
 
-	m = bf->bf_m;
 	bf->bf_m = m1;
 
 	/* Finalize mbuf. */
-	m_set_rcvif(m, ifp);
+	if (ifp)
+		m_set_rcvif(m, ifp);
 	/* Strip Rx status descriptor from head. */
 	m->m_data = (void *)&ds[1];
 	m->m_pkthdr.len = m->m_len = len;
 
 	s = splnet();
 
-	/* Grab a reference to the source node. */
+	/* Get the packet again sice the length has changed. */
 	wh = mtod(m, struct ieee80211_frame *);
-	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)wh);
 
 	/* Remove any HW padding after the 802.11 header. */
 	if (!(wh->i_fc[0] & IEEE80211_FC0_TYPE_CTL)) {
@@ -1059,8 +1062,9 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 
 	/* Send the frame to the 802.11 layer. */
 	rssi = MS(ds->ds_status5, AR_RXS5_RSSI_COMBINED);
-	rstamp = ds->ds_status3;
-	ieee80211_input(ic, m, ni, rssi, rstamp);
+	/* XXX */
+	//rstamp = ds->ds_status3;
+	ieee80211_rx_enqueue(ic, m, rssi);
 
 	/* Node is no longer needed. */
 	ieee80211_free_node(ni);
@@ -1068,6 +1072,10 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	splx(s);
 
  skip:
+
+	if (ni)
+		ieee80211_free_node(ni);
+
 	/* Unlink this descriptor from head. */
 	SIMPLEQ_REMOVE_HEAD(&rxq->head, bf_list);
 	memset(bf->bf_desc, 0, sizeof(*ds));
@@ -1100,7 +1108,7 @@ ar9003_rx_intr(struct athn_softc *sc, int qid)
 Static int
 ar9003_tx_process(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
+	struct ifnet *ifp = NULL;
 	struct athn_txq *txq;
 	struct athn_node *an;
 	struct athn_tx_buf *bf;
@@ -1128,20 +1136,24 @@ ar9003_tx_process(struct athn_softc *sc)
 		memset(ds, 0, sizeof(*ds));
 		return 0;
 	}
-	SIMPLEQ_REMOVE_HEAD(&txq->head, bf_list);
-	if_statinc(ifp, if_opackets);
 
+	if (bf->bf_ni)
+		ifp = bf->bf_ni->ni_vap->iv_ifp;
+	
+	SIMPLEQ_REMOVE_HEAD(&txq->head, bf_list);
+	
 	sc->sc_tx_timer = 0;
 
-	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES)
+	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES && ifp)
 		if_statinc(ifp, if_oerrors);
 
 	if (ds->ds_status3 & AR_TXS3_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
 
+	/* XXX Is paprd used? */
 	/* Wakeup PA predistortion state machine. */
-	if (bf->bf_txflags & ATHN_TXFLAG_PAPRD)
-		ar9003_paprd_tx_tone_done(sc);
+	// if (bf->bf_txflags & ATHN_TXFLAG_PAPRD)
+	// 	ar9003_paprd_tx_tone_done(sc);
 
 	an = (struct athn_node *)bf->bf_ni;
 	/*
@@ -1189,7 +1201,6 @@ ar9003_tx_process(struct athn_softc *sc)
 Static void
 ar9003_tx_intr(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
 	int s;
 
 	s = splnet();
@@ -1198,8 +1209,8 @@ ar9003_tx_intr(struct athn_softc *sc)
 		continue;
 
 	if (!SIMPLEQ_EMPTY(&sc->sc_txbufs)) {
-		ifp->if_flags &= ~IFF_OACTIVE;
-		ifp->if_start(ifp); /* in softint */
+		sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
+			athn_start(sc);
 	}
 
 	splx(s);
@@ -1213,16 +1224,18 @@ Static int
 ar9003_swba_intr(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct ifnet *ifp = &sc->sc_if;
-	struct ieee80211_node *ni = ic->ic_bss;
 	struct athn_tx_buf *bf = sc->sc_bcnbuf;
 	struct ieee80211_frame *wh;
-	struct ieee80211_beacon_offsets bo;
+	struct ieee80211vap *vap;
 	struct ar_tx_desc *ds;
 	struct mbuf *m;
 	uint32_t sum;
 	uint8_t ridx, hwrate;
 	int error, totlen;
+
+	/* XXX When we add multi vap support this will need
+	   to be done for all vaps which require beacons */
+    vap = TAILQ_FIRST(&ic->ic_vaps);
 
 #if notyet
 	if (ic->ic_tim_mcast_pending &&
@@ -1230,10 +1243,10 @@ ar9003_swba_intr(struct athn_softc *sc)
 	    SIMPLEQ_EMPTY(&sc->sc_txq[ATHN_QID_CAB].head))
 		ic->ic_tim_mcast_pending = 0;
 #endif
-	if (ic->ic_dtim_count == 0)
-		ic->ic_dtim_count = ic->ic_dtim_period - 1;
+	if (vap->iv_dtim_count == 0)
+		vap->iv_dtim_count = vap->iv_dtim_period - 1;
 	else
-		ic->ic_dtim_count--;
+		vap->iv_dtim_count--;
 
 	/* Make sure previous beacon has been sent. */
 	if (athn_tx_pending(sc, ATHN_QID_BEACON)) {
@@ -1241,15 +1254,15 @@ ar9003_swba_intr(struct athn_softc *sc)
 		return EBUSY;
 	}
 	/* Get new beacon. */
-	m = ieee80211_beacon_alloc(ic, ic->ic_bss, &bo);
+	m = ieee80211_beacon_alloc(vap->iv_bss);
 	if (__predict_false(m == NULL))
 		return ENOBUFS;
 	/* Assign sequence number. */
 	/* XXX: use non-QoS tid? */
 	wh = mtod(m, struct ieee80211_frame *);
 	*(uint16_t *)&wh->i_seq[0] =
-	    htole16(ic->ic_bss->ni_txseqs[0] << IEEE80211_SEQ_SEQ_SHIFT);
-	ic->ic_bss->ni_txseqs[0]++;
+	    htole16(vap->iv_bss->ni_txseqs[0] << IEEE80211_SEQ_SEQ_SHIFT);
+	vap->iv_bss->ni_txseqs[0]++;
 
 	/* Unmap and free old beacon if any. */
 	if (__predict_true(bf->bf_m != NULL)) {
@@ -1316,25 +1329,31 @@ ar9003_swba_intr(struct athn_softc *sc)
 
 	AR_WRITE(sc, AR_QTXDP(ATHN_QID_BEACON), bf->bf_daddr);
 
-	for(;;) {
-		if (SIMPLEQ_EMPTY(&sc->sc_txbufs))
-			break;
+	/* XXX Fairly certain sure we no longer need this, power save queue
+	   appears to be handled by 802.11 layer */
 
-		IF_DEQUEUE(&ni->ni_savedq, m);
-		if (m == NULL)
-			break;
-		if (!IF_IS_EMPTY(&ni->ni_savedq)) {
-			/* more queued frames, set the more data bit */
-			wh = mtod(m, struct ieee80211_frame *);
-			wh->i_fc[1] |= IEEE80211_FC1_MORE_DATA;
-		}
+	/* XXX We need to add an ifq to the softc for sending multicast and
+	   broadcast frames in the cab q */
 
-		if (sc->sc_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) {
-			ieee80211_free_node(ni);
-			if_statinc(ifp, if_oerrors);
-			break;
-		}
-	}
+	/* for(;;) { */
+	/* 	if (SIMPLEQ_EMPTY(&sc->sc_txbufs)) */
+	/* 		break; */
+
+	/* 	IF_DEQUEUE(&ni->ni_savedq, m); */
+	/* 	if (m == NULL) */
+	/* 		break; */
+	/* 	if (!IF_IS_EMPTY(&ni->ni_savedq)) { */
+	/* 		/\* more queued frames, set the more data bit *\/ */
+	/* 		wh = mtod(m, struct ieee80211_frame *); */
+	/* 		wh->i_fc[1] |= IEEE80211_FC1_MORE_DATA; */
+	/* 	} */
+
+	/* 	if (sc->sc_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) { */
+	/* 		ieee80211_free_node(ni); */
+	/* 		if_statinc(ifp, if_oerrors); */
+	/* 		break; */
+	/* 	} */
+	/* } */
 
 	/* Kick Tx. */
 	AR_WRITE(sc, AR_Q_TXE, 1 << ATHN_QID_BEACON);
@@ -1457,12 +1476,14 @@ ar9003_intr(struct athn_softc *sc)
 }
 
 Static int
-ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
-    int txflags)
+ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
+    const struct ieee80211_bpf_params *params)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ni->ni_ic;
 	struct ieee80211_key *k = NULL;
 	struct ieee80211_frame *wh;
+	struct ieee80211vap *vap = ni->ni_vap;
+	struct athn_softc *sc = ic->ic_softc;
 	struct athn_series series[4];
 	struct ar_tx_desc *ds;
 	struct athn_txq *txq;
@@ -1501,7 +1522,7 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		type = AR_FRAME_TYPE_NORMAL;
 
 	if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
-		k = ieee80211_crypto_encap(ic, ni, m);
+		k = ieee80211_crypto_encap(ni, m);
 		if (k == NULL)
 			return ENOBUFS;
 
@@ -1528,10 +1549,20 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		qos = 0;
 		qid = ATHN_QID_PSPOLL;
 	}
+	/* XXX Must come up with alternative for detecting CAB frames
+	 * From what the data sheet says, it seems there are different
+	 * qualifiers for what counts as a cab frame depending on our
+	 * mode:
+	 *    1. Host mode - CAB frames are multicast frames or broadcast frames (when at least 1 station is sleeping)
+	 *                   This is the condition used by FreeBSD:
+	 *                       if (ismcast && sc_cabq_enable && (vap->iv_ps_sta || avp->av_mcastq.axq_depth)
+	 *    2. IBSS mode - CAB frames are ATIM and their associated data frames
+
 	else if (txflags & ATHN_TXFLAG_CAB) {
 		qos = 0;
 		qid = ATHN_QID_CAB;
 	}
+	*/
 	else {
 		qos = 0;
 		qid = ATHN_QID_AC_BE;
@@ -1547,11 +1578,14 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 		    (ic->ic_curmode == IEEE80211_MODE_11A) ?
 			ATHN_RIDX_OFDM6 : ATHN_RIDX_CCK1;
 	}
+	/* XXX */
+#ifdef notyet
 	else if (ic->ic_fixed_rate != -1) {
 		/* Use same fixed rate for all tries. */
 		ridx[0] = ridx[1] = ridx[2] = ridx[3] =
 		    sc->sc_fixed_ridx;
 	}
+#endif
 	else {
 		int txrate = ni->ni_txrate;
 		/* Use fallback table of the node. */
@@ -1620,7 +1654,9 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	}
 	bf->bf_m = m;
 	bf->bf_ni = ni;
-	bf->bf_txflags = txflags;
+    /* XXX see above comment regarding cabq
+    bf->bf_txflags = txflags;
+    */
 
 	wh = mtod(m, struct ieee80211_frame *);
 
@@ -1643,7 +1679,7 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	ds->ds_ctl12 = SM(AR_TXC12_FRAME_TYPE, type);
 
 	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
-	    (hasqos && (qos & IEEE80211_QOS_ACKPOLICY_MASK) ==
+	    (hasqos && (qos & IEEE80211_QOS_ACKPOLICY) ==
 	     IEEE80211_QOS_ACKPOLICY_NOACK))
 		ds->ds_ctl12 |= AR_TXC12_NO_ACK;
 
@@ -1688,7 +1724,7 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	/* Check if frame must be protected using RTS/CTS or CTS-to-self. */
 	if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
 		/* NB: Group frames are sent using CCK in 802.11b/g. */
-		if (totlen > ic->ic_rtsthreshold) {
+		if (totlen > vap->iv_rtsthreshold) {
 			ds->ds_ctl11 |= AR_TXC11_RTS_ENABLE;
 		}
 		else if ((ic->ic_flags & IEEE80211_F_USEPROT) &&
@@ -1719,11 +1755,14 @@ ar9003_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 			    athn_rates[ridx[i]].rspridx, ic->ic_flags);
 		}
 	}
+
+	/* XXX tx flags has been removed. It seems that PAPRD isn't actually
+	   used? */
 	/* If this is a PA training frame, select the Tx chain to use. */
-	if (__predict_false(txflags & ATHN_TXFLAG_PAPRD)) {
-		ds->ds_ctl12 |= SM(AR_TXC12_PAPRD_CHAIN_MASK,
-		    1 << sc->sc_paprd_curchain);
-	}
+	// if (__predict_false(txflags & ATHN_TXFLAG_PAPRD)) {
+	// 	ds->ds_ctl12 |= SM(AR_TXC12_PAPRD_CHAIN_MASK,
+	// 	    1 << sc->sc_paprd_curchain);
+	// }
 
 	/* Write number of tries for each series. */
 	ds->ds_ctl13 =
@@ -2636,6 +2675,8 @@ ar9003_paprd_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 #endif /* notused */
 
+/* XXX not used? */
+#ifdef notused
 Static int
 ar9003_get_desired_txgain(struct athn_softc *sc, int chain, int pow)
 {
@@ -2669,7 +2710,10 @@ ar9003_get_desired_txgain(struct athn_softc *sc, int chain, int pow)
 	/* Compute desired Tx gain. */
 	return pow - delta - tempcorr - voltcorr + scale;
 }
+#endif /* notused */
 
+/* XXX not used? */
+#ifdef notused
 Static void
 ar9003_force_txgain(struct athn_softc *sc, uint32_t txgain)
 {
@@ -2700,7 +2744,10 @@ ar9003_force_txgain(struct athn_softc *sc, uint32_t txgain)
 	AR_WRITE(sc, AR_PHY_TPC_1, reg);
 	AR_WRITE_BARRIER(sc);
 }
+#endif /* notused */
 
+/* XXX not used? */
+#ifdef notused
 Static void
 ar9003_set_training_gain(struct athn_softc *sc, int chain)
 {
@@ -2718,7 +2765,10 @@ ar9003_set_training_gain(struct athn_softc *sc, int chain)
 			break;
 	ar9003_force_txgain(sc, sc->sc_txgain[i]);
 }
+#endif /* notused */
 
+/* XXX It doesn't seem like this is used? */
+#ifdef notused
 Static int
 ar9003_paprd_tx_tone(struct athn_softc *sc)
 {
@@ -2753,6 +2803,7 @@ ar9003_paprd_tx_tone(struct athn_softc *sc)
 	return error;
 #undef TONE_LEN
 }
+#endif /* notused */
 
 static __inline int
 get_scale(int val)
@@ -2766,6 +2817,8 @@ get_scale(int val)
 	return (log > 10) ? log - 10 : 0;
 }
 
+/* XXX not used? */
+#ifdef notused
 /*
  * Compute predistortion function to linearize power amplifier output based
  * on feedback from training signal.
@@ -3018,7 +3071,10 @@ ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
 #undef SCALE_LOG
 #undef NBINS
 }
+#endif /* notused */
 
+/* XXX not used? */
+#ifdef notused
 Static void
 ar9003_enable_predistorter(struct athn_softc *sc, int chain)
 {
@@ -3046,7 +3102,10 @@ ar9003_enable_predistorter(struct athn_softc *sc, int chain)
 	    AR_PHY_PAPRD_CTRL0_PAPRD_ENABLE);
 	AR_WRITE_BARRIER(sc);
 }
+#endif /* notused */
 
+/* XXX not used? */
+#ifdef notused
 Static void
 ar9003_paprd_enable(struct athn_softc *sc)
 {
@@ -3057,7 +3116,10 @@ ar9003_paprd_enable(struct athn_softc *sc)
 		if (sc->sc_txchainmask & (1 << i))
 			ar9003_enable_predistorter(sc, i);
 }
+#endif /* notused */
 
+/* XXX not used? */
+#ifdef notused
 /*
  * This function is called when our training signal has been sent.
  */
@@ -3098,6 +3160,7 @@ ar9003_paprd_tx_tone_done(struct athn_softc *sc)
 	else	/* Measure next Tx chain. */
 		ar9003_paprd_tx_tone(sc);
 }
+#endif /* notused */
 
 PUBLIC void
 ar9003_write_txpower(struct athn_softc *sc, int16_t power[ATHN_POWER_COUNT])
