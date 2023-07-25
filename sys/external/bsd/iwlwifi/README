@@ -1,0 +1,11 @@
+This is the iwlwifi driver, taken from FreeBSD which was
+taken from Linux.   We did not start from the Linux driver
+due to the number of GPL-2.0 only files that were already
+replaced by FreeBSD.  This should reduce the work needed
+to get this working in NetBSD.  6/29/2023
+
+Initial source copy from FreeBSD development tree:  6/29/2023
+
+SHA1 ID of git commit: 319d2bf407b3762da6f1c67ffe8dce2fee587aaf
+
+

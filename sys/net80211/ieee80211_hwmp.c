@@ -57,6 +57,9 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_hwmp.c,v 1.1.2.4 2019/06/10 22:09:46 chris
 #include <sys/sockio.h>
 #include <sys/endian.h>
 #include <sys/errno.h>
+#ifdef __NetBSD__
+#include <sys/once.h>
+#endif
 #include <sys/proc.h>
 #include <sys/sysctl.h>
 
@@ -230,7 +233,11 @@ SYSCTL_PROC(_net_wlan_hwmp, OID_AUTO, inact,
     "mesh route inactivity timeout (ms)");
 
 
-static __unused void
+#ifdef __NetBSD__
+static int
+#else
+static void
+#endif
 ieee80211_hwmp_init(void)
 {
 	/* Default values as per amendment */
@@ -266,6 +273,10 @@ ieee80211_hwmp_init(void)
 	 * Register HWMP.
 	 */
 	ieee80211_mesh_register_proto_path(&mesh_proto_hwmp);
+
+#ifdef __NetBSD__
+	return 0;
+#endif
 }
 SYSINIT(wlan_hwmp, SI_SUB_DRIVERS, SI_ORDER_SECOND, ieee80211_hwmp_init, NULL);
 
@@ -287,7 +298,10 @@ hwmp_vattach(struct ieee80211vap *vap)
 #if __FreeBSD__
 	callout_init(&hs->hs_roottimer, 1);
 #elif __NetBSD__
+	static ONCE_DECL(hwmp_init_once);
+
 	callout_init(&hs->hs_roottimer, CALLOUT_MPSAFE);
+	RUN_ONCE(&hwmp_init_once, ieee80211_hwmp_init);
 #endif
 	vap->iv_hwmp = hs;
 }

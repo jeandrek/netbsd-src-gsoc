@@ -25,9 +25,9 @@
 __KERNEL_RCSID(0, "$NetBSD: if_iwn.c,v 1.99 2022/04/25 02:29:14 gutteridge Exp $");
 
 #ifdef IWN_DEBUG
-#define DBG_FN 9
-#else
-#define DBG_FN 0
+#define	IWN_DEBUG_RESET	5
+#define	IWN_DEBUG_FN	9
+#define	IWN_DEBUG_TRACE	10
 #endif
 
 #define IWN_USE_RBUF	/* Use local storage for RX */
@@ -844,7 +844,7 @@ iwn_vap_delete(struct ieee80211vap *vap)
 {
 	struct iwn_vap *my_vap = (struct iwn_vap *)vap;
 
-	DPRINTFN(DBG_FN, ("%s: %s\n", vap->iv_ifp->if_xname, __func__));
+	DPRINTFN(IWN_DEBUG_FN, ("%s: %s\n", vap->iv_ifp->if_xname, __func__));
 
 	ieee80211_vap_detach(vap);
 	kmem_free(my_vap, sizeof(*my_vap));
@@ -984,7 +984,7 @@ iwn_parent(struct ieee80211com *ic)
 
 	if (startall)
 		ieee80211_start_all(ic);
-	DPRINTFN(DBG_FN, ("%s: %s\n",device_xname(sc->sc_dev), __func__));
+	DPRINTFN(IWN_DEBUG_FN, ("%s: %s\n",device_xname(sc->sc_dev), __func__));
 
 } 
 
@@ -996,7 +996,7 @@ iwn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 {
 	struct iwn_vap *vap;
 
-	DPRINTFN(DBG_FN, ("%s: %s\n", ic->ic_name, __func__));
+	DPRINTFN(IWN_DEBUG_FN, ("%s: %s\n", ic->ic_name, __func__));
 
 	/* Allow only one VAP for the iwn driver. */
 	if (!TAILQ_EMPTY(&ic->ic_vaps))
@@ -2110,7 +2110,7 @@ iwn_read_eeprom_band(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 	uint8_t chan;
 	int i, error, nflags;
 
-	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s begin\n", __func__));
+	DPRINTFN(IWN_DEBUG_TRACE, ("->%s begin\n", __func__));
 
 	memset(bands, 0, sizeof(bands));
 	if (n == 0) {
@@ -2126,8 +2126,8 @@ iwn_read_eeprom_band(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 
 	for (i = 0; i < band->nchan; i++) {
 		if (!(channels[i].flags & IWN_EEPROM_CHAN_VALID)) {
-			DPRINTF((sc, IWN_DEBUG_RESET,
-			    "skip chan %d flags 0x%x maxpwr %d\n",
+			DPRINTFN(IWN_DEBUG_RESET,
+			    ("skip chan %d flags 0x%x maxpwr %d\n",
 			    band->chan[i], channels[i].flags,
 			    channels[i].maxpwr));
 			continue;
@@ -2144,12 +2144,12 @@ iwn_read_eeprom_band(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 		/* XXX wrong */
 		sc->maxpwr[chan] = channels[i].maxpwr;
 
-		DPRINTF((sc, IWN_DEBUG_RESET,
-		    "add chan %d flags 0x%x maxpwr %d\n", chan,
+		DPRINTFN(IWN_DEBUG_RESET,
+		    ("add chan %d flags 0x%x maxpwr %d\n", chan,
 		    channels[i].flags, channels[i].maxpwr));
 	}
 
-	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s end\n", __func__));
+	DPRINTFN(IWN_DEBUG_TRACE, ("->%s end\n", __func__));
 
 }
 
@@ -2162,17 +2162,17 @@ iwn_read_eeprom_ht40(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 	uint8_t chan;
 	int i, error, nflags;
 
-	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s start\n", __func__));
+	DPRINTFN(IWN_DEBUG_TRACE, ("->%s start\n", __func__));
 
 	if (!(sc->sc_flags & IWN_FLAG_HAS_11N)) {
-		DPRINTF((sc, IWN_DEBUG_TRACE, "->%s end no 11n\n", __func__));
+		DPRINTFN(IWN_DEBUG_TRACE, ("->%s end no 11n\n", __func__));
 		return;
 	}
 
 	for (i = 0; i < band->nchan; i++) {
 		if (!(channels[i].flags & IWN_EEPROM_CHAN_VALID)) {
-			DPRINTF((sc, IWN_DEBUG_RESET,
-			    "skip chan %d flags 0x%x maxpwr %d\n",
+			DPRINTFN(IWN_DEBUG_RESET,
+			    ("skip chan %d flags 0x%x maxpwr %d\n",
 			    band->chan[i], channels[i].flags,
 			    channels[i].maxpwr));
 			continue;
@@ -2189,8 +2189,8 @@ iwn_read_eeprom_ht40(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 			    "%s: no entry for channel %d\n", __func__, chan);
 			continue;
 		case ENOENT:
-			DPRINTF((sc, IWN_DEBUG_RESET,
-			    "%s: skip chan %d, extension channel not found\n",
+			DPRINTFN(IWN_DEBUG_RESET,
+			    ("%s: skip chan %d, extension channel not found\n",
 			    __func__, chan));
 			continue;
 		case ENOBUFS:
@@ -2198,8 +2198,8 @@ iwn_read_eeprom_ht40(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 			    "%s: channel table is full!\n", __func__);
 			break;
 		case 0:
-			DPRINTF((sc, IWN_DEBUG_RESET,
-			    "add ht40 chan %d flags 0x%x maxpwr %d\n",
+			DPRINTFN(IWN_DEBUG_RESET,
+			    ("add ht40 chan %d flags 0x%x maxpwr %d\n",
 			    chan, channels[i].flags, channels[i].maxpwr));
 			/* FALLTHROUGH */
 		default:
@@ -2207,7 +2207,7 @@ iwn_read_eeprom_ht40(struct iwn_softc *sc, int n, int maxchans, int *nchans,
 		}
 	}
 
-	DPRINTF((sc, IWN_DEBUG_TRACE, "->%s end\n", __func__));
+	DPRINTFN(IWN_DEBUG_TRACE, ("->%s end\n", __func__));
 
 }
 
@@ -3416,7 +3416,7 @@ iwn_transmit(struct ieee80211com *ic, struct mbuf *m)
 	size_t pktlen = m->m_pkthdr.len;
         bool mcast = (m->m_flags & M_MCAST) != 0;
 
-	DPRINTFN(DBG_FN, ("%s: %s\n",vap->iv_ic->ic_name, __func__));
+	DPRINTFN(IWN_DEBUG_FN, ("%s: %s\n",vap->iv_ic->ic_name, __func__));
 
 	s = splnet();
 
@@ -3441,7 +3441,7 @@ iwn_send_mgmt(struct ieee80211_node *ni, int arg1, int arg2) {
 
 	struct iwn_softc *sc = ni->ni_vap->iv_ic->ic_softc;
 
-	DPRINTFN(DBG_FN, ("%s: %s\n",device_xname(sc->sc_dev), __func__));
+	DPRINTFN(IWN_DEBUG_FN, ("%s: %s\n",device_xname(sc->sc_dev), __func__));
 
 	/* Don't know what to do right now. */
 	return ENOTTY;
@@ -3460,7 +3460,7 @@ iwn_raw_xmit(struct ieee80211_node *ni , struct mbuf *m,
 	struct ether_header *eh;
 	int ac;
 
-	DPRINTFN(DBG_FN, ("%s: %s\n",device_xname(sc->sc_dev), __func__));
+	DPRINTFN(IWN_DEBUG_FN, ("%s: %s\n",device_xname(sc->sc_dev), __func__));
 
 	KASSERT(vap != NULL);   /*  NNN need these? */
 	KASSERT(ic != NULL);

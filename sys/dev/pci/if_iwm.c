@@ -589,7 +589,7 @@ iwm_firmload(struct iwm_softc *sc)
 /*
  * just maintaining status quo.
  */
-static void __unused
+static void
 iwm_fix_channel(struct iwm_softc *sc, struct mbuf *m)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
@@ -4030,6 +4030,7 @@ static void
 iwm_rx_rx_mpdu(struct iwm_softc *sc, struct iwm_rx_packet *pkt,
     struct iwm_rx_data *data)
 {
+	struct ieee80211vap *vap = TAILQ_FIRST(&sc->sc_ic.ic_vaps);
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct mbuf *m;
 	struct iwm_rx_phy_info *phy_info;
@@ -4072,10 +4073,8 @@ iwm_rx_rx_mpdu(struct iwm_softc *sc, struct iwm_rx_packet *pkt,
 	}
 	rssi = -rssi;
 
-#if 0
 	if (vap->iv_state == IEEE80211_S_SCAN)
 		iwm_fix_channel(sc, m);
-#endif
 
 	if (iwm_rx_addbuf(sc, IWM_RBUF_SIZE, sc->rxq.cur) != 0) {
 		return;
@@ -6311,11 +6310,11 @@ iwm_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		break;
 
 	case IEEE80211_S_SCAN:
-#if 0
 		if (ostate == nstate &&
 		    ISSET(sc->sc_flags, IWM_FLAG_SCANNING)) {
-			return 0;
+			break;
 		}
+#if 0
 		ic->ic_flags |= IEEE80211_F_SCAN;// | IEEE80211_F_ASCAN;
 #endif
 		IWM_LOCK(sc);
@@ -6464,14 +6463,13 @@ iwm_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 static void
 iwm_endscan(struct iwm_softc *sc)
 {
-#if 0
 	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	DPRINTF(("%s: scan ended\n", DEVNAME(sc)));
 
-	if (ic->ic_state == IEEE80211_S_SCAN)
-		ieee80211_end_scan(ic);
-#endif
+	if (vap->iv_state == IEEE80211_S_SCAN)
+		ieee80211_scan_done(vap);
 }
 
 /*
@@ -8421,14 +8419,19 @@ iwm_scan_start(struct ieee80211com *ic)
 static void
 iwm_scan_end(struct ieee80211com *ic)
 {
-	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
+	struct iwm_softc *sc = ic->ic_softc;
+//	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	IEEE80211_LOCK(ic);
 	ic->ic_flags &= ~IEEE80211_F_SCAN;
 	IEEE80211_UNLOCK(ic);
 	
+	while (ISSET(sc->sc_flags, IWM_FLAG_SCANNING))
+		kpause("iwmscan", true, 1, NULL);
+#if 0
 	ieee80211_scan_done(vap);
 	ieee80211_cancel_scan(vap, 0);
+#endif
 }
 
 /*

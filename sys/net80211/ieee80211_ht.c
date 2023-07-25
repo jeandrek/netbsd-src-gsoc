@@ -49,6 +49,10 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_ht.c,v 1.1.56.5 2019/06/10 22:09:46 christ
 #include <sys/systm.h> 
 #include <sys/endian.h>
  
+#ifdef __NetBSD__
+#include <sys/once.h>
+#endif
+
 #include <sys/socket.h>
 
 #include <net/if.h>
@@ -189,7 +193,11 @@ static	ieee80211_send_action_func ht_send_action_ba_addba;
 static	ieee80211_send_action_func ht_send_action_ba_delba;
 static	ieee80211_send_action_func ht_send_action_ht_txchwidth;
 
-static __unused void
+#ifdef __NetBSD__
+static int
+#else
+static void
+#endif
 ieee80211_ht_init(void)
 {
 	/*
@@ -221,6 +229,10 @@ ieee80211_ht_init(void)
 	    IEEE80211_ACTION_BA_DELBA, ht_send_action_ba_delba);
 	ieee80211_send_action_register(IEEE80211_ACTION_CAT_HT, 
 	    IEEE80211_ACTION_HT_TXCHWIDTH, ht_send_action_ht_txchwidth);
+
+#ifdef __NetBSD__
+	return 0;
+#endif
 }
 SYSINIT(wlan_ht, SI_SUB_DRIVERS, SI_ORDER_FIRST, ieee80211_ht_init, NULL);
 
@@ -262,6 +274,12 @@ ieee80211_ht_attach(struct ieee80211com *ic)
 
 	ic->ic_htprotmode = IEEE80211_PROT_RTSCTS;
 	ic->ic_curhtprotmode = IEEE80211_HTINFO_OPMODE_PURE;
+
+#ifdef __NetBSD__
+	static ONCE_DECL(ht_init_once);
+
+	RUN_ONCE(&ht_init_once, ieee80211_ht_init);
+#endif
 }
 
 void
