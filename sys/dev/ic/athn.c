@@ -92,6 +92,7 @@ Static const char *
 Static int	athn_init(struct athn_softc *);
 Static int	athn_init_calib(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
+Static void	athn_set_channel(struct ieee80211com *);
 Static int	athn_newstate(struct ieee80211vap *, enum ieee80211_state,
 		    int);
 Static struct ieee80211_node *
@@ -103,13 +104,14 @@ Static int	athn_switch_chan(struct athn_softc *,
 Static void	athn_calib_to(void *);
 Static void	athn_disable_interrupts(struct athn_softc *);
 Static void	athn_enable_interrupts(struct athn_softc *);
-Static void	athn_get_chanlist(struct athn_softc *);
 Static void	athn_get_chipid(struct athn_softc *);
 Static void	athn_init_dma(struct athn_softc *);
 Static void	athn_init_qos(struct athn_softc *);
 Static void	athn_init_tx_queues(struct athn_softc *);
 Static void	athn_newassoc(struct ieee80211_node *, int);
 Static void	athn_next_scan(void *);
+Static void	athn_scan_start(struct ieee80211com *);
+Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
 Static void	athn_write_serdes(struct athn_softc *,
@@ -340,8 +342,6 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
 
 	/* Get the list of authorized/supported channels. */
-	athn_get_chanlist(sc);
-
 	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,   
       ic->ic_channels);
 
@@ -349,11 +349,6 @@ athn_attach(struct athn_softc *sc)
 
 	ieee80211_ifattach(ic);
 
-	/* XXX Still need:
-    ic->ic_scan_start
-    ic->ic_scan_end
-    ic->ic_set_channel 
-	*/
 	ic->ic_parent = athn_parent;
 	ic->ic_node_alloc = athn_node_alloc;
 	ic->ic_newassoc = athn_newassoc;
@@ -363,6 +358,9 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_transmit = athn_transmit;
 	ic->ic_raw_xmit = sc->sc_ops.tx;
 	ic->ic_update_mcast = athn_set_multi;
+	ic->ic_scan_start = athn_scan_start;
+	ic->ic_scan_end = athn_scan_end;
+	ic->ic_set_channel = athn_set_channel;
 	if (ic->ic_updateslot == NULL)
 		ic->ic_updateslot = athn_updateslot;
 #ifdef notyet_edca
@@ -421,6 +419,7 @@ athn_detach(struct athn_softc *sc)
 	    false);
 }
 
+#if 0
 /* XXX remove this, but first compare it to getradiocaps */
 Static void
 athn_get_chanlist(struct athn_softc *sc)
@@ -448,6 +447,7 @@ athn_get_chanlist(struct athn_softc *sc)
 		}
 	}
 }
+#endif
 
 PUBLIC void
 athn_rx_start(struct athn_softc *sc)
@@ -2484,6 +2484,26 @@ athn_next_scan(void *arg)
 	splx(s);
 }
 
+Static void
+athn_scan_start(struct ieee80211com *ic)
+{
+	ic->ic_flags |= IEEE80211_F_SCAN;
+}
+
+Static void
+athn_scan_end(struct ieee80211com *ic)
+{
+	ic->ic_flags &= ~IEEE80211_F_SCAN;
+}
+
+Static void
+athn_set_channel(struct ieee80211com *ic)
+{
+	struct athn_softc *sc = ic->ic_softc;
+
+	athn_switch_chan(sc, ic->ic_curchan, NULL); /* XXX extchan? */
+}
+
 Static int
 athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 {
@@ -2648,6 +2668,8 @@ athn_start(struct athn_softc *sc)
 
 		/* Encapsulate and send data frames. */
 		IFQ_DEQUEUE(&sc->sc_sendq, m);
+		if (m == NULL)
+			break;
 		ni = M_GETCTX(m, struct ieee80211_node *);
 		M_CLEARCTX(m);
 		vap = ni->ni_vap;
@@ -2664,10 +2686,9 @@ athn_start(struct athn_softc *sc)
 			continue;
 		}
 
+#if 0
 		ieee80211_radiotap_tx(vap, m);
-
-		if ((m = ieee80211_encap(vap, ni, m)) == NULL)
-			continue;
+#endif
 
 		/* XXX What to pass for bpf_params? */
 		if (sc->sc_ops.tx(ni, m, NULL) != 0) {
@@ -2680,8 +2701,7 @@ athn_start(struct athn_softc *sc)
 		sc->sc_tx_timer = 5;
 		i*fp->if_timer = 1;
 		*/
-		m_freem(m);
-		ieee80211_free_node(ni);
+		/* ieee80211_free_node(ni); */
 	}
 }
 
@@ -3044,16 +3064,15 @@ static int
 athn_transmit(struct ieee80211com *ic, struct mbuf *m)
 {
 	struct athn_softc *sc = ic->ic_softc;
+	int s;
 
 	DPRINTFN(5, ("%s: %s\n",ic->ic_name, __func__));
 
-	/* XXX change lock */
-	//IWM_LOCK(sc);
+	s = splnet();
 	IF_ENQUEUE(&sc->sc_sendq, m);
-	//if (!(sc->sc_flags & IWM_FLAG_TX_RUNNING))
+	if (!(sc->sc_flags & ATHN_FLAG_TX_BUSY))
 		athn_start(sc);
-	//IWM_UNLOCK(sc);
-
+	splx(s);
 	return 0;
 }
 
@@ -3063,26 +3082,18 @@ athn_get_radiocaps(struct ieee80211com *ic,
 {
 	struct athn_softc *sc = ic->ic_softc; 
 	uint8_t bands[IEEE80211_MODE_BYTES];
-	
-	memset(bands, 0, sizeof(bands));
-	
+
 	/* XXX correct way to check for 5ghz? */
 	if (sc->sc_flags & ATHN_FLAG_11A) {
-	    	
-			/* Channel list taken from run(4), not really sure how to determine this */
-	    	const uint8_t chan_list[] =
-    		    { 36, 38, 40, 44, 46, 48, 52, 54, 56, 60, 62, 64, 100,
-    		    102, 104, 108, 110, 112, 116, 118, 120, 124, 126,
-    		    128, 132, 134, 136, 140, 149, 151, 153, 157, 159, 161,
-    		    165,  167, 169, 171, 173 };
-	    		
+		memset(bands, 0, sizeof(bands));
 		setbit(bands, IEEE80211_MODE_11A);
 		setbit(bands, IEEE80211_MODE_11NA);
 		/* support ht40? */
 		ieee80211_add_channel_list_5ghz(chans, maxchans, nchans,
-		    chan_list, nitems(chan_list), bands, 0); 
+		    athn_5ghz_chans, nitems(athn_5ghz_chans), bands, 0); 
 	}
 
+	memset(bands, 0, sizeof(bands));
 	setbit(bands, IEEE80211_MODE_11B);
 	setbit(bands, IEEE80211_MODE_11G);
 	setbit(bands, IEEE80211_MODE_11NG);
