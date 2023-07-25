@@ -456,6 +456,8 @@ struct athn_softc {
 	device_suspensor_t		sc_suspensor;
 	pmf_qual_t			sc_qual;
 	struct ieee80211com		sc_ic;
+	struct ethercom			sc_ec;
+#define sc_if	sc_ec.ec_if
 	struct ifaltq			sc_sendq;
 	void				*sc_soft_ih;
 
