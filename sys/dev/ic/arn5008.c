@@ -119,7 +119,7 @@ Static void	ar5008_set_spur_immunity_level(struct athn_softc *, int);
 Static void	ar5008_swap_rom(struct athn_softc *);
 Static int	ar5008_swba_intr(struct athn_softc *);
 Static int	ar5008_tx(struct ieee80211_node *, struct mbuf *,
-            const struct ieee80211_bpf_params *);
+		    const struct ieee80211_bpf_params *);
 Static int	ar5008_tx_alloc(struct athn_softc *);
 Static void	ar5008_tx_free(struct athn_softc *);
 Static void	ar5008_tx_intr(struct athn_softc *);

@@ -320,7 +320,6 @@ static const uint16_t ar_mcs_ndbps[][2] = {
 
 struct athn_node {
 	struct ieee80211_node		ni;
-	struct ieee80211_amrr_node	amn;
 	uint8_t				ridx[IEEE80211_RATE_MAXSIZE];
 	uint8_t				fallback[IEEE80211_RATE_MAXSIZE];
 	uint8_t				sta_index;
@@ -475,7 +474,6 @@ struct athn_softc {
 	callout_t			sc_scan_to;
 	callout_t			sc_calib_to;
 	callout_t			sc_watchdog_to;
-	struct ieee80211_amrr		sc_amrr;
 
 	u_int				sc_flags;
 #define ATHN_FLAG_PCIE			(1 << 0)

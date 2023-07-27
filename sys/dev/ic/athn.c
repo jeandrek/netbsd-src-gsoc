@@ -61,8 +61,8 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 
 #include <net80211/ieee80211_netbsd.h>
 #include <net80211/ieee80211_var.h>
-#include <net80211/ieee80211_amrr.h>
 #include <net80211/ieee80211_radiotap.h>
+#include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
 #include <dev/ic/athnreg.h>
@@ -267,7 +267,6 @@ athn_attach(struct athn_softc *sc)
 	callout_init(&sc->sc_watchdog_to, 0);
 	callout_setfunc(&sc->sc_watchdog_to, athn_watchdog, sc);
 
-/* XXX */
 #if 0
 	sc->sc_amrr.amrr_min_success_threshold = 1;
 	sc->sc_amrr.amrr_max_success_threshold = 15;
@@ -1269,17 +1268,16 @@ athn_btcoex_disable(struct athn_softc *sc)
 }
 #endif
 
-#if 0
 Static void
 athn_iter_func(void *arg, struct ieee80211_node *ni)
 {
 	struct athn_softc *sc = arg;
-	struct athn_node *an = (struct athn_node *)ni;
+	struct ieee80211vap *vap = ni->ni_vap;
 
 	/* XXX */
-	ieee80211_amrr_choose(&sc->sc_amrr, ni, &an->amn);
+	// ieee80211_ratectl_tx_update(...)
+	// ieee80211_ratectl_rate(ni, NULL, 0);
 }
-#endif
 
 Static void
 athn_calib_to(void *arg)
@@ -1318,10 +1316,9 @@ athn_calib_to(void *arg)
 /* XXX */
 #ifdef notyet
 	if (ic->ic_fixed_rate == -1) {
-		if (ic->ic_opmode == IEEE80211_M_STA)
-			athn_iter_func(sc, ic->ic_bss);
-		else
-			ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, sc);
+#endif
+		ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, sc);
+#ifdef notyet
 	}
 #endif
 	callout_schedule(&sc->sc_calib_to, hz / 2);
@@ -3146,6 +3143,8 @@ athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 	vap->newstate = vap->vap.iv_newstate;
 	vap->vap.iv_newstate = athn_newstate;
 
+	// ieee80211_ratectl_init(&vap->vap);
+
 	/*
 	 * In HostAP mode, the number of STAs that we can handle is
 	 * limited by the number of entries in the HW key cache.
@@ -3175,6 +3174,7 @@ athn_vap_delete(struct ieee80211vap *arg)
 	callout_halt(&vap->av_scan_to, NULL);
 	callout_destroy(&vap->av_scan_to);
 	bpf_detach(ifp);
+	// ieee80211_ratectl_deinit(arg);
 	ieee80211_vap_detach(arg);
 	kmem_free(vap, sizeof(*vap));
 }
