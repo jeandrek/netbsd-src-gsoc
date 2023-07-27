@@ -4135,7 +4135,7 @@ ath_tx_processq(struct ath_softc *sc, struct ath_txq *txq)
 		bus_dmamap_sync(sc->sc_dmat, bf->bf_dmamap, 0,
 		    bf->bf_dmamap->dm_mapsize, BUS_DMASYNC_POSTWRITE);
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
-		ieee80211_tx_complete(ni, bf->bf_m, 0);
+		ieee80211_tx_complete(ni, bf->bf_m, 0); /* XXX status? */
 		bf->bf_m = NULL;
 		bf->bf_node = NULL;
 
@@ -4293,7 +4293,7 @@ ath_tx_draintxq(struct ath_softc *sc, struct ath_txq *txq)
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
 		ni = bf->bf_node;
 		bf->bf_node = NULL;
-		ieee80211_tx_complete(ni, bf->bf_m, 0);
+		ieee80211_tx_complete(ni, bf->bf_m, 0); /* XXX status? */
 		bf->bf_m = NULL;
 		ATH_TXBUF_LOCK(sc);
 		STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
