@@ -118,7 +118,7 @@ Static void	ar5008_set_rxchains(struct athn_softc *);
 Static void	ar5008_set_spur_immunity_level(struct athn_softc *, int);
 Static void	ar5008_swap_rom(struct athn_softc *);
 Static int	ar5008_swba_intr(struct athn_softc *);
-Static int	ar5008_tx(struct ieee80211_node *, struct mbuf *, 
+Static int	ar5008_tx(struct ieee80211_node *, struct mbuf *,
             const struct ieee80211_bpf_params *);
 Static int	ar5008_tx_alloc(struct athn_softc *);
 Static void	ar5008_tx_free(struct athn_softc *);
@@ -819,7 +819,7 @@ ar5008_rx_process(struct athn_softc *sc)
 		ifp = ni->ni_vap->iv_ifp;
 	else
 		ifp = NULL;
-	
+
 	if (!(ds->ds_status8 & AR_RXS8_DONE)) {
 		/*
 		 * On some parts, the status words can get corrupted
@@ -926,7 +926,7 @@ ar5008_rx_process(struct athn_softc *sc)
 	if (ifp)
 		m_set_rcvif(m, ifp);
 	m->m_pkthdr.len = m->m_len = len;
-	
+
 	s = splnet();
 
 	/* Get the packet again since length has changed */
@@ -950,7 +950,7 @@ ar5008_rx_process(struct athn_softc *sc)
 	rssi = MS(ds->ds_status4, AR_RXS4_RSSI_COMBINED);
 	/* XXX */
 	//rstamp = ds->ds_status2;
-	
+
 	ieee80211_rx_enqueue(ic, m, rssi);
 
 	splx(s);
@@ -959,7 +959,7 @@ ar5008_rx_process(struct athn_softc *sc)
 
 	if (ni)
 		ieee80211_free_node(ni);
-	
+
 	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
         BUS_DMASYNC_PREREAD);
 	/* Unlink this descriptor from head. */
@@ -1102,7 +1102,7 @@ ar5008_swba_intr(struct athn_softc *sc)
 	/* XXX When we add multi vap support this will need
 	   to be done for all vaps which require beacons */
 	vap = TAILQ_FIRST(&ic->ic_vaps);
-	
+
 #if notyet
 	if (ic->ic_tim_mcast_pending &&
 	    IF_IS_EMPTY(&ni->ni_savedq) &&
@@ -1337,7 +1337,7 @@ ar5008_intr(struct athn_softc *sc)
 }
 
 Static int
-ar5008_tx(struct ieee80211_node *ni, struct mbuf *m, 
+ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
     const struct ieee80211_bpf_params *params)
 {
 	struct ieee80211com *ic = ni->ni_ic;

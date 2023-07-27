@@ -121,13 +121,13 @@ Static void	athn_parent(struct ieee80211com *);
 Static int	athn_transmit(struct ieee80211com *, struct mbuf *);
 Static void	athn_get_radiocaps(struct ieee80211com *,
 		    int, int *, struct ieee80211_channel []);
-Static struct ieee80211vap * 
+Static struct ieee80211vap *
 		athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
 		    int, enum ieee80211_opmode, int,
 		    const uint8_t [IEEE80211_ADDR_LEN],
 		    const uint8_t [IEEE80211_ADDR_LEN]);
 Static void athn_vap_delete(struct ieee80211vap *);
- 
+
 #ifdef ATHN_BT_COEXISTENCE
 Static void	athn_btcoex_disable(struct athn_softc *);
 Static void	athn_btcoex_enable(struct athn_softc *);
@@ -342,7 +342,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
 
 	/* Get the list of authorized/supported channels. */
-	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,   
+	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,
 	    ic->ic_channels);
 
 	ic->ic_name = device_xname(sc->sc_dev);
@@ -531,7 +531,7 @@ athn_intr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
 
-	/* XXX check ic_nrunning? 
+	/* XXX check ic_nrunning?
 	if (!IS_UP_AND_RUNNING(i*fp))
 		return 0;
 	*/
@@ -560,7 +560,7 @@ athn_softintr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
 
-	/* XXX check ic_nrunning? 
+	/* XXX check ic_nrunning?
 	if (!IS_UP_AND_RUNNING(i*fp))
 		return 0;
 	*/
@@ -2575,7 +2575,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		/* XXX Start ANI. */
 
 		callout_schedule(&sc->sc_calib_to, hz / 2);
-	
+
 	/* XXX handle new states */
 	case IEEE80211_S_CAC:
 	case IEEE80211_S_CSA:
@@ -2659,7 +2659,7 @@ athn_start(struct athn_softc *sc)
 
 	if (sc->sc_flags & ATHN_FLAG_TX_BUSY)
 		return;
-	
+
 	for (;;) {
 		if (SIMPLEQ_EMPTY(&sc->sc_txbufs)) {
 			sc->sc_flags |= ATHN_FLAG_TX_BUSY;
@@ -3080,7 +3080,7 @@ static void
 athn_get_radiocaps(struct ieee80211com *ic,
      int maxchans, int *nchans, struct ieee80211_channel chans[])
 {
-	struct athn_softc *sc = ic->ic_softc; 
+	struct athn_softc *sc = ic->ic_softc;
 	uint8_t bands[IEEE80211_MODE_BYTES];
 
 	/* XXX correct way to check for 5ghz? */
@@ -3090,7 +3090,7 @@ athn_get_radiocaps(struct ieee80211com *ic,
 		setbit(bands, IEEE80211_MODE_11NA);
 		/* support ht40? */
 		ieee80211_add_channel_list_5ghz(chans, maxchans, nchans,
-		    athn_5ghz_chans, nitems(athn_5ghz_chans), bands, 0); 
+		    athn_5ghz_chans, nitems(athn_5ghz_chans), bands, 0);
 	}
 
 	memset(bands, 0, sizeof(bands));
@@ -3132,10 +3132,10 @@ athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 
 	/* Only allow 1 vap for now */
 	if (!TAILQ_EMPTY(&ic->ic_vaps)) {
-	    aprint_error_dev(sc->sc_dev, "Only 1 vap at a time.\n");
-	    return NULL;
-    }
-		
+		aprint_error_dev(sc->sc_dev, "Only 1 vap at a time.\n");
+		return NULL;
+	}
+
 	vap = kmem_zalloc(sizeof(*vap), KM_SLEEP);
 
 	if (ieee80211_vap_setup(ic, &vap->vap, name, unit, opmode,

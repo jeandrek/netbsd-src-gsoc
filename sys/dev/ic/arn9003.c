@@ -982,7 +982,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 			m->m_data = (void *)&ds[1];
 			m->m_pkthdr.len = m->m_len = len;
 			wh = mtod(m, struct ieee80211_frame *);
-			
+
 			if (ni)
 				ieee80211_notify_michael_failure(ni->ni_vap, wh, 0 /* XXX: keyix */);
 		}
@@ -1139,9 +1139,9 @@ ar9003_tx_process(struct athn_softc *sc)
 
 	if (bf->bf_ni)
 		ifp = bf->bf_ni->ni_vap->iv_ifp;
-	
+
 	SIMPLEQ_REMOVE_HEAD(&txq->head, bf_list);
-	
+
 	sc->sc_tx_timer = 0;
 
 	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES && ifp)
