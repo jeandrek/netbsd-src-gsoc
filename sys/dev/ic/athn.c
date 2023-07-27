@@ -117,15 +117,15 @@ Static void	athn_tx_reclaim(struct athn_softc *, int);
 Static void	athn_write_serdes(struct athn_softc *,
 		    const struct athn_serdes *);
 Static void	athn_softintr(void *);
-Static void athn_parent(struct ieee80211com *);
+Static void	athn_parent(struct ieee80211com *);
 Static int	athn_transmit(struct ieee80211com *, struct mbuf *);
-Static void athn_get_radiocaps(struct ieee80211com *,
-     		int, int *, struct ieee80211_channel []);
+Static void	athn_get_radiocaps(struct ieee80211com *,
+		    int, int *, struct ieee80211_channel []);
 Static struct ieee80211vap * 
-			athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
-    			int, enum ieee80211_opmode, int,
-				const uint8_t [IEEE80211_ADDR_LEN],
-    			const uint8_t [IEEE80211_ADDR_LEN]);
+		athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
+		    int, enum ieee80211_opmode, int,
+		    const uint8_t [IEEE80211_ADDR_LEN],
+		    const uint8_t [IEEE80211_ADDR_LEN]);
 Static void athn_vap_delete(struct ieee80211vap *);
  
 #ifdef ATHN_BT_COEXISTENCE
@@ -343,7 +343,7 @@ athn_attach(struct athn_softc *sc)
 
 	/* Get the list of authorized/supported channels. */
 	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,   
-      ic->ic_channels);
+	    ic->ic_channels);
 
 	ic->ic_name = device_xname(sc->sc_dev);
 

@@ -494,7 +494,7 @@ struct athn_softc {
 #define ATHN_FLAG_AN_TOP2_FIXUP		(1 << 12)
 #define ATHN_FLAG_NON_ENTERPRISE	(1 << 13)
 #define ATHN_FLAG_3TREDUCE_CHAIN	(1 << 14)
-#define ATHN_FLAG_TX_BUSY			(1 << 15)
+#define ATHN_FLAG_TX_BUSY		(1 << 15)
 
 	uint8_t				sc_ngpiopins;
 	int				sc_led_pin;

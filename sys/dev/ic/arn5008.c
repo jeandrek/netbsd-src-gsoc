@@ -809,7 +809,7 @@ ar5008_rx_process(struct athn_softc *sc)
 
 	/* XXX refactored dma syncs. I think the old code was incorrect */
 	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
-        BUS_DMASYNC_POSTREAD);
+	    BUS_DMASYNC_POSTREAD);
 
 	m = bf->bf_m;
 	/* Grab a reference to the source node. */
@@ -843,7 +843,7 @@ ar5008_rx_process(struct athn_softc *sc)
 			goto skip;
 		}
 		bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
-            BUS_DMASYNC_PREREAD);
+		    BUS_DMASYNC_PREREAD);
 		return EBUSY;
 	}
 
@@ -1101,7 +1101,7 @@ ar5008_swba_intr(struct athn_softc *sc)
 
 	/* XXX When we add multi vap support this will need
 	   to be done for all vaps which require beacons */
-    vap = TAILQ_FIRST(&ic->ic_vaps);
+	vap = TAILQ_FIRST(&ic->ic_vaps);
 	
 #if notyet
 	if (ic->ic_tim_mcast_pending &&

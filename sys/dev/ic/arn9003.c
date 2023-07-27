@@ -1235,7 +1235,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 
 	/* XXX When we add multi vap support this will need
 	   to be done for all vaps which require beacons */
-    vap = TAILQ_FIRST(&ic->ic_vaps);
+	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 #if notyet
 	if (ic->ic_tim_mcast_pending &&
