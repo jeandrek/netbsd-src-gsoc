@@ -77,9 +77,6 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 
 #define Static static
 
-#define IS_UP_AND_RUNNING(ifp) \
-	(((ifp)->if_flags & IFF_UP) && ((ifp)->if_flags & IFF_RUNNING))
-
 #ifdef ATHN_DEBUG
 int athn_debug = 0;
 #endif
@@ -286,7 +283,7 @@ athn_attach(struct athn_softc *sc)
 	    IEEE80211_C_HOSTAP |	/* Host AP mode supported. */
 // XXX?	    IEEE80211_C_APPMGT |	/* Host AP power saving supported. */
 #endif
-		IEEE80211_C_STA |
+	    IEEE80211_C_STA |
 	    IEEE80211_C_MONITOR |	/* Monitor mode supported. */
 	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
 	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
@@ -2702,7 +2699,6 @@ athn_start(struct athn_softc *sc)
 
 		sc->sc_tx_timer = 5;
 		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
-		/* ieee80211_free_node(ni); */
 	}
 }
 
@@ -2968,8 +2964,7 @@ athn_stop(struct athn_softc *sc, int disable)
 	struct ieee80211vap *nvap;
 	int qid;
 
-	/* XXX timer logic? */
-	//i*fp->if_timer = sc->sc_tx_timer = 0;
+	sc->sc_tx_timer = 0;
 	sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
 
 	/* Stop all scans. */
