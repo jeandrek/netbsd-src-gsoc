@@ -20,6 +20,7 @@
 /*
  * USB front-end for Atheros AR9271 and AR7010 chipsets.
  */
+/* XXX: Not yet converted; just modified so athn(4) compiles */
 
 #include <sys/cdefs.h>
 __KERNEL_RCSID(0, "$NetBSD: if_athn_usb.c,v 1.38 2020/03/14 02:35:33 christos Exp $");
