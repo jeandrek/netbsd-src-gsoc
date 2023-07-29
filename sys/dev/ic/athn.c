@@ -61,7 +61,7 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 
 #include <net80211/ieee80211_netbsd.h>
 #include <net80211/ieee80211_var.h>
-#include <net80211/ieee80211_radiotap.h>
+//#include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
@@ -2467,18 +2467,20 @@ athn_newassoc(struct ieee80211_node *ni, int isnew)
 // 	return error;
 // }
 
-/* XXX fix scanning */
+/* XXX Is this necessary? */
 Static void
 athn_next_scan(void *arg)
 {
+#if 0
 	struct ieee80211vap *vap = arg;
 	//struct ieee80211com *ic = vap->iv_ic;
 	int s;
 
 	s = splnet();
 	if (vap->iv_state == IEEE80211_S_SCAN)
-	//	ieee80211_next_scan();
+		ieee80211_next_scan();
 	splx(s);
+#endif
 }
 
 Static void
@@ -2722,9 +2724,7 @@ athn_watchdog(void *arg)
 Static void
 athn_set_multi(struct ieee80211com *ic)
 {
-
-	printf("ATHN: set_multi not implemented yet\n");
-#ifdef notyet
+#if 0
 	struct ethercom *ec = &sc->sc_ec;
 	struct ifnet *ifp = &ec->ec_if;
 	struct ether_multi *enm;
@@ -2762,10 +2762,14 @@ athn_set_multi(struct ieee80211com *ic)
  done:
 	ETHER_UNLOCK(ec);
  done2:
+#else
+	uint32_t lo, hi;
+
+	lo = hi = 0xffffffff;
+#endif
 	AR_WRITE(sc, AR_MCAST_FIL0, lo);
 	AR_WRITE(sc, AR_MCAST_FIL1, hi);
 	AR_WRITE_BARRIER(sc);
-#endif
 }
 
 /* XXX handle ENETRESET with iv_reset? */
@@ -2855,8 +2859,6 @@ athn_init(struct athn_softc *sc)
 	if (device_is_active(sc->sc_dev)) {
 		athn_stop(sc, 0);	/* see athn_watchdog() */
 	} else {
-		//short flags = i*fp->if_flags;
-		//i*fp->if_flags &= ~IFF_UP;
 		/* avoid recursion in athn_resume */
 		if (!pmf_device_subtree_resume(sc->sc_dev, &sc->sc_qual) ||
 		    !device_is_active(sc->sc_dev)) {
@@ -2864,7 +2866,6 @@ athn_init(struct athn_softc *sc)
 			    device_xname(sc->sc_dev));
 			return 0;
 		}
-		//i*fp->if_flags = flags;
 	}
 
 	curchan = ic->ic_curchan;
