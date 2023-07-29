@@ -1173,6 +1173,7 @@ ath_stop_locked(struct ath_softc *sc, int disable)
 		sc->sc_tx99->stop(sc->sc_tx99);
 #endif
 	if (device_is_enabled(sc->sc_dev)) {
+		callout_stop(&sc->sc_watchdog_ch);
 		if (sc->sc_softled) {
 			callout_stop(&sc->sc_ledtimer);
 			ath_hal_gpioset(ah, sc->sc_ledpin,
@@ -4733,7 +4734,6 @@ ath_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 #if 0
 	callout_stop(&sc->sc_dfs_ch);
 #endif
-	callout_stop(&sc->sc_watchdog_ch);
 	ath_hal_setledstate(ah, leds[nstate]);	/* set LED */
 
 	if (nstate == IEEE80211_S_INIT) {
