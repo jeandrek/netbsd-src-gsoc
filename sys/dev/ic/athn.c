@@ -385,6 +385,7 @@ athn_detach(struct athn_softc *sc)
 	int qid;
 
 	callout_halt(&sc->sc_calib_to, NULL);
+	callout_stop(&sc->sc_watchdog_to);
 
 	if (!(sc->sc_flags & ATHN_FLAG_USB)) {
 		for (qid = 0; qid < ATHN_QID_COUNT; qid++)
@@ -413,6 +414,7 @@ athn_detach(struct athn_softc *sc)
 	*/
 
 	callout_destroy(&sc->sc_calib_to);
+	callout_destroy(&sc->sc_watchdog_to);
 
 	pmf_event_deregister(sc->sc_dev, PMFE_RADIO_OFF, athn_pmf_wlan_off,
 	    false);
@@ -2965,6 +2967,7 @@ athn_stop(struct athn_softc *sc, int disable)
 	sc->sc_tx_timer = 0;
 	sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
 
+	callout_stop(&sc->sc_watchdog_to);
 	/* Stop all scans. */
 	TAILQ_FOREACH(nvap, &ic->ic_vaps, iv_next) {
 		callout_stop(&(((struct athn_vap *)nvap)->av_scan_to));
