@@ -59,6 +59,7 @@ __KERNEL_RCSID(0, "$NetBSD: athrate-amrr.c,v 1.13 2019/11/10 21:16:35 chs Exp $"
 #include <sys/sysctl.h>
 #include <sys/kernel.h>
 #include <sys/errno.h>
+#include <sys/device.h>
 #include <sys/bus.h>
 #include <sys/socket.h>
  
@@ -75,6 +76,7 @@ __KERNEL_RCSID(0, "$NetBSD: athrate-amrr.c,v 1.13 2019/11/10 21:16:35 chs Exp $"
 #include <netinet/in.h> 
 #endif
 
+#include "ah_desc.h"
 #include <dev/ic/athvar.h>
 #include <dev/ic/athrate-amrr.h>
 
@@ -250,7 +252,7 @@ ath_rate_update(struct ath_softc *sc, struct ieee80211_node *ni, int rate)
 				/* NB: only do this if we didn't already do it above */
 				amn->amn_tx_rate3 = rt->info[0].rateCode;
 				amn->amn_tx_rate3sp =
-					an->an_tx_rate3 | rt->info[0].shortPreamble;
+					amn->amn_tx_rate3 | rt->info[0].shortPreamble;
 			} else {
 				amn->amn_tx_rate3 = amn->amn_tx_rate3sp = 0;
 			}
@@ -277,11 +279,12 @@ static void
 ath_rate_ctl_start(struct ath_softc *sc, struct ieee80211_node *ni)
 {
 #define	RATE(_ix)	(ni->ni_rates.rs_rates[(_ix)] & IEEE80211_RATE_VAL)
-	struct ieee80211com *ic = &sc->sc_ic;
 	int srate;
 
 	KASSERTMSG(ni->ni_rates.rs_nrates > 0, "no rates");
+#if 0
 	if (ic->ic_fixed_rate == IEEE80211_FIXED_RATE_NONE) {
+#endif
 		/*
 		 * No fixed rate is requested. For 11b start with
 		 * the highest negotiated rate; otherwise, for 11g
@@ -298,6 +301,7 @@ ath_rate_ctl_start(struct ath_softc *sc, struct ieee80211_node *ni)
 				;
 			KASSERTMSG(srate >= 0, "bogus rate set");
 		}
+#if 0
 	} else {
 		/*
 		 * A fixed rate is to be used; ic_fixed_rate is an
@@ -316,6 +320,7 @@ ath_rate_ctl_start(struct ath_softc *sc, struct ieee80211_node *ni)
 		KASSERTMSG(srate >= 0,
 			"fixed rate %d not in rate set", ic->ic_fixed_rate);
 	}
+#endif
 	ath_rate_update(sc, ni, srate);
 #undef RATE
 }
@@ -332,10 +337,11 @@ ath_rate_cb(void *arg, struct ieee80211_node *ni)
  * Reset the rate control state for each 802.11 state transition.
  */
 void
-ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
+ath_rate_newstate(struct ieee80211vap *vap, enum ieee80211_state state)
 {
+	struct ieee80211com *ic = vap->iv_ic;
+	struct ath_softc *sc = ic->ic_softc;
 	struct amrr_softc *asc = (struct amrr_softc *) sc->sc_rc;
-	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_node *ni;
 
 	if (state == IEEE80211_S_INIT) {
@@ -347,7 +353,7 @@ ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
 		 * Reset local xmit state; this is really only
 		 * meaningful when operating in station mode.
 		 */
-		ni = ic->ic_bss;
+		ni = vap->iv_bss;
 		if (state == IEEE80211_S_RUN) {
 			ath_rate_ctl_start(sc, ni);
 		} else {
@@ -361,10 +367,14 @@ ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
 		 * tx rate state of each node.
 		 */
 		ieee80211_iterate_nodes(&ic->ic_sta, ath_rate_cb, sc);
-		ath_rate_update(sc, ic->ic_bss, 0);
+		ath_rate_update(sc, vap->iv_bss, 0);
 	}
+#if 0
 	if (ic->ic_fixed_rate == IEEE80211_FIXED_RATE_NONE &&
 	    state == IEEE80211_S_RUN) {
+#else
+	if (state == IEEE80211_S_RUN) {
+#endif
 		int interval;
 		/*
 		 * Start the background rate control thread if we
@@ -374,7 +384,7 @@ ath_rate_newstate(struct ath_softc *sc, enum ieee80211_state state)
 		if (ic->ic_opmode == IEEE80211_M_STA)
 			interval /= 2;
 		callout_reset(&asc->timer, (interval * hz) / 1000,
-			ath_ratectl, &sc->sc_if);
+			ath_ratectl, sc);
 	}
 }
 
@@ -424,8 +434,9 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
   			if (amn->amn_recovery) {
   				/* recovery failure. */
   				amn->amn_success_threshold *= 2;
-  				amn->amn_success_threshold = min (amn->amn_success_threshold,
-								  (u_int)ath_rate_max_success_threshold);
+  				amn->amn_success_threshold =
+					MIN(amn->amn_success_threshold,
+					 (u_int)ath_rate_max_success_threshold);
  				DPRINTF (sc, "decrease rate recovery thr: %d\n", amn->amn_success_threshold);
   			} else {
   				/* simple failure. */
@@ -455,43 +466,49 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
 static void
 ath_ratectl(void *arg)
 {
-	struct ifnet *ifp = arg;
-	struct ath_softc *sc = ifp->if_softc;
+	struct ath_softc *sc = arg;
 	struct amrr_softc *asc = (struct amrr_softc *) sc->sc_rc;
 	struct ieee80211com *ic = &sc->sc_ic;
 	int interval;
 
-	if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
+	if (ic->ic_nrunning > 0) {
 		sc->sc_stats.ast_rate_calls++;
 
-		if (ic->ic_opmode == IEEE80211_M_STA)
+		if (ic->ic_opmode == IEEE80211_M_STA) {
+#if 0
 			ath_rate_ctl(sc, ic->ic_bss);	/* NB: no reference */
-		else
+#else
+			struct ieee80211vap *vap;
+
+			TAILQ_FOREACH(vap, &ic->ic_vaps, iv_next)
+				ath_rate_ctl(sc, vap->iv_bss);
+#endif
+		} else
 			ieee80211_iterate_nodes(&ic->ic_sta, ath_rate_ctl, sc);
 	}
 	interval = ath_rateinterval;
 	if (ic->ic_opmode == IEEE80211_M_STA)
 		interval /= 2;
 	callout_reset(&asc->timer, (interval * hz) / 1000,
-		ath_ratectl, &sc->sc_if);
+		ath_ratectl, sc);
 }
 
 static void
 ath_rate_sysctlattach(struct ath_softc *sc)
 {
-	struct sysctl_ctx_list *ctx = device_get_sysctl_ctx(sc->sc_dev);
-	struct sysctl_oid *tree = device_get_sysctl_tree(sc->sc_dev);
+	struct sysctllog **clog = &sc->sc_sysctllog;
+	const struct sysctlnode *cnode, *rnode;
 
-	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
-		"rate_interval", CTLFLAG_RW, &ath_rateinterval, 0,
-		"rate control: operation interval (ms)");
+	if ((rnode = ath_sysctl_treetop(NULL)) == NULL)
+		return;
+
+	SYSCTL_GLOBAL_INT(CTLFLAG_READWRITE, "rate_interval",
+	    "rate control: operation interval (ms)", rateinterval);
 	/* XXX bounds check values */
-	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
-		"max_sucess_threshold", CTLFLAG_RW,
-		&ath_rate_max_success_threshold, 0, "");
-	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
-		"min_sucess_threshold", CTLFLAG_RW,
-		&ath_rate_min_success_threshold, 0, "");
+	SYSCTL_GLOBAL_INT(CTLFLAG_READWRITE, "max_success_threshold",
+	    "rate control: max success threshold", rate_max_success_threshold);
+	SYSCTL_GLOBAL_INT(CTLFLAG_READWRITE, "min_success_threshold",
+	    "rate control: min success threshold", rate_min_success_threshold);
 }
 
 struct ath_ratectrl *
@@ -501,7 +518,7 @@ ath_rate_attach(struct ath_softc *sc)
 
 	asc = malloc(sizeof(struct amrr_softc), M_DEVBUF, M_WAITOK|M_ZERO);
 	asc->arc.arc_space = sizeof(struct amrr_node);
-	callout_init(&asc->timer, debug_mpsafenet ? CALLOUT_MPSAFE : 0);
+	callout_init(&asc->timer, 0);
 	ath_rate_sysctlattach(sc);
 
 	return &asc->arc;

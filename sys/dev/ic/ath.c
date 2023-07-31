@@ -1173,6 +1173,7 @@ ath_stop_locked(struct ath_softc *sc, int disable)
 		sc->sc_tx99->stop(sc->sc_tx99);
 #endif
 	if (device_is_enabled(sc->sc_dev)) {
+		callout_stop(&sc->sc_watchdog_ch);
 		if (sc->sc_softled) {
 			callout_stop(&sc->sc_ledtimer);
 			ath_hal_gpioset(ah, sc->sc_ledpin,
@@ -4135,7 +4136,7 @@ ath_tx_processq(struct ath_softc *sc, struct ath_txq *txq)
 		bus_dmamap_sync(sc->sc_dmat, bf->bf_dmamap, 0,
 		    bf->bf_dmamap->dm_mapsize, BUS_DMASYNC_POSTWRITE);
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
-		ieee80211_tx_complete(ni, bf->bf_m, 0);
+		ieee80211_tx_complete(ni, bf->bf_m, 0); /* XXX status? */
 		bf->bf_m = NULL;
 		bf->bf_node = NULL;
 
@@ -4293,7 +4294,7 @@ ath_tx_draintxq(struct ath_softc *sc, struct ath_txq *txq)
 		bus_dmamap_unload(sc->sc_dmat, bf->bf_dmamap);
 		ni = bf->bf_node;
 		bf->bf_node = NULL;
-		ieee80211_tx_complete(ni, bf->bf_m, 0);
+		ieee80211_tx_complete(ni, bf->bf_m, 0); /* XXX status? */
 		bf->bf_m = NULL;
 		ATH_TXBUF_LOCK(sc);
 		STAILQ_INSERT_TAIL(&sc->sc_txbuf, bf, bf_list);
@@ -4733,7 +4734,6 @@ ath_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 #if 0
 	callout_stop(&sc->sc_dfs_ch);
 #endif
-	callout_stop(&sc->sc_watchdog_ch);
 	ath_hal_setledstate(ah, leds[nstate]);	/* set LED */
 
 	if (nstate == IEEE80211_S_INIT) {
