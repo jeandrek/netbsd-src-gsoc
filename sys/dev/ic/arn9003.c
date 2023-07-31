@@ -1110,7 +1110,7 @@ ar9003_tx_process(struct athn_softc *sc)
 {
 	struct ifnet *ifp = NULL;
 	struct athn_txq *txq;
-	struct athn_node *an;
+	// struct athn_node *an;
 	struct athn_tx_buf *bf;
 	struct ar_tx_status *ds;
 	uint8_t qid, failcnt;
@@ -1155,7 +1155,7 @@ ar9003_tx_process(struct athn_softc *sc)
 	// if (bf->bf_txflags & ATHN_TXFLAG_PAPRD)
 	// 	ar9003_paprd_tx_tone_done(sc);
 
-	an = (struct athn_node *)bf->bf_ni;
+	// an = (struct athn_node *)bf->bf_ni;
 	/*
 	 * NB: the data fail count contains the number of un-acked tries
 	 * for the final series used.  We must add the number of tries for
@@ -1166,9 +1166,11 @@ ar9003_tx_process(struct athn_softc *sc)
 	failcnt += MS(ds->ds_status8, AR_TXS8_FINAL_IDX) * 2;
 
 	/* Update rate control statistics. */
+#if 0
 	an->amn.amn_txcnt++;
 	if (failcnt > 0)
 		an->amn.amn_retrycnt++;
+#endif
 
 	DPRINTFN(DBG_TX, sc, "Tx done qid=%d status3=%d fail count=%d\n",
 	    qid, ds->ds_status3, failcnt);

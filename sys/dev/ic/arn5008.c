@@ -994,7 +994,7 @@ Static int
 ar5008_tx_process(struct athn_softc *sc, int qid)
 {
 	struct athn_txq *txq = &sc->sc_txq[qid];
-	struct athn_node *an;
+	// struct athn_node *an;
 	struct athn_tx_buf *bf;
 	struct ar_tx_desc *ds;
 	struct ifnet *ifp = NULL;
@@ -1021,7 +1021,7 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 	if (ds->ds_status1 & AR_TXS1_UNDERRUN)
 		athn_inc_tx_trigger_level(sc);
 
-	an = (struct athn_node *)bf->bf_ni;
+	// an = (struct athn_node *)bf->bf_ni;
 	/*
 	 * NB: the data fail count contains the number of un-acked tries
 	 * for the final series used.  We must add the number of tries for
@@ -1031,10 +1031,12 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 	/* NB: Assume two tries per series. */
 	failcnt += MS(ds->ds_status9, AR_TXS9_FINAL_IDX) * 2;
 
+#if 0
 	/* Update rate control statistics. */
 	an->amn.amn_txcnt++;
 	if (failcnt > 0)
 		an->amn.amn_retrycnt++;
+#endif
 
 	DPRINTFN(DBG_TX, sc, "Tx done qid=%d status1=%d fail count=%d\n",
 	    qid, ds->ds_status1, failcnt);

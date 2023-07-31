@@ -1273,8 +1273,8 @@ athn_btcoex_disable(struct athn_softc *sc)
 Static void
 athn_iter_func(void *arg, struct ieee80211_node *ni)
 {
-	struct athn_softc *sc = arg;
-	struct ieee80211vap *vap = ni->ni_vap;
+	//struct athn_softc *sc = arg;
+	//struct ieee80211vap *vap = ni->ni_vap;
 
 	/* XXX */
 	// ieee80211_ratectl_tx_update(...)
@@ -1286,6 +1286,7 @@ athn_calib_to(void *arg)
 {
 	struct athn_softc *sc = arg;
 	struct athn_ops *ops = &sc->sc_ops;
+	struct ieee80211com *ic = &sc->sc_ic;
 	int s;
 
 	s = splnet();
@@ -2726,6 +2727,7 @@ athn_watchdog(void *arg)
 Static void
 athn_set_multi(struct ieee80211com *ic)
 {
+	struct athn_softc *sc = ic->ic_softc;
 #if 0
 	struct ethercom *ec = &sc->sc_ec;
 	struct ifnet *ifp = &ec->ec_if;
