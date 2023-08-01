@@ -1024,11 +1024,6 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 	ni = bf->bf_ni;
 
 	/* Update rate control statistics. */
-	/*
-	 * NB: the data fail count contains the number of un-acked tries
-	 * for the final series used.  We must add the number of tries for
-	 * each series that was fully processed.
-	 */
 	txs.flags =
 	    IEEE80211_RATECTL_STATUS_SHORT_RETRY |
 	    IEEE80211_RATECTL_STATUS_LONG_RETRY;
@@ -1037,6 +1032,11 @@ ar5008_tx_process(struct athn_softc *sc, int qid)
 		txs.status = IEEE80211_RATECTL_TX_FAIL_UNSPECIFIED;
 	else
 		txs.status = IEEE80211_RATECTL_TX_SUCCESS;
+	/*
+	 * NB: the data fail count contains the number of un-acked tries
+	 * for the final series used.  We must add the number of tries for
+	 * each series that was fully processed.
+	 */
 	/* XXX Old code only increments amn_retrycnt once? */
 	txs.short_retries = MS(ds->ds_status1, AR_TXS1_DATA_FAIL_CNT);
 	/* NB: Assume two tries per series.  Should this still be done? */

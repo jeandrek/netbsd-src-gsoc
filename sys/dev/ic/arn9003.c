@@ -57,8 +57,8 @@ __KERNEL_RCSID(0, "$NetBSD: arn9003.c,v 1.15 2020/01/29 14:09:58 thorpej Exp $")
 
 #include <net80211/ieee80211_netbsd.h>
 #include <net80211/ieee80211_var.h>
-#include <net80211/ieee80211_amrr.h>
 #include <net80211/ieee80211_radiotap.h>
+#include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
 #include <dev/ic/athnreg.h>
@@ -1109,11 +1109,12 @@ Static int
 ar9003_tx_process(struct athn_softc *sc)
 {
 	struct ifnet *ifp = NULL;
+	struct ieee80211_ratectl_tx_status txs;
 	struct athn_txq *txq;
-	// struct athn_node *an;
+	struct ieee80211_node *ni;
 	struct athn_tx_buf *bf;
 	struct ar_tx_status *ds;
-	uint8_t qid, failcnt;
+	uint8_t qid;
 
 	ds = &((struct ar_tx_status *)sc->sc_txsring)[sc->sc_txscur];
 	if (!(ds->ds_status8 & AR_TXS8_DONE))
@@ -1155,25 +1156,30 @@ ar9003_tx_process(struct athn_softc *sc)
 	// if (bf->bf_txflags & ATHN_TXFLAG_PAPRD)
 	// 	ar9003_paprd_tx_tone_done(sc);
 
-	// an = (struct athn_node *)bf->bf_ni;
+	ni = bf->bf_ni;
+
+	/* Update rate control statistics. */
+	txs.flags =
+	    IEEE80211_RATECTL_STATUS_SHORT_RETRY |
+	    IEEE80211_RATECTL_STATUS_LONG_RETRY;
+	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES)
+		/* XXX Short or long? */
+		txs.status = IEEE80211_RATECTL_TX_FAIL_UNSPECIFIED;
+	else
+		txs.status = IEEE80211_RATECTL_TX_SUCCESS;
 	/*
 	 * NB: the data fail count contains the number of un-acked tries
 	 * for the final series used.  We must add the number of tries for
 	 * each series that was fully processed.
 	 */
-	failcnt  = MS(ds->ds_status3, AR_TXS3_DATA_FAIL_CNT);
-	/* NB: Assume two tries per series. */
-	failcnt += MS(ds->ds_status8, AR_TXS8_FINAL_IDX) * 2;
-
-	/* Update rate control statistics. */
-#if 0
-	an->amn.amn_txcnt++;
-	if (failcnt > 0)
-		an->amn.amn_retrycnt++;
-#endif
+	/* XXX Old code only increments amn_retrycnt once? */
+	txs.short_retries = MS(ds->ds_status3, AR_TXS3_DATA_FAIL_CNT);
+	/* NB: Assume two tries per series.  Should this still be done? */
+	txs.long_retries = MS(ds->ds_status8, AR_TXS8_FINAL_IDX) * 2;
+	ieee80211_ratectl_tx_complete(ni, &txs);
 
 	DPRINTFN(DBG_TX, sc, "Tx done qid=%d status3=%d fail count=%d\n",
-	    qid, ds->ds_status3, failcnt);
+	    qid, ds->ds_status3, txs.short_retries + txs.long_retries);
 
 	/* Reset Tx status descriptor. */
 	memset(ds, 0, sizeof(*ds));
