@@ -1273,12 +1273,7 @@ athn_btcoex_disable(struct athn_softc *sc)
 Static void
 athn_iter_func(void *arg, struct ieee80211_node *ni)
 {
-	//struct athn_softc *sc = arg;
-	//struct ieee80211vap *vap = ni->ni_vap;
-
-	/* XXX */
-	// ieee80211_ratectl_tx_update(...)
-	// ieee80211_ratectl_rate(ni, NULL, 0);
+	ieee80211_ratectl_rate(ni, NULL, 0);
 }
 
 Static void
@@ -3149,7 +3144,7 @@ athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 	vap->newstate = vap->vap.iv_newstate;
 	vap->vap.iv_newstate = athn_newstate;
 
-	// ieee80211_ratectl_init(&vap->vap);
+	ieee80211_ratectl_init(&vap->vap);
 
 	/*
 	 * In HostAP mode, the number of STAs that we can handle is
@@ -3180,7 +3175,7 @@ athn_vap_delete(struct ieee80211vap *arg)
 	callout_halt(&vap->av_scan_to, NULL);
 	callout_destroy(&vap->av_scan_to);
 	bpf_detach(ifp);
-	// ieee80211_ratectl_deinit(arg);
+	ieee80211_ratectl_deinit(arg);
 	ieee80211_vap_detach(arg);
 	kmem_free(vap, sizeof(*vap));
 }
