@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_ratectl.c,v 1.1.2.5 2019/11/19 19:17:48 phil Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2010 Rui Paulo <rpaulo@FreeBSD.org>
  * All rights reserved.

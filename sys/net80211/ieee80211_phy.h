@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_phy.h,v 1.1.2.3 2018/07/12 16:35:34 phil Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2007-2008 Sam Leffler, Errno Consulting
  * All rights reserved.

@@ -1,7 +1,7 @@
 /* $NetBSD: ieee80211_netbsd.c,v 1.31.2.10 2020/04/16 15:30:00 nat Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2003-2009 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -579,7 +579,6 @@ ieee80211_sysctl_vdetach(struct ieee80211vap *vap)
 	}
 }
 
-#define	MS(_v, _f)	(((_v) & _f##_M) >> _f##_S)
 int
 ieee80211_com_vincref(struct ieee80211vap *vap)
 {
@@ -592,7 +591,8 @@ ieee80211_com_vincref(struct ieee80211vap *vap)
 		return (ENETDOWN);
 	}
 
-	if (MS(ostate, IEEE80211_COM_REF) == IEEE80211_COM_REF_MAX) {
+	if (_IEEE80211_MASKSHIFT(ostate, IEEE80211_COM_REF) ==
+             IEEE80211_COM_REF_MAX) {
 		atomic_add_32(&vap->iv_com_state, -IEEE80211_COM_REF_ADD);
 		return (EOVERFLOW);
 	}
@@ -607,7 +607,7 @@ ieee80211_com_vdecref(struct ieee80211vap *vap)
 
 	ostate = atomic_add_32_nv(&vap->iv_com_state, -IEEE80211_COM_REF_ADD);
 
-	KASSERTMSG(MS(ostate, IEEE80211_COM_REF) != 0,
+	KASSERTMSG(_IEEE80211_MASKSHIFT(ostate, IEEE80211_COM_REF) != 0,
 	    "com reference counter underflow: %u", ostate);
 }
 
@@ -618,7 +618,8 @@ ieee80211_com_vdetach(struct ieee80211vap *vap)
 
 	sleep_time = msecs_to_ticks(250);
 	atomic_swap_32(&vap->iv_com_state, IEEE80211_COM_DETACHED);
-	while (MS(atomic_load_relaxed(&vap->iv_com_state), IEEE80211_COM_REF) != 0)
+	while (_IEEE80211_MASKSHIFT(atomic_load_relaxed(&vap->iv_com_state),
+                                    IEEE80211_COM_REF) != 0)
 		kpause("comref", false, sleep_time, NULL);
 }
 #undef	MS
@@ -975,7 +976,7 @@ ieee80211_vap_xmitpkt(struct ieee80211vap *vap, struct mbuf *m)
 }
 
 void
-get_random_bytes(void *p, size_t n)
+net80211_get_random_bytes(void *p, size_t n)
 {
 	uint8_t *dp = p;
 
