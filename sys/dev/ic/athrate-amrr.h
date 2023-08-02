@@ -50,6 +50,7 @@ struct amrr_softc {
 
 /* per-node state */
 struct amrr_node {
+	int		amn_rix;	/* current rate index */
   	/* AMRR statistics for this node */
   	u_int           amn_tx_try0_cnt;
   	u_int           amn_tx_try1_cnt;

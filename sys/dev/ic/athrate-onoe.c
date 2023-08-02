@@ -199,7 +199,6 @@ ath_rate_update(struct ath_softc *sc, struct ieee80211_node *ni, int rate)
 	    ni->ni_rates.rs_nrates > 0 ?
 		(ni->ni_rates.rs_rates[rate] & IEEE80211_RATE_VAL) / 2 : 0);
 
-	ni->ni_txrate = rate;
 	/*
 	 * Before associating a node has no rate set setup
 	 * so we can't calculate any transmit codes to use.
@@ -209,8 +208,9 @@ ath_rate_update(struct ath_softc *sc, struct ieee80211_node *ni, int rate)
 	 */
 	if (ni->ni_rates.rs_nrates == 0)
 		goto done;
-	on->on_tx_rix0 = sc->sc_rixmap[
-		ni->ni_rates.rs_rates[rate] & IEEE80211_RATE_VAL];
+	on->on_rix = rate;
+	ni->ni_txrate = ni->ni_rates.rs_rates[rate] & IEEE80211_RATE_VAL;
+	on->on_tx_rix0 = sc->sc_rixmap[ni->ni_txrate];
 	on->on_tx_rate0 = rt->info[on->on_tx_rix0].rateCode;
 	
 	on->on_tx_rate0sp = on->on_tx_rate0 |
@@ -411,7 +411,7 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
 		on->on_tx_ok, on->on_tx_err, on->on_tx_retr,
 		on->on_tx_upper, dir);
 
-	nrate = ni->ni_txrate;
+	nrate = on->on_rix;
 	switch (dir) {
 	case 0:
 		if (enough && on->on_tx_upper > 0)
@@ -436,10 +436,10 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
 		break;
 	}
 
-	if (nrate != ni->ni_txrate) {
+	if (nrate != on->on_rix) {
 		DPRINTF(sc, "%s: %dM -> %dM (%d ok, %d err, %d retr)\n",
 		    __func__,
-		    (rs->rs_rates[ni->ni_txrate] & IEEE80211_RATE_VAL) / 2,
+		    ni->ni_txrate / 2,
 		    (rs->rs_rates[nrate] & IEEE80211_RATE_VAL) / 2,
 		    on->on_tx_ok, on->on_tx_err, on->on_tx_retr);
 		ath_rate_update(sc, ni, nrate);

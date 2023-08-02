@@ -211,7 +211,7 @@ ath_rate_update(struct ath_softc *sc, struct ieee80211_node *ni, int rate)
 	    ni->ni_rates.rs_nrates > 0 ?
 		(ni->ni_rates.rs_rates[rate] & IEEE80211_RATE_VAL) / 2 : 0);
 
-	ni->ni_txrate = rate;
+	amn->amn_rix = rate;
 	/*
 	 * Before associating a node has no rate set setup
 	 * so we can't calculate any transmit codes to use.
@@ -220,8 +220,8 @@ ath_rate_update(struct ath_softc *sc, struct ieee80211_node *ni, int rate)
 	 * lowest hardware rate.
 	 */
 	if (ni->ni_rates.rs_nrates > 0) {
-		amn->amn_tx_rix0 = sc->sc_rixmap[
-					       ni->ni_rates.rs_rates[rate] & IEEE80211_RATE_VAL];
+		ni->ni_txrate = ni->ni_rates.rs_rates[rate] & IEEE80211_RATE_VAL;
+		amn->amn_tx_rix0 = sc->sc_rixmap[ni->ni_txrate];
 		amn->amn_tx_rate0 = rt->info[amn->amn_tx_rix0].rateCode;
 		amn->amn_tx_rate0sp = amn->amn_tx_rate0 |
 			rt->info[amn->amn_tx_rix0].shortPreamble;
@@ -396,7 +396,7 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
 {
 	struct ath_softc *sc = arg;
 	struct amrr_node *amn = ATH_NODE_AMRR(ATH_NODE (ni));
-	int old_rate;
+	int rix;
 
 #define is_success(amn) \
 (amn->amn_tx_try1_cnt  < (amn->amn_tx_try0_cnt/10))
@@ -404,12 +404,8 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
 (amn->amn_tx_try0_cnt > 10)
 #define is_failure(amn) \
 (amn->amn_tx_try1_cnt > (amn->amn_tx_try0_cnt/3))
-#define is_max_rate(ni) \
-((ni->ni_txrate + 1) >= ni->ni_rates.rs_nrates)
-#define is_min_rate(ni) \
-(ni->ni_txrate == 0)
 
-	old_rate = ni->ni_txrate;
+	rix = amn->amn_rix;
   
   	DPRINTF (sc, "cnt0: %d cnt1: %d cnt2: %d cnt3: %d -- threshold: %d\n",
 		 amn->amn_tx_try0_cnt,
@@ -420,17 +416,17 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
   	if (is_success (amn) && is_enough (amn)) {
 		amn->amn_success++;
 		if (amn->amn_success == amn->amn_success_threshold &&
-  		    !is_max_rate (ni)) {
-  			amn->amn_recovery = 1;
-  			amn->amn_success = 0;
-  			ni->ni_txrate++;
-			DPRINTF (sc, "increase rate to %d\n", ni->ni_txrate);
+		    rix + 1 < ni->ni_rates.rs_nrates) {
+			amn->amn_recovery = 1;
+			amn->amn_success = 0;
+			rix++;
+			DPRINTF (sc, "increase rate to %d\n", rix_;
   		} else {
 			amn->amn_recovery = 0;
 		}
   	} else if (is_failure (amn)) {
   		amn->amn_success = 0;
-  		if (!is_min_rate (ni)) {
+		if (rix > 0) {
   			if (amn->amn_recovery) {
   				/* recovery failure. */
   				amn->amn_success_threshold *= 2;
@@ -444,13 +440,13 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
  				DPRINTF (sc, "decrease rate normal thr: %d\n", amn->amn_success_threshold);
   			}
 			amn->amn_recovery = 0;
-  			ni->ni_txrate--;
+			rix--;
    		} else {
 			amn->amn_recovery = 0;
 		}
 
    	}
-	if (is_enough (amn) || old_rate != ni->ni_txrate) {
+	if (is_enough (amn) || rix != amn->amn_rix) {
 		/* reset counters. */
 		amn->amn_tx_try0_cnt = 0;
 		amn->amn_tx_try1_cnt = 0;
@@ -458,8 +454,8 @@ ath_rate_ctl(void *arg, struct ieee80211_node *ni)
 		amn->amn_tx_try3_cnt = 0;
 		amn->amn_tx_failure_cnt = 0;
 	}
-	if (old_rate != ni->ni_txrate) {
-		ath_rate_update(sc, ni, ni->ni_txrate);
+	if (rix != amn->amn_rix) {
+		ath_rate_update(sc, ni, rix);
 	}
 }
 

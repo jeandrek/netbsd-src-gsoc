@@ -52,6 +52,7 @@ struct onoe_softc {
 
 /* per-node state */
 struct onoe_node {
+	int		on_rix;		/* current rate index */
 	u_int		on_tx_ok;	/* tx ok pkt */
 	u_int		on_tx_err;	/* tx !ok pkt */
 	u_int		on_tx_retr;	/* tx retry count */

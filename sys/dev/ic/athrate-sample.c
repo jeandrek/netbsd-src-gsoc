@@ -346,7 +346,7 @@ ath_rate_findrate(struct ath_softc *sc, struct ath_node *an,
 	    			 * set the visible txrate for this node
 			         * to the rate of small packets
 			         */
-				an->an_node.ni_txrate = ndx;
+				an->an_node.ni_txrate = sn->rates[ndx].rate;
 			}
 		}
 	}
@@ -695,7 +695,7 @@ ath_rate_ctl_reset(struct ath_softc *sc, struct ieee80211_node *ni)
 	DPRINTF(sc, "%s\n", "");
 	
 	/* set the visible bit-rate to the lowest one available */
-	ni->ni_txrate = 0;
+	ni->ni_txrate = sn->rates[0].rate;
 	sn->num_rates = ni->ni_rates.rs_nrates;
 	
 	for (y = 0; y < NUM_PACKET_SIZE_BINS; y++) {
@@ -738,7 +738,7 @@ ath_rate_ctl_reset(struct ath_softc *sc, struct ieee80211_node *ni)
 		sn->stats[1][sn->num_rates-1].perfect_tx_time
 	);
 
-	ni->ni_txrate = sn->current_rate[0];
+	ni->ni_txrate = sn->rates[sn->current_rate[0]].rate;
 #undef RATE
 }
 
