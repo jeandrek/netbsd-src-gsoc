@@ -1453,7 +1453,7 @@ ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
 	}
 #endif
 	else {
-		int txrate = ni->ni_txrate;
+		int txrate = an->txrate;
 		/* Use fallback table of the node. */
 		for (i = 0; i < 4; i++) {
 			ridx[i] = an->ridx[txrate];

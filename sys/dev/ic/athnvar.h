@@ -319,10 +319,11 @@ static const uint16_t ar_mcs_ndbps[][2] = {
 #define ATHN_POWER_COUNT	68
 
 struct athn_node {
-	struct ieee80211_node		ni;
-	uint8_t				ridx[IEEE80211_RATE_MAXSIZE];
-	uint8_t				fallback[IEEE80211_RATE_MAXSIZE];
-	uint8_t				sta_index;
+	struct ieee80211_node	ni;
+	uint8_t		ridx[IEEE80211_RATE_MAXSIZE];
+	uint8_t		fallback[IEEE80211_RATE_MAXSIZE];
+	uint8_t		sta_index;
+	uint8_t		txrate;		/* index to rs_rates */
 };
 
 /*

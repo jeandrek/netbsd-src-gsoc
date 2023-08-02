@@ -1273,7 +1273,9 @@ athn_btcoex_disable(struct athn_softc *sc)
 Static void
 athn_iter_func(void *arg, struct ieee80211_node *ni)
 {
-	ieee80211_ratectl_rate(ni, NULL, 0);
+	struct athn_node *an = ATHN_NODE(ni);
+
+	an->txrate = ieee80211_ratectl_rate(ni, NULL, 0);
 }
 
 Static void
@@ -2404,12 +2406,9 @@ athn_newassoc(struct ieee80211_node *ni, int isnew)
 	uint8_t rate;
 	int ridx, i, j;
 
-/* XXX*/
-#if 0
-	ieee80211_amrr_node_init(&sc->sc_amrr, &an->amn);
-#endif
 	/* Start at lowest available bit-rate, AMRR will raise. */
-	ni->ni_txrate = 0;
+	an->txrate = 0;
+	ni->ni_txrate = rs->rs_rates[0] & IEEE80211_RATE_VAL;
 
 	for (i = 0; i < rs->rs_nrates; i++) {
 		rate = rs->rs_rates[i] & IEEE80211_RATE_VAL;
