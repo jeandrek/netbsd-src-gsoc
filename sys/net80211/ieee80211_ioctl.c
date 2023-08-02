@@ -1,6 +1,6 @@
 /*	$NetBSD: ieee80211_ioctl.c,v 1.68 2021/07/24 21:31:38 andvar Exp $	*/
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -65,6 +65,7 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_ioctl.c,v 1.68 2021/07/24 21:31:38 andvar 
 #include <net/if_dl.h>
 #include <net/if_media.h>
 #if __FreeBSD__
+#include <net/if_private.h>
 #include <net/ethernet.h>
 #endif
 #if __NetBSD__
@@ -108,7 +109,8 @@ static int ieee80211_scanreq(struct ieee80211vap *,
 		struct ieee80211_scan_req *);
 
 static int
-ieee80211_ioctl_getkey(struct ieee80211vap *vap, struct ieee80211req *ireq)
+ieee80211_ioctl_getkey(u_long cmd, struct ieee80211vap *vap,
+    struct ieee80211req *ireq)
 {
 	struct ieee80211com *ic = vap->iv_ic;
 	struct ieee80211_node *ni;
@@ -368,7 +370,7 @@ ieee80211_ioctl_getscanresults(struct ieee80211vap *vap,
 		void *p;
 
 		space = req.space;
-		/* XXX M_WAITOK after driver lock released */
+		/* XXX IEEE80211_M_WAITOK after driver lock released */
 		p = IEEE80211_ZALLOC(space, M_TEMP,
 		    IEEE80211_M_NOWAIT);
 		if (p == NULL)
@@ -625,7 +627,7 @@ getstainfo_common(struct ieee80211vap *vap, struct ieee80211req *ireq,
 		req.space = ireq->i_len;
 	if (req.space > 0) {
 		space = req.space;
-		/* XXX M_WAITOK after driver lock released */
+		/* XXX IEEE80211_M_WAITOK after driver lock released */
 		p = IEEE80211_ZALLOC(space, M_TEMP,
 		    IEEE80211_M_NOWAIT);
 		if (p == NULL) {
@@ -927,7 +929,6 @@ static int
 ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
     struct ieee80211req *ireq)
 {
-#define	MS(_v, _f)	(((_v) & _f) >> _f##_S)
 	struct ieee80211com *ic = vap->iv_ic;
 	u_int kid, len;
 	uint8_t tmpkey[IEEE80211_KEYBUF_SIZE];
@@ -935,6 +936,13 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 	int error = 0;
 
 	switch (ireq->i_type) {
+	case IEEE80211_IOC_IC_NAME:
+		len = strlen(ic->ic_name) + 1;
+		if (len > ireq->i_len)
+			return (EINVAL);
+		ireq->i_len = len;
+		error = copyout(ic->ic_name, ireq->i_data, ireq->i_len);
+		break;
 	case IEEE80211_IOC_SSID:
 		switch (vap->iv_state) {
 		case IEEE80211_S_INIT:
@@ -1002,7 +1010,7 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 		ireq->i_val = vap->iv_rtsthreshold;
 		break;
 	case IEEE80211_IOC_PROTMODE:
-		ireq->i_val = ic->ic_protmode;
+		ireq->i_val = vap->iv_protmode;
 		break;
 	case IEEE80211_IOC_TXPOWER:
 		/*
@@ -1059,7 +1067,7 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 		ireq->i_val = (vap->iv_flags & IEEE80211_F_NOBRIDGE) == 0;
 		break;
 	case IEEE80211_IOC_WPAKEY:
-		error = ieee80211_ioctl_getkey(vap, ireq);
+		error = ieee80211_ioctl_getkey(cmd, vap, ireq);
 		break;
 	case IEEE80211_IOC_CHANINFO:
 		error = ieee80211_ioctl_getchaninfo(vap, ireq);
@@ -1182,7 +1190,7 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 			 * XXX TODO: this isn't completely correct, as we've
 			 * negotiated the higher of the two.
 			 */
-			ireq->i_val = MS(vap->iv_bss->ni_htparam,
+			ireq->i_val = _IEEE80211_MASKSHIFT( vap->iv_bss->ni_htparam,
 			    IEEE80211_HTCAP_MAXRXAMPDU);
 		else
 			ireq->i_val = vap->iv_ampdu_limit;
@@ -1195,7 +1203,7 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 			 * XXX TODO: this isn't completely correct, as we've
 			 * negotiated the higher of the two.
 			 */
-			ireq->i_val = MS(vap->iv_bss->ni_htparam,
+			ireq->i_val = _IEEE80211_MASKSHIFT(vap->iv_bss->ni_htparam,
 			    IEEE80211_HTCAP_MPDUDENSITY);
 		else
 			ireq->i_val = vap->iv_ampdu_density;
@@ -1253,7 +1261,7 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 		error = ieee80211_ioctl_getdevcaps(ic, ireq);
 		break;
 	case IEEE80211_IOC_HTPROTMODE:
-		ireq->i_val = ic->ic_htprotmode;
+		ireq->i_val = vap->iv_htprotmode;
 		break;
 	case IEEE80211_IOC_HTCONF:
 		if (vap->iv_flags_ht & IEEE80211_FHT_HT) {
@@ -1306,28 +1314,14 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 		if (vap->iv_flags_ext & IEEE80211_FEXT_UAPSD)
 			ireq->i_val = 1;
 		break;
-
-	/* VHT */
 	case IEEE80211_IOC_VHTCONF:
-		ireq->i_val = 0;
-		if (vap->iv_flags_vht & IEEE80211_FVHT_VHT)
-			ireq->i_val |= 1;
-		if (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT40)
-			ireq->i_val |= 2;
-		if (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT80)
-			ireq->i_val |= 4;
-		if (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT80P80)
-			ireq->i_val |= 8;
-		if (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT160)
-			ireq->i_val |= 16;
+		ireq->i_val = vap->iv_flags_vht & IEEE80211_FVHT_MASK;
 		break;
-
 	default:
 		error = ieee80211_ioctl_getdefault(vap, ireq);
 		break;
 	}
 	return error;
-#undef MS
 }
 
 static int
@@ -1755,7 +1749,7 @@ setmlme_assoc_adhoc(struct ieee80211vap *vap,
 	    "expected opmode IBSS or AHDEMO not %s",
 	    ieee80211_opmode_name[vap->iv_opmode]);
 
-	if (ssid_len == 0)
+	if (ssid_len == 0 || ssid_len > IEEE80211_NWID_LEN)
 		return EINVAL;
 
 	sr = IEEE80211_ZALLOC(sizeof(*sr), M_TEMP,
@@ -3077,11 +3071,13 @@ ieee80211_ioctl_set80211(struct ieee80211vap *vap, u_long cmd, struct ieee80211r
 	case IEEE80211_IOC_PROTMODE:
 		if (ireq->i_val > IEEE80211_PROT_RTSCTS)
 			return EINVAL;
-		ic->ic_protmode = (enum ieee80211_protmode)ireq->i_val;
+		vap->iv_protmode = (enum ieee80211_protmode)ireq->i_val;
 		/* NB: if not operating in 11g this can wait */
 		if (ic->ic_bsschan != IEEE80211_CHAN_ANYC &&
 		    IEEE80211_IS_CHAN_ANYG(ic->ic_bsschan))
 			error = ERESTART;
+		/* driver callback for protection mode update */
+		ieee80211_vap_update_erp_protmode(vap);
 		break;
 	case IEEE80211_IOC_TXPOWER:
 		if ((ic->ic_caps & IEEE80211_C_TXPMGT) == 0)
@@ -3548,11 +3544,13 @@ ieee80211_ioctl_set80211(struct ieee80211vap *vap, u_long cmd, struct ieee80211r
 	case IEEE80211_IOC_HTPROTMODE:
 		if (ireq->i_val > IEEE80211_PROT_RTSCTS)
 			return EINVAL;
-		ic->ic_htprotmode = ireq->i_val ?
+		vap->iv_htprotmode = ireq->i_val ?
 		    IEEE80211_PROT_RTSCTS : IEEE80211_PROT_NONE;
 		/* NB: if not operating in 11n this can wait */
 		if (isvapht(vap))
 			error = ERESTART;
+		/* Notify driver layer of HT protmode changes */
+		ieee80211_vap_update_ht_protmode(vap);
 		break;
 	case IEEE80211_IOC_STA_VLAN:
 		error = ieee80211_ioctl_setstavlan(vap, ireq);
@@ -3644,30 +3642,30 @@ ieee80211_ioctl_set80211(struct ieee80211vap *vap, u_long cmd, struct ieee80211r
 
 	/* VHT */
 	case IEEE80211_IOC_VHTCONF:
-		if (ireq->i_val & 1)
+		if (ireq->i_val & IEEE80211_FVHT_VHT)
 			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_VHT);
 		else
 			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_VHT);
 
-		if (ireq->i_val & 2)
+		if (ireq->i_val & IEEE80211_FVHT_USEVHT40)
 			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_USEVHT40);
 		else
 			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_USEVHT40);
 
-		if (ireq->i_val & 4)
+		if (ireq->i_val & IEEE80211_FVHT_USEVHT80)
 			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_USEVHT80);
 		else
 			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_USEVHT80);
 
-		if (ireq->i_val & 8)
-			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_USEVHT80P80);
-		else
-			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_USEVHT80P80);
-
-		if (ireq->i_val & 16)
+		if (ireq->i_val & IEEE80211_FVHT_USEVHT160)
 			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_USEVHT160);
 		else
 			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_USEVHT160);
+
+		if (ireq->i_val & IEEE80211_FVHT_USEVHT80P80)
+			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_USEVHT80P80);
+		else
+			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_USEVHT80P80);
 
 		error = ENETRESET;
 		break;
@@ -4162,6 +4160,13 @@ ieee80211_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 		}
 		chanreq->i_channel = ieee80211_chan2ieee(ic, chan);
 		break;
+#endif
+#if __FreeBSD__
+	case SIOCSIFLLADDR:
+		error = ieee80211_priv_check_vap_setmac(cmd, vap, ifp);
+		if (error == 0)
+			break;
+		/* Fallthrough */
 #endif
 	default:
 		/*

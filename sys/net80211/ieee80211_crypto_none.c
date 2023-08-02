@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_crypto_none.c,v 1.8.4.3 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
  * All rights reserved.

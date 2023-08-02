@@ -1,10 +1,9 @@
 /*	$NetBSD: ieee80211_mesh.h,v 1.1.2.2 2018/06/28 21:23:01 phil Exp $ */
 
 /*- 
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2009 The FreeBSD Foundation 
- * All rights reserved. 
  * 
  * This software was developed by Rui Paulo under sponsorship from the
  * FreeBSD Foundation. 
@@ -92,7 +91,6 @@ enum {
 
 /* Authentication Protocol Identifier */
 enum {
-	
 	IEEE80211_MESHCONF_AUTH_DISABLED	= 0,
 	/* Simultaneous Authenticaction of Equals */
 	IEEE80211_MESHCONF_AUTH_SEA		= 1,
