@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_action.c,v 1.1.2.3 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2009 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -47,7 +47,7 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_action.c,v 1.1.2.3 2019/06/10 22:09:46 chr
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/systm.h> 
- 
+
 #include <sys/socket.h>
 
 #include <net/if.h>

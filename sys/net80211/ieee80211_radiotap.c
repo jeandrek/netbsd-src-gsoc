@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_radiotap.c,v 1.1.2.3 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2009 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -47,9 +47,9 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_radiotap.c,v 1.1.2.3 2019/06/10 22:09:46 c
 #include <sys/mbuf.h>   
 #include <sys/endian.h>
 #include <sys/kernel.h>
- 
+
 #include <sys/socket.h>
- 
+
 #include <net/bpf.h>
 #include <net/if.h>
 #if __FreeBSD__
