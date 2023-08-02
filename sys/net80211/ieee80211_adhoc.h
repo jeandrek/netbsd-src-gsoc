@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_adhoc.h,v 1.1.2.2 2018/06/28 21:23:01 phil Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2007-2008 Sam Leffler, Errno Consulting
  * All rights reserved.

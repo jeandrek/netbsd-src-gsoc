@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_crypto_ccmp.c,v 1.19 2020/11/03 15:06:50 mlelstv Exp $	*/
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -233,7 +233,7 @@ ccmp_encap(struct ieee80211_key *k, struct mbuf *m)
 	/*
 	 * Copy down 802.11 header and add the IV, KeyID, and ExtIV.
 	 */
-	M_PREPEND(m, ccmp.ic_header, IEEE80211_M_NOWAIT);
+	M_PREPEND(m, ccmp.ic_header, M_NOWAIT);
 	if (m == NULL)
 		return 0;
 	ivp = mtod(m, uint8_t *);

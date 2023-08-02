@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_regdomain.c,v 1.1.56.4 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2005-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -134,11 +134,11 @@ ieee80211_init_channels(struct ieee80211com *ic,
 {
 	struct ieee80211_channel *chans = ic->ic_channels;
 	int *nchans = &ic->ic_nchans;
-	int cbw_flags = 0;
+	int ht40 = 0;
 
 	if (isset(bands, IEEE80211_MODE_11NG) || isset(bands, IEEE80211_MODE_11NA))
-		cbw_flags |= (ic->ic_htcaps & IEEE80211_HTCAP_CHWIDTH40) ?
-		    IEEE80211_CHAN_HT40 : IEEE80211_CHAN_HT20;
+		ht40 |= (ic->ic_htcaps & IEEE80211_HTCAP_CHWIDTH40) ?
+		    IEEE80211_CHAN_HT : IEEE80211_CHAN_HT20;
 	*nchans = 0;
 	if (isset(bands, IEEE80211_MODE_11B) ||
 	    isset(bands, IEEE80211_MODE_11G) ||
@@ -148,39 +148,19 @@ ieee80211_init_channels(struct ieee80211com *ic,
 			nchan -= 3;
 
 		ieee80211_add_channel_list_2ghz(chans, IEEE80211_CHAN_MAX,
-		    nchans, def_chan_2ghz, nchan, bands, cbw_flags);
+		    nchans, def_chan_2ghz, nchan, bands, ht40);
 	}
-	/* XXX IEEE80211_MODE_VHT_2GHZ if we really want to. */
-
 	if (isset(bands, IEEE80211_MODE_11A) ||
 	    isset(bands, IEEE80211_MODE_11NA)) {
 		ieee80211_add_channel_list_5ghz(chans, IEEE80211_CHAN_MAX,
 		    nchans, def_chan_5ghz_band1, nitems(def_chan_5ghz_band1),
-		    bands, cbw_flags);
+		    bands, ht40);
 		ieee80211_add_channel_list_5ghz(chans, IEEE80211_CHAN_MAX,
 		    nchans, def_chan_5ghz_band2, nitems(def_chan_5ghz_band2),
-		    bands, cbw_flags);
+		    bands, ht40);
 		ieee80211_add_channel_list_5ghz(chans, IEEE80211_CHAN_MAX,
 		    nchans, def_chan_5ghz_band3, nitems(def_chan_5ghz_band3),
-		    bands, cbw_flags);
-	}
-	if (isset(bands, IEEE80211_MODE_VHT_5GHZ)) {
-		cbw_flags |= NET80211_CBW_FLAG_HT40;  /* Make sure this is set; or assert?  */
-		cbw_flags |= NET80211_CBW_FLAG_VHT80;
-		if (IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_IS_160MHZ(ic->ic_vhtcaps))
-			cbw_flags |= NET80211_CBW_FLAG_VHT160;
-		if (IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_IS_160_80P80MHZ(
-		    ic->ic_vhtcaps))
-			cbw_flags |= NET80211_CBW_FLAG_VHT80P80;
-		ieee80211_add_channel_list_5ghz(chans, IEEE80211_CHAN_MAX,
-		    nchans, def_chan_5ghz_band1, nitems(def_chan_5ghz_band1),
-		    bands, cbw_flags);
-		ieee80211_add_channel_list_5ghz(chans, IEEE80211_CHAN_MAX,
-		    nchans, def_chan_5ghz_band2, nitems(def_chan_5ghz_band2),
-		    bands, cbw_flags);
-		ieee80211_add_channel_list_5ghz(chans, IEEE80211_CHAN_MAX,
-		    nchans, def_chan_5ghz_band3, nitems(def_chan_5ghz_band3),
-		    bands, cbw_flags);
+		    bands, ht40);
 	}
 	if (rd != NULL)
 		ic->ic_regdomain = *rd;

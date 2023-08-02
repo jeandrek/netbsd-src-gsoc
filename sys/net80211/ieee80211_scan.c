@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_scan.c,v 1.1.56.6 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -56,7 +56,6 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_scan.c,v 1.1.56.6 2019/06/10 22:09:46 chri
 #endif
 #include <net/if_media.h>
 #if __FreeBSD__
-#include <net/if_private.h>
 #include <net/ethernet.h>
 #endif
 #if __NetBSD__
@@ -317,24 +316,29 @@ ieee80211_scan_update_locked(struct ieee80211vap *vap,
 	}
 }
 
-#ifdef IEEE82011_DEBUG
-static void
-ieee80211_scan_dump_channels(const struct ieee80211_scan_state *ss)
+void
+ieee80211_scan_dump_channels(char *out, size_t len,
+	const struct ieee80211_scan_state *ss)
 {
 	struct ieee80211com *ic = ss->ss_ic;
 	const char *sep;
-	int i;
+	int i, cnt;
 
 	sep = "";
 	for (i = ss->ss_next; i < ss->ss_last; i++) {
 		const struct ieee80211_channel *c = ss->ss_chans[i];
 
-		printf("%s%u%c", sep, ieee80211_chan2ieee(ic, c),
+		cnt = snprintf(out, len, "%s%u%c", sep,
+		    ieee80211_chan2ieee(ic, c),
 		    ieee80211_channel_type_char(c));
+		if (cnt < 0 || cnt >= len)
+			break;
+		len -= cnt; out += cnt;
 		sep = ", ";
 	}
 }
 
+#ifdef IEEE80211_DEBUG
 void
 ieee80211_scan_dump(struct ieee80211_scan_state *ss)
 {
@@ -675,8 +679,7 @@ ieee80211_scan_timeout(struct ieee80211com *ic)
  * Mark a scan cache entry after a successful associate.
  */
 void
-ieee80211_scan_assoc_success(struct ieee80211vap *vap,
-    const uint8_t mac[IEEE80211_ADDR_LEN])
+ieee80211_scan_assoc_success(struct ieee80211vap *vap, const uint8_t mac[])
 {
 	struct ieee80211_scan_state *ss = vap->iv_ic->ic_scan;
 
@@ -692,7 +695,7 @@ ieee80211_scan_assoc_success(struct ieee80211vap *vap,
  */
 void
 ieee80211_scan_assoc_fail(struct ieee80211vap *vap,
-	const uint8_t mac[IEEE80211_ADDR_LEN], int reason)
+	const uint8_t mac[], int reason)
 {
 	struct ieee80211_scan_state *ss = vap->iv_ic->ic_scan;
 

@@ -1,6 +1,6 @@
 /*	$NetBSD: ieee80211_proto.h,v 1.24 2021/07/24 21:31:38 andvar Exp $	*/
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -124,8 +124,6 @@ struct mbuf *ieee80211_encap(struct ieee80211vap *, struct ieee80211_node *,
 void	ieee80211_free_mbuf(struct mbuf *);
 int	ieee80211_send_mgmt(struct ieee80211_node *, int, int);
 struct ieee80211_appie;
-int	ieee80211_probereq_ie(struct ieee80211vap *, struct ieee80211com *,
-		uint8_t **, uint32_t *, const uint8_t *, size_t, bool);
 int	ieee80211_send_probereq(struct ieee80211_node *ni,
 		const uint8_t sa[IEEE80211_ADDR_LEN],
 		const uint8_t da[IEEE80211_ADDR_LEN],
@@ -298,7 +296,7 @@ struct ieee80211_wme_state {
 	u_int	wme_hipri_switch_thresh;/* aggressive mode switch thresh */
 	u_int	wme_hipri_switch_hysteresis;/* aggressive mode switch hysteresis */
 
-	struct wmeParams wme_params[WME_NUM_AC]; /* from assoc resp for each AC */
+	struct wmeParams wme_params[4];		/* from assoc resp for each AC*/
 	struct chanAccParams wme_wmeChanParams;	/* WME params applied to self */
 	struct chanAccParams wme_wmeBssChanParams;/* WME params bcast to stations */
 	struct chanAccParams wme_chanParams;	/* params applied to self */
@@ -316,9 +314,6 @@ void	ieee80211_wme_vap_getparams(struct ieee80211vap *vap,
 void	ieee80211_wme_ic_getparams(struct ieee80211com *ic,
 	    struct chanAccParams *);
 int	ieee80211_wme_vap_ac_is_noack(struct ieee80211vap *vap, int ac);
-void	ieee80211_vap_update_preamble(struct ieee80211vap *vap);
-void	ieee80211_vap_update_erp_protmode(struct ieee80211vap *vap);
-void	ieee80211_vap_update_ht_protmode(struct ieee80211vap *vap);
 
 /*
  * Return pointer to the QoS field from a Qos frame.
@@ -474,8 +469,8 @@ void	ieee80211_notify_cac(struct ieee80211com *,
 		enum ieee80211_notify_cac_event);
 void	ieee80211_notify_node_deauth(struct ieee80211_node *);
 void	ieee80211_notify_node_auth(struct ieee80211_node *);
-void	ieee80211_notify_country(struct ieee80211vap *,
-		const uint8_t [IEEE80211_ADDR_LEN], const uint8_t cc[2]);
+void	ieee80211_notify_country(struct ieee80211vap *, const uint8_t [],
+		const uint8_t cc[2]);
 void	ieee80211_notify_radio(struct ieee80211com *, int);
-void	ieee80211_notify_ifnet_change(struct ieee80211vap *, int);
+void	ieee80211_notify_ifnet_change(struct ieee80211vap *);
 #endif /* _NET80211_IEEE80211_PROTO_H_ */

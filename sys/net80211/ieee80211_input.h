@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_input.h,v 1.1.2.2 2018/06/28 21:23:01 phil Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2007-2009 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -180,7 +180,7 @@ ieee80211_check_rxseq_amsdu_more(const struct ieee80211_rx_stats *rxs)
  *
  * The routine only eliminates packets whose sequence/fragment
  * match or are less than the last seen sequence/fragment number
- * AND are retransmits. It doesn't try to eliminate out of order packets.
+ * AND are retransmits It doesn't try to eliminate out of order packets.
  *
  * Since all frames after sequence number 4095 will be less than 4095
  * (as the seqnum wraps), handle that special case so packets aren't
@@ -311,10 +311,9 @@ fail:
 void	ieee80211_deliver_data(struct ieee80211vap *,
 		struct ieee80211_node *, struct mbuf *);
 struct mbuf *ieee80211_defrag(struct ieee80211_node *,
-		struct mbuf *, int, int);
+		struct mbuf *, int);
 struct mbuf *ieee80211_realign(struct ieee80211vap *, struct mbuf *, size_t);
-struct mbuf *ieee80211_decap(struct ieee80211vap *, struct mbuf *, int,
-		uint8_t);
+struct mbuf *ieee80211_decap(struct ieee80211vap *, struct mbuf *, int);
 struct mbuf *ieee80211_decap1(struct mbuf *, int *);
 int	ieee80211_setup_rates(struct ieee80211_node *ni,
 		const uint8_t *rates, const uint8_t *xrates, int flags);

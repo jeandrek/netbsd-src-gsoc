@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_ratectl.h,v 1.1.2.5 2018/08/03 19:47:25 phil Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2010 Rui Paulo <rpaulo@FreeBSD.org>
  * All rights reserved.
@@ -28,9 +28,6 @@
  *
  * $FreeBSD: head/sys/net80211/ieee80211_ratectl.h 326272 2017-11-27 15:23:17Z pfg $$
  */
-
-#ifndef _NET80211_IEEE80211_RATECTL_H_
-#define _NET80211_IEEE80211_RATECTL_H_
 
 enum ieee80211_ratealgs {
 	IEEE80211_RATECTL_AMRR		= 0,
@@ -175,5 +172,3 @@ ieee80211_ratectl_node_stats(struct ieee80211_node *ni, struct sbuf *s)
 		return;
 	vap->iv_rate->ir_node_stats(ni, s);
 }
-
-#endif	/* _NET80211_IEEE80211_RATECTL_H_ */

@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_acl.c,v 1.9.54.5 2020/04/13 08:05:16 martin Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2004-2008 Sam Leffler, Errno Consulting
  * All rights reserved.

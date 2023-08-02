@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_node.c,v 1.82 2021/09/19 10:34:09 andvar Exp $	*/
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -78,12 +78,6 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_node.c,v 1.82 2021/09/19 10:34:09 andvar E
 
 #include <net/bpf.h>
 
-#ifdef IEEE80211_DEBUG_REFCNT
-#define	__debrefcnt_used
-#else
-#define	__debrefcnt_used	__unused
-#endif
-
 /*
  * IEEE80211_NODE_HASHSIZE must be a power of 2.
  */
@@ -114,7 +108,7 @@ static void node_getsignal(const struct ieee80211_node *, int8_t *, int8_t *);
 static void node_getmimoinfo(const struct ieee80211_node *,
 	struct ieee80211_mimo_info *);
 
-static void __ieee80211_free_node(struct ieee80211_node *);
+static void _ieee80211_free_node(struct ieee80211_node *);
 
 static void node_reclaim(struct ieee80211_node_table *nt,
 	struct ieee80211_node *ni);
@@ -124,7 +118,7 @@ static void ieee80211_node_table_init(struct ieee80211com *ic,
 static void ieee80211_node_table_reset(struct ieee80211_node_table *,
 	struct ieee80211vap *);
 static void ieee80211_node_table_cleanup(struct ieee80211_node_table *nt);
-static void ieee80211_vap_erp_timeout(struct ieee80211vap *);
+static void ieee80211_erp_timeout(struct ieee80211com *);
 
 MALLOC_DEFINE(M_80211_NODE, "80211node", "802.11 node state");
 MALLOC_DEFINE(M_80211_NODE_IE, "80211nodeie", "802.11 node ie");
@@ -227,7 +221,7 @@ ieee80211_node_vdetach(struct ieee80211vap *vap)
 	ieee80211_node_table_reset(&ic->ic_sta, vap);
 	if (vap->iv_bss != NULL) {
 		ieee80211_free_node(vap->iv_bss);
-		vap->iv_update_bss(vap, NULL);
+		vap->iv_bss = NULL;
 	}
 	if (vap->iv_aid_bitmap != NULL) {
 		IEEE80211_MFREE(vap->iv_aid_bitmap, M_80211_NODE,
@@ -394,8 +388,7 @@ ieee80211_create_ibss(struct ieee80211vap* vap, struct ieee80211_channel *chan)
 		if (vap->iv_flags & IEEE80211_F_DESBSSID)
 			IEEE80211_ADDR_COPY(ni->ni_bssid, vap->iv_des_bssid);
 		else {
-			net80211_get_random_bytes(ni->ni_bssid,
-			    IEEE80211_ADDR_LEN);
+			get_random_bytes(ni->ni_bssid, IEEE80211_ADDR_LEN);
 			/* clear group bit, add local bit */
 			ni->ni_bssid[0] = (ni->ni_bssid[0] &~ 0x01) | 0x02;
 		}
@@ -615,6 +608,7 @@ check_bss_debug(struct ieee80211vap *vap, struct ieee80211_node *ni)
 }
 #endif /* IEEE80211_DEBUG */
 
+
 int
 ieee80211_ibss_merge_check(struct ieee80211_node *ni)
 {
@@ -680,6 +674,7 @@ ieee80211_ibss_node_check_new(struct ieee80211_node *ni,
 	 * Check if the scan SSID matches the SSID list for the VAP.
 	 */
 	for (i = 0; i < vap->iv_des_nssid; i++) {
+
 		/* Sanity length check */
 		if (vap->iv_des_ssid[i].len != scan->ssid[1])
 			continue;
@@ -713,6 +708,7 @@ ieee80211_ibss_merge(struct ieee80211_node *ni)
 {
 #ifdef IEEE80211_DEBUG
 	struct ieee80211vap *vap = ni->ni_vap;
+	struct ieee80211com *ic = ni->ni_ic;
 #endif
 
 	if (! ieee80211_ibss_merge_check(ni))
@@ -721,9 +717,9 @@ ieee80211_ibss_merge(struct ieee80211_node *ni)
 	IEEE80211_DPRINTF(vap, IEEE80211_MSG_ASSOC,
 		"%s: new bssid %s: %s preamble, %s slot time%s\n", __func__,
 		ether_sprintf(ni->ni_bssid),
-		vap->iv_flags&IEEE80211_F_SHPREAMBLE ? "short" : "long",
+		ic->ic_flags&IEEE80211_F_SHPREAMBLE ? "short" : "long",
 		vap->iv_flags&IEEE80211_F_SHSLOT ? "short" : "long",
-		vap->iv_flags&IEEE80211_F_USEPROT ? ", protection" : ""
+		ic->ic_flags&IEEE80211_F_USEPROT ? ", protection" : ""
 	);
 	return ieee80211_sta_join1(ieee80211_ref_node(ni), false /* ??? */);
 }
@@ -886,15 +882,15 @@ ieee80211_sta_join1(struct ieee80211_node *selbs, bool ic_is_locked)
 	/*
 	 * Committed to selbs, setup state.
 	 */
-	obss = vap->iv_update_bss(vap, selbs);	/* NB: caller assumed to bump refcnt */
+	obss = vap->iv_bss;
 	/*
 	 * Check if old+new node have the same address in which
 	 * case we can reassociate when operating in sta mode.
 	 */
-	/* XXX We'll not be in RUN anymore as iv_state got updated already? */
 	canreassoc = (obss != NULL &&
 		vap->iv_state == IEEE80211_S_RUN &&
 		IEEE80211_ADDR_EQ(obss->ni_macaddr, selbs->ni_macaddr));
+	vap->iv_bss = selbs;		/* NB: caller assumed to bump refcnt */
 	if (obss != NULL) {
 		struct ieee80211_node_table *nt = obss->ni_table;
 
@@ -942,10 +938,6 @@ ieee80211_sta_join1(struct ieee80211_node *selbs, bool ic_is_locked)
 			 * us to try to re-authenticate if we are operating
 			 * as a station.
 			 */
-			IEEE80211_DPRINTF(vap, IEEE80211_MSG_AUTH,
-			    "%s %p<%s> %s -> AUTH, FC0_SUBTYPE_DEAUTH\n",
-			    __func__, selbs, ether_sprintf(selbs->ni_macaddr),
-			    ieee80211_state_name[vap->iv_state]);
 			 if (ic_is_locked)
 				ieee80211_new_state_locked(vap, 
 					IEEE80211_S_AUTH,
@@ -1218,15 +1210,7 @@ ieee80211_ies_expand(struct ieee80211_ies *ies)
 
 	ie = ies->data;
 	ielen = ies->len;
-	while (ielen > 1) {
-		/* Make sure the given IE length fits into the total length. */
-		if ((2 + ie[1]) > ielen) {
-			printf("%s: malformed IEs! ies %p { data %p len %d }: "
-			    "ie %u len 2+%u > total len left %d\n",
-			    __func__, ies, ies->data, ies->len,
-			    ie[0], ie[1], ielen);
-			return;
-		}
+	while (ielen > 0) {
 		switch (ie[0]) {
 		case IEEE80211_ELEMID_VENDOR:
 			if (iswpaoui(ie))
@@ -1524,7 +1508,7 @@ ieee80211_alloc_node(struct ieee80211_node_table *nt,
 		vap->iv_stats.is_rx_nodealloc++;
 		ieee80211_psq_cleanup(&ni->ni_psq);
 		ieee80211_ratectl_node_deinit(ni);
-		__ieee80211_free_node(ni);
+		_ieee80211_free_node(ni);
 		return NULL;
 	}
 
@@ -1576,7 +1560,7 @@ ieee80211_tmp_node(struct ieee80211vap *vap,
 			vap->iv_stats.is_rx_nodealloc++;
 			ieee80211_psq_cleanup(&ni->ni_psq);
 			ieee80211_ratectl_node_deinit(ni);
-			__ieee80211_free_node(ni);
+			_ieee80211_free_node(ni);
 			return NULL;
 		}
 
@@ -1674,9 +1658,13 @@ ieee80211_node_create_wds(struct ieee80211vap *vap,
 }
 
 struct ieee80211_node *
-_ieee80211_find_node_locked(struct ieee80211_node_table *nt,
-    const uint8_t macaddr[IEEE80211_ADDR_LEN],
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_node_locked_debug(struct ieee80211_node_table *nt,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN], const char *func, int line)
+#else
+ieee80211_find_node_locked(struct ieee80211_node_table *nt,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN])
+#endif
 {
 	struct ieee80211_node *ni;
 	int hash;
@@ -1701,22 +1689,32 @@ _ieee80211_find_node_locked(struct ieee80211_node_table *nt,
 }
 
 struct ieee80211_node *
-_ieee80211_find_node(struct ieee80211_node_table *nt,
-    const uint8_t macaddr[IEEE80211_ADDR_LEN],
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_node_debug(struct ieee80211_node_table *nt,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN], const char *func, int line)
+#else
+ieee80211_find_node(struct ieee80211_node_table *nt,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN])
+#endif
 {
 	struct ieee80211_node *ni;
 
 	IEEE80211_NODE_LOCK(nt);
-	ni = _ieee80211_find_node_locked(nt, macaddr, func, line);
+	ni = ieee80211_find_node_locked(nt, macaddr);
 	IEEE80211_NODE_UNLOCK(nt);
 	return ni;
 }
 
 struct ieee80211_node *
-_ieee80211_find_vap_node_locked(struct ieee80211_node_table *nt,
-    const struct ieee80211vap *vap, const uint8_t macaddr[IEEE80211_ADDR_LEN],
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_vap_node_locked_debug(struct ieee80211_node_table *nt,
+	const struct ieee80211vap *vap,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN], const char *func, int line)
+#else
+ieee80211_find_vap_node_locked(struct ieee80211_node_table *nt,
+	const struct ieee80211vap *vap,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN])
+#endif
 {
 	struct ieee80211_node *ni;
 	int hash;
@@ -1742,21 +1740,27 @@ _ieee80211_find_vap_node_locked(struct ieee80211_node_table *nt,
 }
 
 struct ieee80211_node *
-_ieee80211_find_vap_node(struct ieee80211_node_table *nt,
-    const struct ieee80211vap *vap, const uint8_t macaddr[IEEE80211_ADDR_LEN],
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_vap_node_debug(struct ieee80211_node_table *nt,
+	const struct ieee80211vap *vap,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN], const char *func, int line)
+#else
+ieee80211_find_vap_node(struct ieee80211_node_table *nt,
+	const struct ieee80211vap *vap,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN])
+#endif
 {
 	struct ieee80211_node *ni;
 
 	IEEE80211_NODE_LOCK(nt);
-	ni = _ieee80211_find_vap_node_locked(nt, vap, macaddr, func, line);
+	ni = ieee80211_find_vap_node_locked(nt, vap, macaddr);
 	IEEE80211_NODE_UNLOCK(nt);
 	return ni;
 }
 
 /*
  * Fake up a node; this handles node discovery in adhoc mode.
- * Note that for the driver's benefit we treat this like
+ * Note that for the driver's benefit we we treat this like
  * an association so the driver has an opportunity to setup
  * it's private state.
  */
@@ -1893,6 +1897,7 @@ ieee80211_init_neighbor(struct ieee80211_node *ni,
 		    (ni->ni_vap->iv_flags_vht & IEEE80211_FVHT_VHT)) {
 			do_vht_setup = 1;
 		}
+
 	}
 
 	/* NB: must be after ni_chan is setup */
@@ -2006,12 +2011,11 @@ ieee80211_add_neighbor(struct ieee80211vap *vap,
 
 static __inline struct ieee80211_node *
 _find_rxnode(struct ieee80211_node_table *nt,
-    const struct ieee80211_frame_min *wh,
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+    const struct ieee80211_frame_min *wh)
 {
 	if (IS_BCAST_PROBEREQ(wh))
 		return NULL;		/* spam bcast probe req to all vap's */
-	return _ieee80211_find_node_locked(nt, wh->i_addr2, func, line);
+	return ieee80211_find_node_locked(nt, wh->i_addr2);
 }
 
 /*
@@ -2020,16 +2024,20 @@ _find_rxnode(struct ieee80211_node_table *nt,
  * we can return NULL if the sender is not in the table.
  */
 struct ieee80211_node *
-_ieee80211_find_rxnode(struct ieee80211com *ic,
-    const struct ieee80211_frame_min *wh,
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_rxnode_debug(struct ieee80211com *ic,
+	const struct ieee80211_frame_min *wh, const char *func, int line)
+#else
+ieee80211_find_rxnode(struct ieee80211com *ic,
+	const struct ieee80211_frame_min *wh)
+#endif
 {
 	struct ieee80211_node_table *nt;
 	struct ieee80211_node *ni;
 
 	nt = &ic->ic_sta;
 	IEEE80211_NODE_LOCK(nt);
-	ni = _find_rxnode(nt, wh, func, line);
+	ni = _find_rxnode(nt, wh);
 	IEEE80211_NODE_UNLOCK(nt);
 
 	return ni;
@@ -2044,9 +2052,14 @@ _ieee80211_find_rxnode(struct ieee80211com *ic,
  * key assigned to it.
  */
 struct ieee80211_node *
-_ieee80211_find_rxnode_withkey(struct ieee80211com *ic,
-    const struct ieee80211_frame_min *wh, ieee80211_keyix keyix,
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_rxnode_withkey_debug(struct ieee80211com *ic,
+	const struct ieee80211_frame_min *wh, ieee80211_keyix keyix,
+	const char *func, int line)
+#else
+ieee80211_find_rxnode_withkey(struct ieee80211com *ic,
+	const struct ieee80211_frame_min *wh, ieee80211_keyix keyix)
+#endif
 {
 	struct ieee80211_node_table *nt;
 	struct ieee80211_node *ni;
@@ -2058,7 +2071,7 @@ _ieee80211_find_rxnode_withkey(struct ieee80211com *ic,
 	else
 		ni = NULL;
 	if (ni == NULL) {
-		ni = _find_rxnode(nt, wh, func, line);
+		ni = _find_rxnode(nt, wh);
 		if (ni != NULL && nt->nt_keyixmap != NULL) {
 			/*
 			 * If the station has a unicast key cache slot
@@ -2094,9 +2107,14 @@ _ieee80211_find_rxnode_withkey(struct ieee80211com *ic,
  * a data frame.  This handles node discovery in adhoc networks.
  */
 struct ieee80211_node *
-_ieee80211_find_txnode(struct ieee80211vap *vap,
-    const uint8_t macaddr[IEEE80211_ADDR_LEN],
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_find_txnode_debug(struct ieee80211vap *vap,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN],
+	const char *func, int line)
+#else
+ieee80211_find_txnode(struct ieee80211vap *vap,
+	const uint8_t macaddr[IEEE80211_ADDR_LEN])
+#endif
 {
 	struct ieee80211_node_table *nt = &vap->iv_ic->ic_sta;
 	struct ieee80211_node *ni;
@@ -2114,7 +2132,7 @@ _ieee80211_find_txnode(struct ieee80211vap *vap,
 	    IEEE80211_IS_MULTICAST(macaddr))
 		ni = ieee80211_ref_node(vap->iv_bss);
 	else
-		ni = _ieee80211_find_node_locked(nt, macaddr, func, line);
+		ni = ieee80211_find_node_locked(nt, macaddr);
 	IEEE80211_NODE_UNLOCK(nt);
 
 	if (ni == NULL) {
@@ -2143,7 +2161,7 @@ _ieee80211_find_txnode(struct ieee80211vap *vap,
 }
 
 static void
-__ieee80211_free_node(struct ieee80211_node *ni)
+_ieee80211_free_node(struct ieee80211_node *ni)
 {
 	struct ieee80211_node_table *nt = ni->ni_table;
 
@@ -2192,8 +2210,11 @@ node_clear_keyixmap(struct ieee80211_node_table *nt, struct ieee80211_node *ni)
 }
 
 void
-_ieee80211_free_node(struct ieee80211_node *ni,
-    const char *func __debrefcnt_used, int line __debrefcnt_used)
+#ifdef IEEE80211_DEBUG_REFCNT
+ieee80211_free_node_debug(struct ieee80211_node *ni, const char *func, int line)
+#else
+ieee80211_free_node(struct ieee80211_node *ni)
+#endif
 {
 	struct ieee80211_node_table *nt = ni->ni_table;
 
@@ -2208,14 +2229,14 @@ _ieee80211_free_node(struct ieee80211_node *ni,
 			/*
 			 * Last reference, reclaim state.
 			 */
-			__ieee80211_free_node(ni);
+			_ieee80211_free_node(ni);
 		} else if (ieee80211_node_refcnt(ni) == 1)
 			if (node_clear_keyixmap(nt, ni))
-				__ieee80211_free_node(ni);
+				_ieee80211_free_node(ni);
 		IEEE80211_NODE_UNLOCK(nt);
 	} else {
 		if (ieee80211_node_dectestref(ni))
-			__ieee80211_free_node(ni);
+			_ieee80211_free_node(ni);
 	}
 }
 
@@ -2303,7 +2324,7 @@ node_reclaim(struct ieee80211_node_table *nt, struct ieee80211_node *ni)
 		 */
 		ieee80211_del_node_nt(nt, ni);
 	} else
-		__ieee80211_free_node(ni);
+		_ieee80211_free_node(ni);
 }
 
 /*
@@ -2574,27 +2595,12 @@ ieee80211_drain(struct ieee80211com *ic)
 }
 
 /*
- * Per-ieee80211vap inactivity timer callback.
- */
-static void
-ieee80211_vap_timeout(struct ieee80211vap *vap)
-{
-
-	IEEE80211_LOCK_ASSERT(vap->iv_ic);
-
-	ieee80211_vap_erp_timeout(vap);
-	ieee80211_ht_timeout(vap);
-	ieee80211_vht_timeout(vap);
-}
-
-/*
  * Per-ieee80211com inactivity timer callback.
  */
 void
 ieee80211_node_timeout(void *arg, int npending)
 {
 	struct ieee80211com *ic = arg;
-	struct ieee80211vap *vap;
 
 	/*
 	 * Defer timeout processing if a channel switch is pending.
@@ -2611,8 +2617,9 @@ ieee80211_node_timeout(void *arg, int npending)
 		ieee80211_ageq_age(&ic->ic_stageq, IEEE80211_INACT_WAIT);
 
 		IEEE80211_LOCK(ic);
-		TAILQ_FOREACH(vap, &ic->ic_vaps, iv_next)
-			ieee80211_vap_timeout(vap);
+		ieee80211_erp_timeout(ic);
+		ieee80211_ht_timeout(ic);
+		ieee80211_vht_timeout(ic);
 		IEEE80211_UNLOCK(ic);
 	}
 	taskqueue_enqueue_timeout(ic->ic_tq, &ic->ic_inact_task,
@@ -2689,8 +2696,7 @@ ieee80211_iterate_nodes(struct ieee80211_node_table *nt,
 }
 
 void
-ieee80211_dump_node(struct ieee80211_node_table *nt __unused,
-    struct ieee80211_node *ni)
+ieee80211_dump_node(struct ieee80211_node_table *nt, struct ieee80211_node *ni)
 {
 	printf("%p: mac %s refcnt %d\n", ni,
 		ether_sprintf(ni->ni_macaddr), ieee80211_node_refcnt(ni));
@@ -2730,12 +2736,7 @@ ieee80211_dump_nodes(struct ieee80211_node_table *nt)
 		(ieee80211_iter_func *) ieee80211_dump_node, nt);
 }
 
-/*
- * Iterate over the VAPs and update their ERP beacon IEs.
- *
- * Note this must be called from the deferred ERP update task paths.
- */
-void
+static void
 ieee80211_notify_erp_locked(struct ieee80211com *ic)
 {
 	struct ieee80211vap *vap;
@@ -2745,6 +2746,14 @@ ieee80211_notify_erp_locked(struct ieee80211com *ic)
 	TAILQ_FOREACH(vap, &ic->ic_vaps, iv_next)
 		if (vap->iv_opmode == IEEE80211_M_HOSTAP)
 			ieee80211_beacon_notify(vap, IEEE80211_BEACON_ERP);
+}
+
+void
+ieee80211_notify_erp(struct ieee80211com *ic)
+{
+	IEEE80211_LOCK(ic);
+	ieee80211_notify_erp_locked(ic);
+	IEEE80211_UNLOCK(ic);
 }
 
 /*
@@ -2766,13 +2775,10 @@ ieee80211_node_join_11g(struct ieee80211_node *ni)
 	 * next beacon transmission (per sec. 7.3.1.4 of 11g).
 	 */
 	if ((ni->ni_capinfo & IEEE80211_CAPINFO_SHORT_SLOTTIME) == 0) {
-		vap->iv_longslotsta++;
+		ic->ic_longslotsta++;
 		IEEE80211_NOTE(ni->ni_vap, IEEE80211_MSG_ASSOC, ni,
 		    "station needs long slot time, count %d",
-		    vap->iv_longslotsta);
-		/*
-		 * XXX TODO: this may need all VAPs checked!
-		 */
+		    ic->ic_longslotsta);
 		if (!IEEE80211_IS_CHAN_108G(ic->ic_bsschan)) {
 			/*
 			 * Don't force slot time when switched to turbo
@@ -2788,10 +2794,10 @@ ieee80211_node_join_11g(struct ieee80211_node *ni)
 	 * if configured.
 	 */
 	if (!ieee80211_iserp_rateset(&ni->ni_rates)) {
-		vap->iv_nonerpsta++;
+		ic->ic_nonerpsta++;
 		IEEE80211_NOTE(ni->ni_vap, IEEE80211_MSG_ASSOC, ni,
 		    "station is !ERP, %d non-ERP stations associated",
-		    vap->iv_nonerpsta);
+		    ic->ic_nonerpsta);
 		/*
 		 * If station does not support short preamble
 		 * then we must enable use of Barker preamble.
@@ -2799,21 +2805,20 @@ ieee80211_node_join_11g(struct ieee80211_node *ni)
 		if ((ni->ni_capinfo & IEEE80211_CAPINFO_SHORT_PREAMBLE) == 0) {
 			IEEE80211_NOTE(ni->ni_vap, IEEE80211_MSG_ASSOC, ni,
 			    "%s", "station needs long preamble");
-			vap->iv_flags |= IEEE80211_F_USEBARKER;
-			vap->iv_flags &= ~IEEE80211_F_SHPREAMBLE;
-			ieee80211_vap_update_preamble(vap);
+			ic->ic_flags |= IEEE80211_F_USEBARKER;
+			ic->ic_flags &= ~IEEE80211_F_SHPREAMBLE;
 		}
 		/*
 		 * If protection is configured and this is the first
 		 * indication we should use protection, enable it.
 		 */
-		if (vap->iv_protmode != IEEE80211_PROT_NONE &&
-		    vap->iv_nonerpsta == 1 &&
-		    (vap->iv_flags_ext & IEEE80211_FEXT_NONERP_PR) == 0) {
+		if (ic->ic_protmode != IEEE80211_PROT_NONE &&
+		    ic->ic_nonerpsta == 1 &&
+		    (ic->ic_flags_ext & IEEE80211_FEXT_NONERP_PR) == 0) {
 			IEEE80211_DPRINTF(ni->ni_vap, IEEE80211_MSG_ASSOC,
 			    "%s: enable use of protection\n", __func__);
-			vap->iv_flags |= IEEE80211_F_USEPROT;
-			ieee80211_vap_update_erp_protmode(vap);
+			ic->ic_flags |= IEEE80211_F_USEPROT;
+			ieee80211_notify_erp_locked(ic);
 		}
 	} else
 		ni->ni_flags |= IEEE80211_NODE_ERP;
@@ -2848,6 +2853,7 @@ ieee80211_node_join(struct ieee80211_node *ni, int resp)
 		IEEE80211_LOCK(ic);
 		IEEE80211_AID_SET(vap, ni->ni_associd);
 		vap->iv_sta_assoc++;
+		ic->ic_sta_assoc++;
 
 		if (IEEE80211_IS_CHAN_HT(ic->ic_bsschan))
 			ieee80211_ht_node_join(ni);
@@ -2868,9 +2874,9 @@ ieee80211_node_join(struct ieee80211_node *ni, int resp)
 	IEEE80211_NOTE(vap, IEEE80211_MSG_ASSOC | IEEE80211_MSG_DEBUG, ni,
 	    "station associated at aid %d: %s preamble, %s slot time%s%s%s%s%s%s%s%s%s",
 	    IEEE80211_NODE_AID(ni),
-	    vap->iv_flags & IEEE80211_F_SHPREAMBLE ? "short" : "long",
+	    ic->ic_flags & IEEE80211_F_SHPREAMBLE ? "short" : "long",
 	    vap->iv_flags & IEEE80211_F_SHSLOT ? "short" : "long",
-	    vap->iv_flags & IEEE80211_F_USEPROT ? ", protection" : "",
+	    ic->ic_flags & IEEE80211_F_USEPROT ? ", protection" : "",
 	    ni->ni_flags & IEEE80211_NODE_QOS ? ", QoS" : "",
 	    /* XXX update for VHT string */
 	    ni->ni_flags & IEEE80211_NODE_HT ?
@@ -2900,23 +2906,20 @@ ieee80211_node_join(struct ieee80211_node *ni, int resp)
 }
 
 static void
-disable_protection(struct ieee80211vap *vap)
+disable_protection(struct ieee80211com *ic)
 {
-	struct ieee80211com *ic = vap->iv_ic;
-        
-	KASSERTMSG(vap->iv_nonerpsta == 0 &&
-	    (vap->iv_flags_ext & IEEE80211_FEXT_NONERP_PR) == 0,
-	   "%d non ERP stations, flags 0x%x", vap->iv_nonerpsta,
-	   vap->iv_flags_ext);
+	KASSERTMSG(ic->ic_nonerpsta == 0 &&
+	    (ic->ic_flags_ext & IEEE80211_FEXT_NONERP_PR) == 0,
+	   "%d non ERP stations, flags 0x%x", ic->ic_nonerpsta,
+	   ic->ic_flags_ext);
 
-	vap->iv_flags &= ~IEEE80211_F_USEPROT;
+	ic->ic_flags &= ~IEEE80211_F_USEPROT;
 	/* XXX verify mode? */
 	if (ic->ic_caps & IEEE80211_C_SHPREAMBLE) {
-		vap->iv_flags |= IEEE80211_F_SHPREAMBLE;
-		vap->iv_flags &= ~IEEE80211_F_USEBARKER;
+		ic->ic_flags |= IEEE80211_F_SHPREAMBLE;
+		ic->ic_flags &= ~IEEE80211_F_USEBARKER;
 	}
-	ieee80211_vap_update_erp_protmode(vap);
-	ieee80211_vap_update_preamble(vap);
+	ieee80211_notify_erp_locked(ic);
 }
 
 /*
@@ -2938,13 +2941,13 @@ ieee80211_node_leave_11g(struct ieee80211_node *ni)
 	 * If a long slot station do the slot time bookkeeping.
 	 */
 	if ((ni->ni_capinfo & IEEE80211_CAPINFO_SHORT_SLOTTIME) == 0) {
-		KASSERTMSG(vap->iv_longslotsta > 0,
-		    "bogus long slot station count %d", vap->iv_longslotsta);
-		vap->iv_longslotsta--;
+		KASSERTMSG(ic->ic_longslotsta > 0,
+		    "bogus long slot station count %d", ic->ic_longslotsta);
+		ic->ic_longslotsta--;
 		IEEE80211_NOTE(ni->ni_vap, IEEE80211_MSG_ASSOC, ni,
 		    "long slot time station leaves, count now %d",
-		    vap->iv_longslotsta);
-		if (vap->iv_longslotsta == 0) {
+		    ic->ic_longslotsta);
+		if (ic->ic_longslotsta == 0) {
 			/*
 			 * Re-enable use of short slot time if supported
 			 * and not operating in IBSS mode (per spec).
@@ -2963,18 +2966,18 @@ ieee80211_node_leave_11g(struct ieee80211_node *ni)
 	 * If a non-ERP station do the protection-related bookkeeping.
 	 */
 	if ((ni->ni_flags & IEEE80211_NODE_ERP) == 0) {
-		KASSERTMSG(vap->iv_nonerpsta > 0,
-		    "bogus non-ERP station count %d", vap->iv_nonerpsta);
-		vap->iv_nonerpsta--;
+		KASSERTMSG(ic->ic_nonerpsta > 0,
+		    "bogus non-ERP station count %d", ic->ic_nonerpsta);
+		ic->ic_nonerpsta--;
 		IEEE80211_NOTE(ni->ni_vap, IEEE80211_MSG_ASSOC, ni,
-		    "non-ERP station leaves, count now %d%s", vap->iv_nonerpsta,
-		    (vap->iv_flags_ext & IEEE80211_FEXT_NONERP_PR) ?
+		    "non-ERP station leaves, count now %d%s", ic->ic_nonerpsta,
+		    (ic->ic_flags_ext & IEEE80211_FEXT_NONERP_PR) ?
 			" (non-ERP sta present)" : "");
-		if (vap->iv_nonerpsta == 0 &&
-		    (vap->iv_flags_ext & IEEE80211_FEXT_NONERP_PR) == 0) {
+		if (ic->ic_nonerpsta == 0 &&
+		    (ic->ic_flags_ext & IEEE80211_FEXT_NONERP_PR) == 0) {
 			IEEE80211_DPRINTF(ni->ni_vap, IEEE80211_MSG_ASSOC,
 				"%s: disable use of protection\n", __func__);
-			disable_protection(vap);
+			disable_protection(ic);
 		}
 	}
 }
@@ -2988,18 +2991,20 @@ ieee80211_node_leave_11g(struct ieee80211_node *ni)
  * condition.
  */
 static void
-ieee80211_vap_erp_timeout(struct ieee80211vap *vap)
+ieee80211_erp_timeout(struct ieee80211com *ic)
 {
 
-	IEEE80211_LOCK_ASSERT(vap->iv_ic);
+	IEEE80211_LOCK_ASSERT(ic);
 
-	if ((vap->iv_flags_ext & IEEE80211_FEXT_NONERP_PR) &&
-	    ieee80211_time_after(ticks, vap->iv_lastnonerp + IEEE80211_NONERP_PRESENT_AGE)) {
-		IEEE80211_DPRINTF(vap, IEEE80211_MSG_ASSOC,
+	if ((ic->ic_flags_ext & IEEE80211_FEXT_NONERP_PR) &&
+	    ieee80211_time_after(ticks, ic->ic_lastnonerp + IEEE80211_NONERP_PRESENT_AGE)) {
+#if 0
+		IEEE80211_NOTE(vap, IEEE80211_MSG_ASSOC, ni,
 		    "%s", "age out non-ERP sta present on channel");
-		vap->iv_flags_ext &= ~IEEE80211_FEXT_NONERP_PR;
-		if (vap->iv_nonerpsta == 0)
-			disable_protection(vap);
+#endif
+		ic->ic_flags_ext &= ~IEEE80211_FEXT_NONERP_PR;
+		if (ic->ic_nonerpsta == 0)
+			disable_protection(ic);
 	}
 }
 
@@ -3038,6 +3043,7 @@ ieee80211_node_leave(struct ieee80211_node *ni)
 	IEEE80211_LOCK(ic);
 	IEEE80211_AID_CLR(vap, ni->ni_associd);
 	vap->iv_sta_assoc--;
+	ic->ic_sta_assoc--;
 
 	if (IEEE80211_IS_CHAN_VHT(ic->ic_bsschan))
 		ieee80211_vht_node_leave(ni);

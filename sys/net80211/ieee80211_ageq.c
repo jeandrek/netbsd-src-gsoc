@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_ageq.c,v 1.1.2.3 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2009 Sam Leffler, Errno Consulting
  * All rights reserved.

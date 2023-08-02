@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_input.c,v 1.114.2.6 2019/06/10 22:09:46 christos Exp $	*/
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -169,7 +169,7 @@ ieee80211_input_mimo_all(struct ieee80211com *ic, struct mbuf *m)
 			 * NB: tags are copied too.
 			 */
 #if __FreeBSD__
-			mcopy = m_dup(m, IEEE80211_M_NOWAIT);
+			mcopy = m_dup(m, M_NOWAIT);
 #elif __NetBSD__
 			mcopy = m_dup(m, 0, M_COPYALL, M_NOWAIT);
 #endif
@@ -196,8 +196,7 @@ ieee80211_input_mimo_all(struct ieee80211com *ic, struct mbuf *m)
  * XXX should handle 3 concurrent reassemblies per-spec.
  */
 struct mbuf *
-ieee80211_defrag(struct ieee80211_node *ni, struct mbuf *m, int hdrspace,
-	int has_decrypted)
+ieee80211_defrag(struct ieee80211_node *ni, struct mbuf *m, int hdrspace)
 {
 	struct ieee80211vap *vap = ni->ni_vap;
 	struct ieee80211_frame *wh = mtod(m, struct ieee80211_frame *);
@@ -215,11 +214,6 @@ ieee80211_defrag(struct ieee80211_node *ni, struct mbuf *m, int hdrspace,
 	/* Quick way out, if there's nothing to defragment */
 	if (!more_frag && fragno == 0 && ni->ni_rxfrag[0] == NULL)
 		return m;
-
-	/* Temporarily set flag to remember if fragment was encrypted. */
-	/* XXX use a non-packet altering storage for this in the future. */
-	if (has_decrypted)
-		wh->i_fc[1] |= IEEE80211_FC1_PROTECTED;
 
 	/*
 	 * Remove frag to insure it doesn't get reaped by timer.
@@ -251,14 +245,10 @@ ieee80211_defrag(struct ieee80211_node *ni, struct mbuf *m, int hdrspace,
 
 		lwh = mtod(mfrag, struct ieee80211_frame *);
 		last_rxseq = le16toh(*(uint16_t *)lwh->i_seq);
-		/*
-		 * NB: check seq # and frag together. Also check that both
-		 * fragments are plaintext or that both are encrypted.
-		 */
+		/* NB: check seq # and frag together */
 		if (rxseq == last_rxseq+1 &&
 		    IEEE80211_ADDR_EQ(wh->i_addr1, lwh->i_addr1) &&
-		    IEEE80211_ADDR_EQ(wh->i_addr2, lwh->i_addr2) &&
-		    !((wh->i_fc[1] ^ lwh->i_fc[1]) & IEEE80211_FC1_PROTECTED)) {
+		    IEEE80211_ADDR_EQ(wh->i_addr2, lwh->i_addr2)) {
 			/* XXX clear MORE_FRAG bit? */
 			/* track last seqnum and fragno */
 			*(uint16_t *) lwh->i_seq = *(uint16_t *) wh->i_seq;
@@ -288,11 +278,6 @@ ieee80211_defrag(struct ieee80211_node *ni, struct mbuf *m, int hdrspace,
 		ni->ni_rxfragstamp = ticks;
 		ni->ni_rxfrag[0] = mfrag;
 		mfrag = NULL;
-	}
-	/* Remember to clear protected flag that was temporarily set. */
-	if (mfrag != NULL) {
-		wh = mtod(mfrag, struct ieee80211_frame *);
-		wh->i_fc[1] &= ~IEEE80211_FC1_PROTECTED;
 	}
 	return mfrag;
 }
@@ -356,8 +341,7 @@ ieee80211_deliver_data(struct ieee80211vap *vap,
 }
 
 struct mbuf *
-ieee80211_decap(struct ieee80211vap *vap, struct mbuf *m, int hdrlen,
-	uint8_t qos)
+ieee80211_decap(struct ieee80211vap *vap, struct mbuf *m, int hdrlen)
 {
 	struct ieee80211_qosframe_addr4 wh;
 	struct ether_header *eh;
@@ -383,9 +367,7 @@ ieee80211_decap(struct ieee80211vap *vap, struct mbuf *m, int hdrlen,
 	    llc->llc_snap.org_code[1] == 0 && llc->llc_snap.org_code[2] == 0 &&
 	    /* NB: preserve AppleTalk frames that have a native SNAP hdr */
 	    !(llc->llc_snap.ether_type == htons(ETHERTYPE_AARP) ||
-	      llc->llc_snap.ether_type == htons(ETHERTYPE_IPX)) &&
-	    /* Do not want to touch A-MSDU frames. */
-	    !(qos & IEEE80211_QOS_AMSDU)) {
+	      llc->llc_snap.ether_type == htons(ETHERTYPE_IPX))) {
 		m_adj(m, hdrlen + sizeof(struct llc) - sizeof(*eh));
 		llc = NULL;
 	} else {
@@ -478,10 +460,6 @@ ieee80211_decap1(struct mbuf *m, int *framelen)
 #define	FF_LLC_SIZE	(sizeof(struct ether_header) + sizeof(struct llc))
 	struct ether_header *eh;
 	struct llc *llc;
-	const uint8_t llc_hdr_mac[ETHER_ADDR_LEN] = {
-		/* MAC address matching the 802.2 LLC header */
-		LLC_SNAP_LSAP, LLC_SNAP_LSAP, LLC_UI, 0, 0, 0
-	};
 
 	/*
 	 * The frame has an 802.3 header followed by an 802.2
@@ -494,15 +472,6 @@ ieee80211_decap1(struct mbuf *m, int *framelen)
 	if (m->m_len < FF_LLC_SIZE && (m = m_pullup(m, FF_LLC_SIZE)) == NULL)
 		return NULL;
 	eh = mtod(m, struct ether_header *);	/* 802.3 header is first */
-
-	/*
-	 * Detect possible attack where a single 802.11 frame is processed
-	 * as an A-MSDU frame due to an adversary setting the A-MSDU present
-	 * bit in the 802.11 QoS header. [FragAttacks]
-	 */
-	if (memcmp(eh->ether_dhost, llc_hdr_mac, ETHER_ADDR_LEN) == 0)
-		return NULL;
-
 	llc = (struct llc *)&eh[1];		/* 802.2 header follows */
 	*framelen = ntohs(eh->ether_type)	/* encap'd frame size */
 		  + sizeof(struct ether_header) - sizeof(struct llc);
@@ -838,12 +807,6 @@ ieee80211_parse_beacon(struct ieee80211_node *ni, struct mbuf *m,
 		IEEE80211_VERIFY_LENGTH(scan->csa[1], 3 * sizeof(uint8_t),
 		    scan->status |= IEEE80211_BPARSE_CSA_INVALID);
 	}
-#ifdef IEEE80211_SUPPORT_MESH
-	if (scan->meshid != NULL) {
-		IEEE80211_VERIFY_ELEMENT(scan->meshid, IEEE80211_MESHID_LEN,
-		    scan->status |= IEEE80211_BPARSE_MESHID_INVALID);
-	}
-#endif
 	/*
 	 * Process HT ie's.  This is complicated by our
 	 * accepting both the standard ie's and the pre-draft
@@ -1044,18 +1007,14 @@ ieee80211_getbssid(const struct ieee80211vap *vap,
 void
 ieee80211_note(const struct ieee80211vap *vap, const char *fmt, ...)
 {
-	char buf[256];		/* XXX */
+	char buf[128];		/* XXX */
 	va_list ap;
-	int len;
 
 	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
 
 	if_printf(vap->iv_ifp, "%s", buf);	/* NB: no \n */
-
-	if (len >= sizeof(buf))
-		printf("%s: XXX buffer too small: len = %d\n", __func__, len);
 }
 
 void
@@ -1063,18 +1022,14 @@ ieee80211_note_frame(const struct ieee80211vap *vap,
 	const struct ieee80211_frame *wh,
 	const char *fmt, ...)
 {
-	char buf[256];		/* XXX */
+	char buf[128];		/* XXX */
 	va_list ap;
-	int len;
 
 	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
 	if_printf(vap->iv_ifp, "[%s] %s\n",
 		ether_sprintf(ieee80211_getbssid(vap, wh)), buf);
-
-	if (len >= sizeof(buf))
-		printf("%s: XXX buffer too small: len = %d\n", __func__, len);
 }
 
 void
@@ -1082,17 +1037,13 @@ ieee80211_note_mac(const struct ieee80211vap *vap,
 	const uint8_t mac[IEEE80211_ADDR_LEN],
 	const char *fmt, ...)
 {
-	char buf[256];		/* XXX */
+	char buf[128];		/* XXX */
 	va_list ap;
-	int len;
 
 	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
 	if_printf(vap->iv_ifp, "[%s] %s\n", ether_sprintf(mac), buf);
-
-	if (len >= sizeof(buf))
-		printf("%s: XXX buffer too small: len = %d\n", __func__, len);
 }
 
 void
@@ -1100,21 +1051,16 @@ ieee80211_discard_frame(const struct ieee80211vap *vap,
 	const struct ieee80211_frame *wh,
 	const char *type, const char *fmt, ...)
 {
-	char buf[256];		/* XXX */
 	va_list ap;
-	int len;
 
+	if_printf(vap->iv_ifp, "[%s] discard ",
+		ether_sprintf(ieee80211_getbssid(vap, wh)));
+	printf("%s frame, ", type != NULL ? type :
+	    ieee80211_mgt_subtype_name(wh->i_fc[0]));
 	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	vprintf(fmt, ap);
 	va_end(ap);
-
-	if_printf(vap->iv_ifp, "[%s] discard %s frame, %s\n",
-	    ether_sprintf(ieee80211_getbssid(vap, wh)),
-	    type != NULL ? type : ieee80211_mgt_subtype_name(wh->i_fc[0]),
-	    buf);
-
-	if (len >= sizeof(buf))
-		printf("%s: XXX buffer too small: len = %d\n", __func__, len);
+	printf("\n");
 }
 
 void
@@ -1122,20 +1068,18 @@ ieee80211_discard_ie(const struct ieee80211vap *vap,
 	const struct ieee80211_frame *wh,
 	const char *type, const char *fmt, ...)
 {
-	char buf[256];		/* XXX */
 	va_list ap;
-	int len;
 
+	if_printf(vap->iv_ifp, "[%s] discard ",
+		ether_sprintf(ieee80211_getbssid(vap, wh)));
+	if (type != NULL)
+		printf("%s information element, ", type);
+	else
+		printf("information element, ");
 	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	vprintf(fmt, ap);
 	va_end(ap);
-
-	if_printf(vap->iv_ifp, "[%s] discard%s%s information element, %s\n",
-	    ether_sprintf(ieee80211_getbssid(vap, wh)),
-	    type != NULL ? " " : "", type != NULL ? type : "", buf);
-
-	if (len >= sizeof(buf))
-		printf("%s: XXX buffer too small: len = %d\n", __func__, len);
+	printf("\n");
 }
 
 void
@@ -1143,19 +1087,16 @@ ieee80211_discard_mac(const struct ieee80211vap *vap,
 	const uint8_t mac[IEEE80211_ADDR_LEN],
 	const char *type, const char *fmt, ...)
 {
-	char buf[256];		/* XXX */
 	va_list ap;
-	int len;
 
+	if_printf(vap->iv_ifp, "[%s] discard ", ether_sprintf(mac));
+	if (type != NULL)
+		printf("%s frame, ", type);
+	else
+		printf("frame, ");
 	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	vprintf(fmt, ap);
 	va_end(ap);
-
-	if_printf(vap->iv_ifp, "[%s] discard%s%s frame, %s\n",
-	    ether_sprintf(mac),
-	    type != NULL ? " " : "", type != NULL ? type : "", buf);
-
-	if (len >= sizeof(buf))
-		printf("%s: XXX buffer too small: len = %d\n", __func__, len);
+	printf("\n");
 }
 #endif /* IEEE80211_DEBUG */
