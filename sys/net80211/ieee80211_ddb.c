@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_ddb.c,v 1.1.2.4 2020/04/13 08:05:16 martin Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2007-2009 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -254,7 +254,7 @@ _db_show_sta(const struct ieee80211_node *ni)
 {
 	int i;
 
-	db_printf("STA: %p: mac %s refcnt %d\n", ni,
+	db_printf("%p: mac %s refcnt %d\n", ni,
 		ether_sprintf(ni->ni_macaddr), ieee80211_node_refcnt(ni));
 	db_printf("\tvap %p wdsvap %p ic %p table %p\n",
 		ni->ni_vap, ni->ni_wdsvap, ni->ni_ic, ni->ni_table);
@@ -272,9 +272,6 @@ _db_show_sta(const struct ieee80211_node *ni)
 		ni->ni_ies.ath_ie);
 	db_printf("\t htcap_ie %p htinfo_ie %p]\n",
 		ni->ni_ies.htcap_ie, ni->ni_ies.htinfo_ie);
-	db_printf("\t vhtcap_ie %p vhtopmode_ie %p vhtpwrenv_ie %p]\n",
-		ni->ni_ies.vhtcap_ie, ni->ni_ies.vhtopmode_ie,
-		ni->ni_ies.vhtpwrenv_ie);
 	if (ni->ni_flags & IEEE80211_NODE_QOS) {
 		for (i = 0; i < WME_NUM_TID; i++) {
 			if (ni->ni_txseqs[i] || ni->ni_rxseqs[i])
@@ -284,7 +281,6 @@ _db_show_sta(const struct ieee80211_node *ni)
 				    ni->ni_rxseqs[i] & IEEE80211_SEQ_FRAG_MASK);
 		}
 	}
-
 	db_printf("\ttxseq %u rxseq %u fragno %u rxfragstamp %u\n",
 		ni->ni_txseqs[IEEE80211_NONQOS_TID],
 		ni->ni_rxseqs[IEEE80211_NONQOS_TID] >> IEEE80211_SEQ_SEQ_SHIFT,
@@ -329,21 +325,6 @@ _db_show_sta(const struct ieee80211_node *ni)
 	    ni->ni_mlstate, IEEE80211_MESH_MLSTATE_BITS,
 	    ni->ni_mllid, ni->ni_mlpid, ni->ni_mlrcnt, ni->ni_mltval);
 #endif
-
-	/* VHT state */
-	db_printf("\tvhtcap %b vht_basicmcs %#06x vht_pad2 %#06x\n",
-	    ni->ni_vhtcap, IEEE80211_VHTCAP_BITS,
-	    ni->ni_vht_basicmcs, ni->ni_vht_pad2);
-	db_printf("\tvht_mcsinfo: { rx_mcs_map %#06x rx_highest %#06x "
-	    "tx_mcs_map %#06x tx_highest %#06x }\n",
-	    ni->ni_vht_mcsinfo.rx_mcs_map, ni->ni_vht_mcsinfo.rx_highest,
-	    ni->ni_vht_mcsinfo.tx_mcs_map, ni->ni_vht_mcsinfo.tx_highest);
-	db_printf("\tvht_chan1/chan2 %u/%u vht_chanwidth %#04x\n",
-	    ni->ni_vht_chan1, ni->ni_vht_chan2, ni->ni_vht_chanwidth);
-	db_printf("\tvht_pad1 %#04x vht_spare { %#x %#x %#x %#x %#x %#x %#x %#x }\n",
-	    ni->ni_vht_pad1, ni->ni_vht_spare[0], ni->ni_vht_spare[1],
-	    ni->ni_vht_spare[2], ni->ni_vht_spare[3], ni->ni_vht_spare[4],
-	    ni->ni_vht_spare[5], ni->ni_vht_spare[6], ni->ni_vht_spare[7]);
 }
 
 #ifdef IEEE80211_SUPPORT_TDMA
@@ -371,7 +352,7 @@ _db_show_vap(const struct ieee80211vap *vap, int showmesh, int showprocs)
 	const struct ieee80211com *ic = vap->iv_ic;
 	int i;
 
-	db_printf("VAP %p:", vap);
+	db_printf("%p:", vap);
 	db_printf(" bss %p", vap->iv_bss);
 	db_printf(" myaddr %s", ether_sprintf(vap->iv_myaddr));
 	db_printf("\n");
@@ -382,7 +363,7 @@ _db_show_vap(const struct ieee80211vap *vap, int showmesh, int showprocs)
 		db_printf("(%p)", vap->iv_mesh);
 #endif
 	db_printf(" state %s", ieee80211_state_name[vap->iv_state]);
-	db_printf(" ifp %p(%s)", vap->iv_ifp, if_name(vap->iv_ifp));
+	db_printf(" ifp %p(%s)", vap->iv_ifp, vap->iv_ifp->if_xname);
 	db_printf("\n");
 
 	db_printf("\tic %p", vap->iv_ic);
@@ -401,7 +382,6 @@ _db_show_vap(const struct ieee80211vap *vap, int showmesh, int showprocs)
 	db_printf("\tflags_ven=%b\n", vap->iv_flags_ven, IEEE80211_FVEN_BITS);
 	db_printf("\tcaps=%b\n", vap->iv_caps, IEEE80211_C_BITS);
 	db_printf("\thtcaps=%b\n", vap->iv_htcaps, IEEE80211_C_HTCAP_BITS);
-	db_printf("\tvhtcaps=%b\n", vap->iv_vhtcaps, IEEE80211_VHTCAP_BITS);
 
 	_db_show_stats(&vap->iv_stats);
 
@@ -521,17 +501,6 @@ _db_show_vap(const struct ieee80211vap *vap, int showmesh, int showprocs)
 	if (vap->iv_tdma != NULL)
 		_db_show_tdma("\t", vap->iv_tdma, showprocs);
 #endif /* IEEE80211_SUPPORT_TDMA */
-
-	db_printf("\tsta_assoc %u", vap->iv_sta_assoc);
-	db_printf(" ht_sta_assoc %u", vap->iv_ht_sta_assoc);
-	db_printf(" ht40_sta_assoc %u", vap->iv_ht40_sta_assoc);
-	db_printf("\n");
-	db_printf(" nonerpsta %u", vap->iv_nonerpsta);
-	db_printf(" longslotsta %u", vap->iv_longslotsta);
-	db_printf(" lastnonerp %d", vap->iv_lastnonerp);
-	db_printf(" lastnonht %d", vap->iv_lastnonht);
-	db_printf("\n");
-
 	if (showprocs) {
 		DB_PRINTSYM("\t", "iv_key_alloc", vap->iv_key_alloc);
 		DB_PRINTSYM("\t", "iv_key_delete", vap->iv_key_delete);
@@ -556,9 +525,9 @@ _db_show_com(const struct ieee80211com *ic, int showvaps, int showsta,
 {
 	struct ieee80211vap *vap;
 
-	db_printf("COM: %p:", ic);
+	db_printf("%p:", ic);
 	TAILQ_FOREACH(vap, &ic->ic_vaps, iv_next)
-		db_printf(" %s(%p)", if_name(vap->iv_ifp), vap);
+		db_printf(" %s(%p)", vap->iv_ifp->if_xname, vap);
 	db_printf("\n");
 	db_printf("\tsoftc %p", ic->ic_softc);
 	db_printf("\tname %s", ic->ic_name);
@@ -581,7 +550,6 @@ _db_show_com(const struct ieee80211com *ic, int showvaps, int showsta,
 	db_printf("\tcryptocaps=%b\n",
 	    ic->ic_cryptocaps, IEEE80211_CRYPTO_BITS);
 	db_printf("\thtcaps=%b\n", ic->ic_htcaps, IEEE80211_HTCAP_BITS);
-	db_printf("\tvhtcaps=%b\n", ic->ic_vhtcaps, IEEE80211_VHTCAP_BITS);
 
 #if 0
 	uint8_t			ic_modecaps[2];	/* set of mode capabilities */
@@ -658,8 +626,17 @@ _db_show_com(const struct ieee80211com *ic, int showvaps, int showsta,
 		_db_show_node_table("\t", &ic->ic_sta);
 
 	db_printf("\tprotmode %d", ic->ic_protmode);
+	db_printf(" nonerpsta %u", ic->ic_nonerpsta);
+	db_printf(" longslotsta %u", ic->ic_longslotsta);
+	db_printf(" lastnonerp %d", ic->ic_lastnonerp);
+	db_printf("\n");
+	db_printf("\tsta_assoc %u", ic->ic_sta_assoc);
+	db_printf(" ht_sta_assoc %u", ic->ic_ht_sta_assoc);
+	db_printf(" ht40_sta_assoc %u", ic->ic_ht40_sta_assoc);
+	db_printf("\n");
 	db_printf("\tcurhtprotmode 0x%x", ic->ic_curhtprotmode);
 	db_printf(" htprotmode %d", ic->ic_htprotmode);
+	db_printf(" lastnonht %d", ic->ic_lastnonht);
 	db_printf("\n");
 
 	db_printf("\tsuperg %p\n", ic->ic_superg);
@@ -724,7 +701,7 @@ _db_show_all_vaps(void *arg, struct ieee80211com *ic)
 		const struct ieee80211vap *vap;
 		db_printf("%s: com %p vaps:", ic->ic_name, ic);
 		TAILQ_FOREACH(vap, &ic->ic_vaps, iv_next)
-			db_printf(" %s(%p)", if_name(vap->iv_ifp), vap);
+			db_printf(" %s(%p)", vap->iv_ifp->if_xname, vap);
 		db_printf("\n");
 	} else
 		_db_show_com(ic, 1, 1, 1, 1);

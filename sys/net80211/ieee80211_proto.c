@@ -1,6 +1,6 @@
 /*	$NetBSD: ieee80211_proto.c,v 1.37 2021/07/24 21:31:38 andvar Exp $	*/
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
@@ -62,7 +62,6 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_proto.c,v 1.37 2021/07/24 21:31:38 andvar 
 #endif
 #include <net/if_media.h>
 #if __FreeBSD__
-#include <net/private.h>
 #include <net/ethernet.h>		/* XXX for ether_sprintf */
 #endif
 #ifdef __NetBSD__
@@ -127,6 +126,7 @@ const char *ieee80211_wme_acnames[] = {
 	"WME_AC_VO",
 	"WME_UPSD",
 };
+
 
 /*
  * Reason code descriptions were (mostly) obtained from
@@ -269,12 +269,7 @@ static void update_chw(void *, int);
 static void vap_update_wme(void *, int);
 static void vap_update_slot(void *, int);
 static void restart_vaps(void *, int);
-static void vap_update_erp_protmode(void *, int);
-static void vap_update_preamble(void *, int);
-static void vap_update_ht_protmode(void *, int);
 static void ieee80211_newstate_cb(void *, int);
-static struct ieee80211_node *vap_update_bss(struct ieee80211vap *,
-    struct ieee80211_node *);
 
 static int
 null_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
@@ -289,7 +284,6 @@ null_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 void
 ieee80211_proto_attach(struct ieee80211com *ic)
 {
-#if __FreeBSD__        
 	uint8_t hdrlen;
 
 	/* override the 802.3 setting */
@@ -298,10 +292,13 @@ ieee80211_proto_attach(struct ieee80211com *ic)
 		+ IEEE80211_WEP_IVLEN + IEEE80211_WEP_KIDLEN
 		+ IEEE80211_WEP_EXTIVLEN;
 	/* XXX no way to recalculate on ifdetach */
-	max_linkhdr_grow(ALIGN(hdrlen));
-#else /* __NetBSD__ XXX what about the above?  Where does FreeBSD use hdrlen?*/
+	if (ALIGN(hdrlen) > max_linkhdr) {
+		/* XXX sanity check... */
+		max_linkhdr = ALIGN(hdrlen);
+		max_hdr = max_linkhdr + max_protohdr;
+		max_datalen = MHLEN - max_hdr;
+	}
 	ic->ic_protmode = IEEE80211_PROT_CTSONLY;
-#endif
 
 	TASK_INIT(&ic->ic_parent_task, 0, parent_updown, ic);
 	TASK_INIT(&ic->ic_mcast_task, 0, update_mcast, ic);
@@ -384,9 +381,6 @@ ieee80211_proto_vattach(struct ieee80211vap *vap)
 	TASK_INIT(&vap->iv_swbmiss_task, 0, beacon_swmiss, vap);
 	TASK_INIT(&vap->iv_wme_task, 0, vap_update_wme, vap);
 	TASK_INIT(&vap->iv_slot_task, 0, vap_update_slot, vap);
-	TASK_INIT(&vap->iv_erp_protmode_task, 0, vap_update_erp_protmode, vap);
-	TASK_INIT(&vap->iv_ht_protmode_task, 0, vap_update_ht_protmode, vap);
-	TASK_INIT(&vap->iv_preamble_task, 0, vap_update_preamble, vap);
 
 	/*
 	 * Install default tx rate handling: no fixed rate, lowest
@@ -434,8 +428,6 @@ ieee80211_proto_vattach(struct ieee80211vap *vap)
 
 	vap->iv_update_beacon = null_update_beacon;
 	vap->iv_deliver_data = ieee80211_deliver_data;
-	vap->iv_protmode = IEEE80211_PROT_CTSONLY;
-	vap->iv_update_bss = vap_update_bss;
 
 	/* attach support for operating mode */
 	ic->ic_vattach[vap->iv_opmode](vap);
@@ -679,7 +671,7 @@ ieee80211_dump_pkt(struct ieee80211com *ic,
 		printf(" QoS [TID %u%s]", qwh->i_qos[0] & IEEE80211_QOS_TID,
 			qwh->i_qos[0] & IEEE80211_QOS_ACKPOLICY ? " ACM" : "");
 	}
-	if (IEEE80211_IS_PROTECTED(wh)) {
+	if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
 		int off;
 
 		off = ieee80211_anyhdrspace(ic, wh);
@@ -850,22 +842,6 @@ ieee80211_vap_reset_erp(struct ieee80211vap *vap)
 {
 	struct ieee80211com *ic = vap->iv_ic;
 
-	vap->iv_nonerpsta = 0;
-	vap->iv_longslotsta = 0;
-
-	vap->iv_flags &= ~IEEE80211_F_USEPROT;
-	/*
-	 * Set short preamble and ERP barker-preamble flags.
-	 */
-	if (IEEE80211_IS_CHAN_A(ic->ic_curchan) ||
-	    (vap->iv_caps & IEEE80211_C_SHPREAMBLE)) {
-		vap->iv_flags |= IEEE80211_F_SHPREAMBLE;
-		vap->iv_flags &= ~IEEE80211_F_USEBARKER;
-	} else {
-		vap->iv_flags &= ~IEEE80211_F_SHPREAMBLE;
-		vap->iv_flags |= IEEE80211_F_USEBARKER;
-	}
-
 	/*
 	 * Short slot time is enabled only when operating in 11g
 	 * and not in an IBSS.  We must also honor whether or not
@@ -881,15 +857,13 @@ ieee80211_vap_reset_erp(struct ieee80211vap *vap)
 
 /*
  * Reset 11g-related state.
- *
- * Note this resets the global state and a caller should schedule
- * a re-check of all the VAPs after setup to update said state.
  */
 void
 ieee80211_reset_erp(struct ieee80211com *ic)
 {
-#if 0
 	ic->ic_flags &= ~IEEE80211_F_USEPROT;
+	ic->ic_nonerpsta = 0;
+	ic->ic_longslotsta = 0;
 	/*
 	 * Set short preamble and ERP barker-preamble flags.
 	 */
@@ -901,19 +875,6 @@ ieee80211_reset_erp(struct ieee80211com *ic)
 		ic->ic_flags &= ~IEEE80211_F_SHPREAMBLE;
 		ic->ic_flags |= IEEE80211_F_USEBARKER;
 	}
-#endif
-	/* XXX TODO: schedule a new per-VAP ERP calculation */
-}
-
-static struct ieee80211_node *
-vap_update_bss(struct ieee80211vap *vap, struct ieee80211_node *ni)
-{
-	struct ieee80211_node *obss;
-
-	obss = vap->iv_bss;
-	vap->iv_bss = ni;
-
-	return (obss);
 }
 
 /*
@@ -930,9 +891,6 @@ vap_update_bss(struct ieee80211vap *vap, struct ieee80211_node *ni)
  * If the per-VAP method is not called then the global flags will be
  * flipped into sync with the VAPs; ic_flags IEEE80211_F_SHSLOT will
  * be set only if all of the vaps will have it set.
- *
- * Look at the comments for vap_update_erp_protmode() for more
- * background; this assumes all VAPs are on the same channel.
  */
 static void
 vap_update_slot(void *arg, int npending)
@@ -969,6 +927,7 @@ vap_update_slot(void *arg, int npending)
 		else
 			num_lgslot++;
 	}
+	IEEE80211_UNLOCK(ic);
 
 	/*
 	 * It looks backwards but - if the number of short slot VAPs
@@ -980,297 +939,12 @@ vap_update_slot(void *arg, int npending)
 		ic->ic_flags &= ~IEEE80211_F_SHSLOT;
 	else if (num_lgslot == 0)
 		ic->ic_flags |= IEEE80211_F_SHSLOT;
-	IEEE80211_UNLOCK(ic);
 
 	/*
 	 * Call the driver with our new global slot time flags.
 	 */
 	if (ic->ic_updateslot != NULL)
 		ic->ic_updateslot(ic);
-}
-
-/*
- * Deferred ERP protmode update.
- *
- * This currently calculates the global ERP protection mode flag
- * based on each of the VAPs.  Any VAP with it enabled is enough
- * for the global flag to be enabled.  All VAPs with it disabled
- * is enough for it to be disabled.
- *
- * This may make sense right now for the supported hardware where
- * net80211 is controlling the single channel configuration, but
- * offload firmware that's doing channel changes (eg off-channel
- * TDLS, off-channel STA, off-channel P2P STA/AP) may get some
- * silly looking flag updates.
- *
- * Ideally the protection mode calculation is done based on the
- * channel, and all VAPs using that channel will inherit it.
- * But until that's what net80211 does, this wil have to do.
- */
-static void
-vap_update_erp_protmode(void *arg, int npending)
-{
-	struct ieee80211vap *vap = arg;
-	struct ieee80211com *ic = vap->iv_ic;
-	struct ieee80211vap *iv;
-	int enable_protmode = 0;
-	int non_erp_present = 0;
-
-	/*
-	 * Iterate over all of the VAPs to calculate the overlapping
-	 * ERP protection mode configuration and ERP present math.
-	 *
-	 * For now we assume that if a driver can handle this per-VAP
-	 * then it'll ignore the ic->ic_protmode variant and instead
-	 * will look at the vap related flags.
-	 */
-	IEEE80211_LOCK(ic);
-	TAILQ_FOREACH(iv, &ic->ic_vaps, iv_next) {
-		if (iv->iv_flags & IEEE80211_F_USEPROT)
-			enable_protmode = 1;
-		if (iv->iv_flags_ext & IEEE80211_FEXT_NONERP_PR)
-			non_erp_present = 1;
-	}
-
-	if (enable_protmode)
-		ic->ic_flags |= IEEE80211_F_USEPROT;
-	else
-		ic->ic_flags &= ~IEEE80211_F_USEPROT;
-
-	if (non_erp_present)
-		ic->ic_flags_ext |= IEEE80211_FEXT_NONERP_PR;
-	else
-		ic->ic_flags_ext &= ~IEEE80211_FEXT_NONERP_PR;
-
-	/* Beacon update on all VAPs */
-	ieee80211_notify_erp_locked(ic);
-
-	IEEE80211_UNLOCK(ic);
-
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	    "%s: called; enable_protmode=%d, non_erp_present=%d\n",
-	    __func__, enable_protmode, non_erp_present);
-
-	/*
-	 * Now that the global configuration flags are calculated,
-	 * notify the VAP about its configuration.
-	 *
-	 * The global flags will be used when assembling ERP IEs
-	 * for multi-VAP operation, even if it's on a different
-	 * channel.  Yes, that's going to need fixing in the
-	 * future.
-	 */
-	if (vap->iv_erp_protmode_update != NULL)
-		vap->iv_erp_protmode_update(vap);
-}
-
-/*
- * Deferred ERP short preamble/barker update.
- *
- * All VAPs need to use short preamble for it to be globally
- * enabled or not.
- *
- * Look at the comments for vap_update_erp_protmode() for more
- * background; this assumes all VAPs are on the same channel.
- */
-static void
-vap_update_preamble(void *arg, int npending)
-{
-	struct ieee80211vap *vap = arg;
-	struct ieee80211com *ic = vap->iv_ic;
-	struct ieee80211vap *iv;
-	int barker_count = 0, short_preamble_count = 0, count = 0;
-
-	/*
-	 * Iterate over all of the VAPs to calculate the overlapping
-	 * short or long preamble configuration.
-	 *
-	 * For now we assume that if a driver can handle this per-VAP
-	 * then it'll ignore the ic->ic_flags variant and instead
-	 * will look at the vap related flags.
-	 */
-	IEEE80211_LOCK(ic);
-	TAILQ_FOREACH(iv, &ic->ic_vaps, iv_next) {
-		if (iv->iv_flags & IEEE80211_F_USEBARKER)
-			barker_count++;
-		if (iv->iv_flags & IEEE80211_F_SHPREAMBLE)
-			short_preamble_count++;
-		count++;
-	}
-
-	/*
-	 * As with vap_update_erp_protmode(), the global flags are
-	 * currently used for beacon IEs.
-	 */
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	    "%s: called; barker_count=%d, short_preamble_count=%d\n",
-	    __func__, barker_count, short_preamble_count);
-
-	/*
-	 * Only flip on short preamble if all of the VAPs support
-	 * it.
-	 */
-	if (barker_count == 0 && short_preamble_count == count) {
-		ic->ic_flags |= IEEE80211_F_SHPREAMBLE;
-		ic->ic_flags &= ~IEEE80211_F_USEBARKER;
-	} else {
-		ic->ic_flags &= ~IEEE80211_F_SHPREAMBLE;
-		ic->ic_flags |= IEEE80211_F_USEBARKER;
-	}
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	  "%s: global barker=%d preamble=%d\n",
-	  __func__,
-	  !! (ic->ic_flags & IEEE80211_F_USEBARKER),
-	  !! (ic->ic_flags & IEEE80211_F_SHPREAMBLE));
-
-	/* Beacon update on all VAPs */
-	ieee80211_notify_erp_locked(ic);
-
-	IEEE80211_UNLOCK(ic);
-
-	/* Driver notification */
-	if (vap->iv_erp_protmode_update != NULL)
-		vap->iv_preamble_update(vap);
-}
-
-/*
- * Deferred HT protmode update and beacon update.
- *
- * Look at the comments for vap_update_erp_protmode() for more
- * background; this assumes all VAPs are on the same channel.
- */
-static void
-vap_update_ht_protmode(void *arg, int npending)
-{
-	struct ieee80211vap *vap = arg;
-	struct ieee80211vap *iv;
-	struct ieee80211com *ic = vap->iv_ic;
-	int num_vaps = 0, num_pure = 0;
-	int num_optional = 0, num_ht2040 = 0, num_nonht = 0;
-	int num_ht_sta = 0, num_ht40_sta = 0, num_sta = 0;
-	int num_nonhtpr = 0;
-
-	/*
-	 * Iterate over all of the VAPs to calculate everything.
-	 *
-	 * There are a few different flags to calculate:
-	 *
-	 * + whether there's HT only or HT+legacy stations;
-	 * + whether there's HT20, HT40, or HT20+HT40 stations;
-	 * + whether the desired protection mode is mixed, pure or
-	 *   one of the two above.
-	 *
-	 * For now we assume that if a driver can handle this per-VAP
-	 * then it'll ignore the ic->ic_htprotmode / ic->ic_curhtprotmode
-	 * variant and instead will look at the vap related variables.
-	 *
-	 * XXX TODO: non-greenfield STAs present (IEEE80211_HTINFO_NONGF_PRESENT) !
-	 */
-
-	IEEE80211_LOCK(ic);
-	TAILQ_FOREACH(iv, &ic->ic_vaps, iv_next) {
-		num_vaps++;
-		/* overlapping BSSes advertising non-HT status present */
-		if (iv->iv_flags_ht & IEEE80211_FHT_NONHT_PR)
-			num_nonht++;
-		/* Operating mode flags */
-		if (iv->iv_curhtprotmode & IEEE80211_HTINFO_NONHT_PRESENT)
-			num_nonhtpr++;
-		switch (iv->iv_curhtprotmode & IEEE80211_HTINFO_OPMODE) {
-		case IEEE80211_HTINFO_OPMODE_PURE:
-			num_pure++;
-			break;
-		case IEEE80211_HTINFO_OPMODE_PROTOPT:
-			num_optional++;
-			break;
-		case IEEE80211_HTINFO_OPMODE_HT20PR:
-			num_ht2040++;
-			break;
-		}
-
-		IEEE80211_DPRINTF(vap, IEEE80211_MSG_11N,
-		    "%s: vap %s: nonht_pr=%d, curhtprotmode=0x%02x\n",
-		    __func__,
-		    ieee80211_get_vap_ifname(iv),
-		    !! (iv->iv_flags_ht & IEEE80211_FHT_NONHT_PR),
-		    iv->iv_curhtprotmode);
-
-		num_ht_sta += iv->iv_ht_sta_assoc;
-		num_ht40_sta += iv->iv_ht40_sta_assoc;
-		num_sta += iv->iv_sta_assoc;
-	}
-
-	/*
-	 * Step 1 - if any VAPs indicate NONHT_PR set (overlapping BSS
-	 * non-HT present), set it here.  This shouldn't be used by
-	 * anything but the old overlapping BSS logic so if any drivers
-	 * consume it, it's up to date.
-	 */
-	if (num_nonht > 0)
-		ic->ic_flags_ht |= IEEE80211_FHT_NONHT_PR;
-	else
-		ic->ic_flags_ht &= ~IEEE80211_FHT_NONHT_PR;
-
-	/*
-	 * Step 2 - default HT protection mode to MIXED (802.11-2016 10.26.3.1.)
-	 *
-	 * + If all VAPs are PURE, we can stay PURE.
-	 * + If all VAPs are PROTOPT, we can go to PROTOPT.
-	 * + If any VAP has HT20PR then it sees at least a HT40+HT20 station.
-	 *   Note that we may have a VAP with one HT20 and a VAP with one HT40;
-	 *   So we look at the sum ht and sum ht40 sta counts; if we have a
-	 *   HT station and the HT20 != HT40 count, we have to do HT20PR here.
-	 *   Note all stations need to be HT for this to be an option.
-	 * + The fall-through is MIXED, because it means we have some odd
-	 *   non HT40-involved combination of opmode and this is the most
-	 *   sensible default.
-	 */
-	ic->ic_curhtprotmode = IEEE80211_HTINFO_OPMODE_MIXED;
-
-	if (num_pure == num_vaps)
-		ic->ic_curhtprotmode = IEEE80211_HTINFO_OPMODE_PURE;
-
-	if (num_optional == num_vaps)
-		ic->ic_curhtprotmode = IEEE80211_HTINFO_OPMODE_PROTOPT;
-
-	/*
-	 * Note: we need /a/ HT40 station somewhere for this to
-	 * be a possibility.
-	 */
-	if ((num_ht2040 > 0) ||
-	    ((num_ht_sta > 0) && (num_ht40_sta > 0) &&
-	     (num_ht_sta != num_ht40_sta)))
-		ic->ic_curhtprotmode = IEEE80211_HTINFO_OPMODE_HT20PR;
-
-	/*
-	 * Step 3 - if any of the stations across the VAPs are
-	 * non-HT then this needs to be flipped back to MIXED.
-	 */
-	if (num_ht_sta != num_sta)
-		ic->ic_curhtprotmode = IEEE80211_HTINFO_OPMODE_MIXED;
-
-	/*
-	 * Step 4 - If we see any overlapping BSS non-HT stations
-	 * via beacons then flip on NONHT_PRESENT.
-	 */
-	if (num_nonhtpr > 0)
-		ic->ic_curhtprotmode |= IEEE80211_HTINFO_NONHT_PRESENT;
-
-	/* Notify all VAPs to potentially update their beacons */
-	TAILQ_FOREACH(iv, &ic->ic_vaps, iv_next)
-		ieee80211_htinfo_notify(iv);
-
-	IEEE80211_UNLOCK(ic);
-
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_11N,
-	  "%s: global: nonht_pr=%d ht_opmode=0x%02x\n",
-	  __func__,
-	  !! (ic->ic_flags_ht & IEEE80211_FHT_NONHT_PR),
-	  ic->ic_curhtprotmode);
-
-	/* Driver update */
-	if (vap->iv_erp_protmode_update != NULL)
-		vap->iv_ht_protmode_update(vap);
 }
 
 /*
@@ -1283,8 +957,6 @@ ieee80211_vap_set_shortslottime(struct ieee80211vap *vap, int onoff)
 {
 	struct ieee80211com *ic = vap->iv_ic;
 
-	/* XXX lock? */
-
 	/*
 	 * Only modify the per-VAP slot time.
 	 */
@@ -1293,66 +965,8 @@ ieee80211_vap_set_shortslottime(struct ieee80211vap *vap, int onoff)
 	else
 		vap->iv_flags &= ~IEEE80211_F_SHSLOT;
 
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	    "%s: called; onoff=%d\n", __func__, onoff);
 	/* schedule the deferred slot flag update and update */
 	ieee80211_runtask(ic, &vap->iv_slot_task);
-}
-
-/*
- * Update the VAP short /long / barker preamble state and
- * update beacon state if needed.
- *
- * For now it simply copies the global flags into the per-vap
- * flags and schedules the callback.  Later this will support
- * both global and per-VAP flags, especially useful for
- * and STA+STA multi-channel operation (eg p2p).
- */
-void
-ieee80211_vap_update_preamble(struct ieee80211vap *vap)
-{
-	struct ieee80211com *ic = vap->iv_ic;
-
-	/* XXX lock? */
-
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	    "%s: called\n", __func__);
-	/* schedule the deferred slot flag update and update */
-	ieee80211_runtask(ic, &vap->iv_preamble_task);
-}
-
-/*
- * Update the VAP 11g protection mode and update beacon state
- * if needed.
- */
-void
-ieee80211_vap_update_erp_protmode(struct ieee80211vap *vap)
-{
-	struct ieee80211com *ic = vap->iv_ic;
-
-	/* XXX lock? */
-
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	    "%s: called\n", __func__);
-	/* schedule the deferred slot flag update and update */
-	ieee80211_runtask(ic, &vap->iv_erp_protmode_task);
-}
-
-/*
- * Update the VAP 11n protection mode and update beacon state
- * if needed.
- */
-void
-ieee80211_vap_update_ht_protmode(struct ieee80211vap *vap)
-{
-	struct ieee80211com *ic = vap->iv_ic;
-
-	/* XXX lock? */
-
-	IEEE80211_DPRINTF(vap, IEEE80211_MSG_DEBUG,
-	    "%s: called\n", __func__);
-	/* schedule the deferred protmode update */
-	ieee80211_runtask(ic, &vap->iv_ht_protmode_task);
 }
 
 /*
@@ -1765,7 +1379,7 @@ ieee80211_wme_updateparams_locked(struct ieee80211vap *vap)
 		do_aggrmode = 1;
 
 	/*
-	 * IBSS? Only if we have WME enabled.
+	 * IBSS? Only if we we have WME enabled.
 	 */
 	else if ((vap->iv_opmode == IEEE80211_M_IBSS) &&
 	    (vap->iv_flags & IEEE80211_F_WME))
@@ -1781,7 +1395,7 @@ ieee80211_wme_updateparams_locked(struct ieee80211vap *vap)
 	/* XXX WDS? */
 
 	/* XXX MBSS? */
-
+	
 	if (do_aggrmode) {
 		chanp = &wme->wme_chanParams.cap_wmeParams[WME_AC_BE];
 		bssp = &wme->wme_bssChanParams.cap_wmeParams[WME_AC_BE];
@@ -1801,6 +1415,7 @@ ieee80211_wme_updateparams_locked(struct ieee80211vap *vap)
 		    chanp->wmep_logcwmax, chanp->wmep_txopLimit);
 	}
 
+
 	/*
 	 * Change the contention window based on the number of associated
 	 * stations.  If the number of associated stations is 1 and
@@ -1808,7 +1423,7 @@ ieee80211_wme_updateparams_locked(struct ieee80211vap *vap)
 	 * further.
 	 */
 	if (vap->iv_opmode == IEEE80211_M_HOSTAP &&
-	    vap->iv_sta_assoc < 2 && (wme->wme_flags & WME_F_AGGRMODE) != 0) {
+	    ic->ic_sta_assoc < 2 && (wme->wme_flags & WME_F_AGGRMODE) != 0) {
 		static const uint8_t logCwMin[IEEE80211_MODE_MAX] = {
 		    [IEEE80211_MODE_AUTO]	= 3,
 		    [IEEE80211_MODE_11A]	= 3,
@@ -1832,6 +1447,22 @@ ieee80211_wme_updateparams_locked(struct ieee80211vap *vap)
 		IEEE80211_DPRINTF(vap, IEEE80211_MSG_WME,
 		    "update %s (chan+bss) logcwmin %u\n",
 		    ieee80211_wme_acnames[WME_AC_BE], chanp->wmep_logcwmin);
+	}
+
+	/*
+	 * Arrange for the beacon update.
+	 *
+	 * XXX what about MBSS, WDS?
+	 */
+	if (vap->iv_opmode == IEEE80211_M_HOSTAP
+	    || vap->iv_opmode == IEEE80211_M_IBSS) {
+		/*
+		 * Arrange for a beacon update and bump the parameter
+		 * set number so associated stations load the new values.
+		 */
+		wme->wme_bssChanParams.cap_info =
+			(wme->wme_bssChanParams.cap_info+1) & WME_QOSINFO_COUNT;
+		ieee80211_beacon_notify(vap, IEEE80211_BEACON_WME);
 	}
 
 	/* schedule the deferred WME update */
@@ -1870,7 +1501,7 @@ ieee80211_wme_vap_getparams(struct ieee80211vap *vap, struct chanAccParams *wp)
 }
 
 /*
- * For NICs which only support one set of WME parameters (ie, softmac NICs)
+ * For NICs which only support one set of WME paramaters (ie, softmac NICs)
  * there may be different VAP WME parameters but only one is "active".
  * This returns the "NIC" WME parameters for the currently active
  * context.
@@ -1947,7 +1578,7 @@ update_chw(void *arg, int npending)
 }
 
 /*
- * Deferred WME parameter and beacon update.
+ * Deferred WME update.
  *
  * In preparation for per-VAP WME configuration, call the VAP
  * method if the VAP requires it.  Otherwise, just call the
@@ -1959,32 +1590,12 @@ vap_update_wme(void *arg, int npending)
 {
 	struct ieee80211vap *vap = arg;
 	struct ieee80211com *ic = vap->iv_ic;
-	struct ieee80211_wme_state *wme = &ic->ic_wme;
 
-	/* Driver update */
 	if (vap->iv_wme_update != NULL)
 		vap->iv_wme_update(vap,
 		    ic->ic_wme.wme_chanParams.cap_wmeParams);
 	else
 		ic->ic_wme.wme_update(ic);
-
-	IEEE80211_LOCK(ic);
-	/*
-	 * Arrange for the beacon update.
-	 *
-	 * XXX what about MBSS, WDS?
-	 */
-	if (vap->iv_opmode == IEEE80211_M_HOSTAP
-	    || vap->iv_opmode == IEEE80211_M_IBSS) {
-		/*
-		 * Arrange for a beacon update and bump the parameter
-		 * set number so associated stations load the new values.
-		 */
-		wme->wme_bssChanParams.cap_info =
-			(wme->wme_bssChanParams.cap_info+1) & WME_QOSINFO_COUNT;
-		ieee80211_beacon_notify(vap, IEEE80211_BEACON_WME);
-	}
-	IEEE80211_UNLOCK(ic);
 }
 
 static void
@@ -2076,8 +1687,7 @@ ieee80211_start_locked(struct ieee80211vap *vap)
 		 */
 
 		ifp->if_drv_flags |= IFF_DRV_RUNNING;
-		ieee80211_notify_ifnet_change(vap, IFF_DRV_RUNNING);
-
+		ieee80211_notify_ifnet_change(vap);
 #elif __NetBSD__
 	if ((ifp->if_flags & IFF_RUNNING) == 0) {
 		/*
@@ -2237,7 +1847,7 @@ ieee80211_stop_locked(struct ieee80211vap *vap)
 #if __FreeBSD__
 	if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		ifp->if_drv_flags &= ~IFF_DRV_RUNNING;	/* mark us stopped */
-		ieee80211_notify_ifnet_change(vap, IFF_DRV_RUNNING);
+		ieee80211_notify_ifnet_change(vap);
 #elif __NetBSD__
 	if (ifp->if_flags & IFF_RUNNING) {
 #endif
@@ -2610,29 +2220,6 @@ wakeupwaiting(struct ieee80211vap *vap0)
 			vap->iv_flags_ext &= ~IEEE80211_FEXT_SCANWAIT;
 			/* NB: sta's cannot go INIT->RUN */
 			/* NB: iv_newstate may drop the lock */
-
-			/*
-			 * This is problematic if the interface has OACTIVE
-			 * set.  Only the deferred ieee80211_newstate_cb()
-			 * will end up actually /clearing/ the OACTIVE
-			 * flag on a state transition to RUN from a non-RUN
-			 * state.
-			 *
-			 * But, we're not actually deferring this callback;
-			 * and when the deferred call occurs it shows up as
-			 * a RUN->RUN transition!  So the flag isn't/wasn't
-			 * cleared!
-			 *
-			 * I'm also not sure if it's correct to actually
-			 * do the transitions here fully through the deferred
-			 * paths either as other things can be invoked as
-			 * part of that state machine.
-			 *
-			 * So just keep this in mind when looking at what
-			 * the markwaiting/wakeupwaiting routines are doing
-			 * and how they invoke vap state changes.
-			 */
-
 			vap->iv_newstate(vap,
 			    vap->iv_opmode == IEEE80211_M_STA ?
 			        IEEE80211_S_SCAN : IEEE80211_S_RUN, 0);
@@ -2707,22 +2294,10 @@ ieee80211_newstate_cb(void *xvap, int npending)
 		goto done;
 	}
 
-	/*
-	 * Handle the case of a RUN->RUN transition occuring when STA + AP
-	 * VAPs occur on the same radio.
-	 *
-	 * The mark and wakeup waiting routines call iv_newstate() directly,
-	 * but they do not end up deferring state changes here.
-	 * Thus, although the VAP newstate method sees a transition
-	 * of RUN->INIT->RUN, the deferred path here only sees a RUN->RUN
-	 * transition.  If OACTIVE is set then it is never cleared.
-	 *
-	 * So, if we're here and the state is RUN, just clear OACTIVE.
-	 * At some point if the markwaiting/wakeupwaiting paths end up
-	 * also invoking the deferred state updates then this will
-	 * be no-op code - and also if OACTIVE is finally retired, it'll
-	 * also be no-op code.
-	 */
+	/* No actual transition, skip post processing */
+	if (ostate == nstate)
+		goto done;
+
 	if (nstate == IEEE80211_S_RUN) {
 		/*
 		 * OACTIVE may be set on the vap if the upper layer
@@ -2731,15 +2306,6 @@ ieee80211_newstate_cb(void *xvap, int npending)
 		 *
 		 * Note this can also happen as a result of SLEEP->RUN
 		 * (i.e. coming out of power save mode).
-		 *
-		 * Historically this was done only for a state change
-		 * but is needed earlier; see next comment.  The 2nd half
-		 * of the work is still only done in case of an actual
-		 * state change below.
-		 */
-		/*
-		 * Unblock the VAP queue; a RUN->RUN state can happen
-		 * on a STA+AP setup on the AP vap.  See wakeupwaiting().
 		 */
 #if __FreeBSD__
 		vap->iv_ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
@@ -2750,13 +2316,6 @@ ieee80211_newstate_cb(void *xvap, int npending)
 		/*
 		 * XXX TODO Kick-start a VAP queue - this should be a method!
 		 */
-        }
-        
-	/* No actual transition, skip post processing */
-	if (ostate == nstate)
-		goto done;
-
-	if (nstate == IEEE80211_S_RUN) {
 
 		/* bring up any vaps waiting on us */
 		wakeupwaiting(vap);
@@ -2864,8 +2423,8 @@ ieee80211_new_state_locked(struct ieee80211vap *vap,
 	}
 	ostate = vap->iv_state;
 	IEEE80211_DPRINTF(vap, IEEE80211_MSG_STATE,
-	    "%s: %s -> %s (arg %d) (nrunning %d nscanning %d)\n", __func__,
-	    ieee80211_state_name[ostate], ieee80211_state_name[nstate], arg,
+	    "%s: %s -> %s (nrunning %d nscanning %d)\n", __func__,
+	    ieee80211_state_name[ostate], ieee80211_state_name[nstate],
 	    nrunning, nscanning);
 	switch (nstate) {
 	case IEEE80211_S_SCAN:

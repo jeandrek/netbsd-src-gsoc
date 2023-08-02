@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_power.c,v 1.1.56.4 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -357,7 +357,7 @@ ieee80211_pwrsave(struct ieee80211_node *ni, struct mbuf *m)
 	if (psq->psq_len >= psq->psq_maxlen) {
 		psq->psq_drops++;
 		IEEE80211_PSQ_UNLOCK(psq);
-		IEEE80211_NOTE(vap, IEEE80211_MSG_POWER, ni,
+		IEEE80211_NOTE(vap, IEEE80211_MSG_ANY, ni,
 		    "pwr save q overflow, drops %d (size %d)",
 		    psq->psq_drops, psq->psq_len);
 #ifdef IEEE80211_DEBUG
@@ -604,7 +604,7 @@ ieee80211_sta_tim_notify(struct ieee80211vap *vap, int set)
 		    "%s: wake up from bgscan vap sleep\n",
 		    __func__);
 		/*
-		 * We may be in BGSCAN mode - this means the VAP is in STA
+		 * We may be in BGSCAN mode - this means the VAP is is in STA
 		 * mode powersave.  If it is, we need to wake it up so we
 		 * can process outbound traffic.
 		 */

@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_tdma.c,v 1.1.2.4 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2007-2009 Sam Leffler, Errno Consulting
  * Copyright (c) 2007-2009 Intel Corporation

@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_crypto.c,v 1.23.2.4 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
@@ -591,17 +591,13 @@ ieee80211_crypto_get_txkey(struct ieee80211_node *ni, struct mbuf *m)
 
 	/*
 	 * Multicast traffic always uses the multicast key.
-	 *
-	 * Historically we would fall back to the default
-	 * transmit key if there was no unicast key.  This
-	 * behaviour was documented up to IEEE Std 802.11-2016,
-	 * 12.9.2.2 Per-MSDU/Per-A-MSDU Tx pseudocode, in the
-	 * 'else' case but is no longer in later versions of
-	 * the standard.  Additionally falling back to the
-	 * group key for unicast was a security risk.
+	 * Otherwise if a unicast key is set we use that and
+	 * it is always key index 0.  When no unicast key is
+	 * set we fall back to the default transmit key.
 	 */
 	wh = mtod(m, struct ieee80211_frame *);
-	if (IEEE80211_IS_MULTICAST(wh->i_addr1)) {
+	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
+	    IEEE80211_KEY_UNDEFINED(&ni->ni_ucastkey)) {
 		if (vap->iv_def_txkey == IEEE80211_KEYIX_NONE) {
 			IEEE80211_NOTE_MAC(vap, IEEE80211_MSG_CRYPTO,
 			    wh->i_addr1,
@@ -613,8 +609,6 @@ ieee80211_crypto_get_txkey(struct ieee80211_node *ni, struct mbuf *m)
 		return &vap->iv_nw_keys[vap->iv_def_txkey];
 	}
 
-	if (IEEE80211_KEY_UNDEFINED(&ni->ni_ucastkey))
-		return NULL;
 	return &ni->ni_ucastkey;
 }
 
@@ -783,6 +777,7 @@ ieee80211_crypto_demic(struct ieee80211vap *vap, struct ieee80211_key *k,
 	cip = k->wk_cipher;
 	return (cip->ic_miclen > 0 ? cip->ic_demic(k, m, force) : 1);
 }
+
 
 static void
 load_ucastkey(void *arg, struct ieee80211_node *ni)

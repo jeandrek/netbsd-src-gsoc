@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_sta.c,v 1.1.2.7 2020/04/27 07:40:50 nat Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2007-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -65,7 +65,6 @@ __KERNEL_RCSID(0, "$NetBSD: ieee80211_sta.c,v 1.1.2.7 2020/04/27 07:40:50 nat Ex
 #include <net/if_dl.h>
 #ifdef __FreeBSD__
 #include <net/if_var.h>
-#include <net/if_private.h>
 #include <net/ethernet.h>
 #endif
 #ifdef __NetBSD__
@@ -579,35 +578,6 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 	int is_hw_decrypted = 0;
 	int has_decrypted = 0;
 
-	KASSERTMSG(ni != NULL, "%s: null node, mbuf %p", __func__, m);
-
-	/* Early init in case of early error case. */
-	type = -1;
-
-	/*
-	 * Bit of a cheat here, we use a pointer for a 3-address
-	 * frame format but don't reference fields past outside
-	 * ieee80211_frame_min (or other shorter frames) w/o first
-	 * validating the data is present.
-	 */
-	wh = mtod(m, struct ieee80211_frame *);
-
-	if (m->m_pkthdr.len < 2 || m->m_pkthdr.len < ieee80211_anyhdrsize(wh)) {
-		IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_ANY,
-		    ni->ni_macaddr, NULL,
-		    "too short (1): len %u", m->m_pkthdr.len);
-		vap->iv_stats.is_rx_tooshort++;
-		goto err;
-	}
-	if ((wh->i_fc[0] & IEEE80211_FC0_VERSION_MASK) !=
-	    IEEE80211_FC0_VERSION_0) {
-		IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_ANY,
-		    ni->ni_macaddr, NULL, "wrong version, fc %02x:%02x",
-		    wh->i_fc[0], wh->i_fc[1]);
-		vap->iv_stats.is_rx_badversion++;
-		goto err;
-	}
-
 	/*
 	 * Some devices do hardware decryption all the way through
 	 * to pretending the frame wasn't encrypted in the first place.
@@ -625,26 +595,47 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		 * with the M_AMPDU_MPDU flag and we can bypass most of
 		 * the normal processing.
 		 */
+		wh = mtod(m, struct ieee80211_frame *);
 		type = IEEE80211_FC0_TYPE_DATA;
 		dir = wh->i_fc[1] & IEEE80211_FC1_DIR_MASK;
-		subtype = IEEE80211_FC0_SUBTYPE_QOS_DATA;
+		subtype = IEEE80211_FC0_SUBTYPE_QOS;
 		hdrspace = ieee80211_hdrspace(ic, wh);	/* XXX optimize? */
 		goto resubmit_ampdu;
 	}
 
+	KASSERTMSG(ni != NULL, "null node");
 	ni->ni_inact = ni->ni_inact_reload;
+
+	type = -1;			/* undefined */
+
+	if (m->m_pkthdr.len < sizeof(struct ieee80211_frame_min)) {
+		IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_ANY,
+		    ni->ni_macaddr, NULL,
+		    "too short (1): len %u", m->m_pkthdr.len);
+		vap->iv_stats.is_rx_tooshort++;
+		goto out;
+	}
+	/*
+	 * Bit of a cheat here, we use a pointer for a 3-address
+	 * frame format but don't reference fields past outside
+	 * ieee80211_frame_min w/o first validating the data is
+	 * present.
+	 */
+	wh = mtod(m, struct ieee80211_frame *);
+
+	if ((wh->i_fc[0] & IEEE80211_FC0_VERSION_MASK) !=
+	    IEEE80211_FC0_VERSION_0) {
+		IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_ANY,
+		    ni->ni_macaddr, NULL, "wrong version, fc %02x:%02x",
+		    wh->i_fc[0], wh->i_fc[1]);
+		vap->iv_stats.is_rx_badversion++;
+		goto err;
+	}
 
 	dir = wh->i_fc[1] & IEEE80211_FC1_DIR_MASK;
 	type = wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK;
 	subtype = wh->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK;
-	/*
-	 * Control frames are not folowing the header scheme of data and mgmt
-	 * frames so we do not apply extra checks here.
-	 * We probably should do checks on RA (+TA) where available for those
-	 * too, but for now do not drop them.
-	 */
-        if (type != IEEE80211_FC0_TYPE_CTL &&
-            (ic->ic_flags & IEEE80211_F_SCAN) == 0) {
+	if ((ic->ic_flags & IEEE80211_F_SCAN) == 0) {
 		bssid = wh->i_addr2;
 		if (!IEEE80211_ADDR_EQ(bssid, ni->ni_bssid)) {
 			/* not interested in */
@@ -796,7 +787,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		 * crypto cipher modules used to do delayed update
 		 * of replay sequence numbers.
 		 */
-		if (is_hw_decrypted || IEEE80211_IS_PROTECTED(wh)) {
+		if (is_hw_decrypted || wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
 			if ((vap->iv_flags & IEEE80211_F_PRIVACY) == 0) {
 				/*
 				 * Discard encrypted frames when privacy is off.
@@ -823,7 +814,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		/*
 		 * Save QoS bits for use below--before we strip the header.
 		 */
-		if (subtype == IEEE80211_FC0_SUBTYPE_QOS_DATA)
+		if (subtype == IEEE80211_FC0_SUBTYPE_QOS)
 			qos = ieee80211_getqos(wh)[0];
 		else
 			qos = 0;
@@ -832,7 +823,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		 * Next up, any fragmentation.
 		 */
 		if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
-			m = ieee80211_defrag(ni, m, hdrspace, has_decrypted);
+			m = ieee80211_defrag(ni, m, hdrspace);
 			if (m == NULL) {
 				/* Fragment dropped or frame not complete yet */
 				goto out;
@@ -864,7 +855,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		/*
 		 * Finally, strip the 802.11 header.
 		 */
-		m = ieee80211_decap(vap, m, hdrspace, qos);
+		m = ieee80211_decap(vap, m, hdrspace);
 		if (m == NULL) {
 			/* XXX mask bit to check for both */
 			/* don't count Null data frames as errors */
@@ -877,10 +868,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 			IEEE80211_NODE_STAT(ni, rx_decap);
 			goto err;
 		}
-		if (!(qos & IEEE80211_QOS_AMSDU))
-			eh = mtod(m, struct ether_header *);
-		else
-			eh = NULL;
+		eh = mtod(m, struct ether_header *);
 		if (!ieee80211_node_is_authorized(ni)) {
 			/*
 			 * Deny any non-PAE frames received prior to
@@ -890,13 +878,11 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 			 * the port is not marked authorized by the
 			 * authenticator until the handshake has completed.
 			 */
-			if (eh == NULL ||
-			    eh->ether_type != htons(ETHERTYPE_PAE)) {
+			if (eh->ether_type != htons(ETHERTYPE_PAE)) {
 				IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_INPUT,
-				    ni->ni_macaddr, "data", "unauthorized or "
-				    "unknown port: ether type 0x%x len %u",
-				    eh == NULL ? -1 : eh->ether_type,
-				    m->m_pkthdr.len);
+				    eh->ether_shost, "data",
+				    "unauthorized port: ether type 0x%x len %u",
+				    eh->ether_type, m->m_pkthdr.len);
 				vap->iv_stats.is_rx_unauth++;
 				IEEE80211_NODE_STAT(ni, rx_unauth);
 				goto err;
@@ -909,8 +895,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 			if ((vap->iv_flags & IEEE80211_F_DROPUNENC) &&
 			    ((has_decrypted == 0) && (m->m_flags & M_WEP) == 0) &&
 			    (is_hw_decrypted == 0) &&
-			    (eh == NULL ||
-			     eh->ether_type != htons(ETHERTYPE_PAE))) {
+			    eh->ether_type != htons(ETHERTYPE_PAE)) {
 				/*
 				 * Drop unencrypted frames.
 				 */
@@ -968,7 +953,7 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		 * Again, having encrypted flag set check would be good, but
 		 * then we have to also handle crypto_decap() like above.
 		 */
-		if (IEEE80211_IS_PROTECTED(wh)) {
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
 			if (subtype != IEEE80211_FC0_SUBTYPE_AUTH) {
 				/*
 				 * Only shared key auth frames with a challenge
@@ -1205,6 +1190,7 @@ int
 ieee80211_parse_wmeparams(struct ieee80211vap *vap, uint8_t *frm,
 	const struct ieee80211_frame *wh, uint8_t *qosinfo)
 {
+#define	MS(_v, _f)	(((_v) & _f) >> _f##_S)
 	struct ieee80211_wme_state *wme = &vap->iv_ic->ic_wme;
 	u_int len = frm[1], qosinfo_count;
 	int i;
@@ -1228,13 +1214,10 @@ ieee80211_parse_wmeparams(struct ieee80211vap *vap, uint8_t *frm,
 		struct wmeParams *wmep =
 			&wme->wme_wmeChanParams.cap_wmeParams[i];
 		/* NB: ACI not used */
-		wmep->wmep_acm = _IEEE80211_MASKSHIFT(frm[0], WME_PARAM_ACM);
-		wmep->wmep_aifsn =
-		    _IEEE80211_MASKSHIFT(frm[0], WME_PARAM_AIFSN);
-		wmep->wmep_logcwmin =
-		     _IEEE80211_MASKSHIFT(frm[1], WME_PARAM_LOGCWMIN);
-		wmep->wmep_logcwmax =
-		     _IEEE80211_MASKSHIFT(frm[1], WME_PARAM_LOGCWMAX);
+		wmep->wmep_acm = MS(frm[0], WME_PARAM_ACM);
+		wmep->wmep_aifsn = MS(frm[0], WME_PARAM_AIFSN);
+		wmep->wmep_logcwmin = MS(frm[1], WME_PARAM_LOGCWMIN);
+		wmep->wmep_logcwmax = MS(frm[1], WME_PARAM_LOGCWMAX);
 		wmep->wmep_txopLimit = le16dec(frm+2);
 		IEEE80211_DPRINTF(vap, IEEE80211_MSG_WME,
 		    "%s: WME: %d: acm=%d aifsn=%d logcwmin=%d logcwmax=%d txopLimit=%d\n",
@@ -1249,6 +1232,7 @@ ieee80211_parse_wmeparams(struct ieee80211vap *vap, uint8_t *frm,
 	}
 	wme->wme_wmeChanParams.cap_info = qosinfo_count;
 	return 1;
+#undef MS
 }
 
 /*
@@ -1506,13 +1490,12 @@ sta_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 				    ni->ni_erp, scan.erp);
 				if (IEEE80211_IS_CHAN_ANYG(ic->ic_curchan) &&
 				    (ni->ni_erp & IEEE80211_ERP_USE_PROTECTION))
-					vap->iv_flags |= IEEE80211_F_USEPROT;
+					ic->ic_flags |= IEEE80211_F_USEPROT;
 				else
-					vap->iv_flags &= ~IEEE80211_F_USEPROT;
+					ic->ic_flags &= ~IEEE80211_F_USEPROT;
 				ni->ni_erp = scan.erp;
 				/* XXX statistic */
-				/* driver notification */
-				ieee80211_vap_update_erp_protmode(vap);
+				/* XXX driver notification */
 			}
 			if ((ni->ni_capinfo ^ scan.capinfo) & IEEE80211_CAPINFO_SHORT_SLOTTIME) {
 				IEEE80211_NOTE_MAC(vap, IEEE80211_MSG_ASSOC,
@@ -1600,9 +1583,10 @@ sta_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 				int ix = aid / NBBY;
 				int min = tim->tim_bitctl &~ 1;
 				int max = tim->tim_len + min - 4;
-				int tim_ucast = 0;
-#ifdef __notyet__
-				int tim_mcast = 0;
+#ifdef __FreeBSD__
+				int tim_ucast = 0, tim_mcast = 0;
+#elif __NetBSD__
+				int tim_ucast = 0;  /* tim_mcast not used! */
 #endif
 
 				/*
@@ -1616,7 +1600,7 @@ sta_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 					tim_ucast = 1;
 				}
 
-#ifdef __notyet__
+#ifdef __FreeBSD__
 				/*
 				 * Do a separate notification
 				 * for the multicast bit being set.
@@ -1624,14 +1608,16 @@ sta_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 				if (tim->tim_bitctl & 1) {
 					tim_mcast = 1;
 				}
+#elif __NetBSD__
+				/* XXX What was wanted here? Var set does nothing! */
 #endif
-                                
 
 				/*
 				 * If the TIM indicates there's traffic for
 				 * us then get us out of STA mode powersave.
 				 */
 				if (tim_ucast == 1) {
+
 					/*
 					 * Wake us out of SLEEP state if we're
 					 * in it; and if we're doing bgscan
@@ -1949,16 +1935,15 @@ sta_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 		 */
 		if (IEEE80211_IS_CHAN_A(ic->ic_curchan) ||
 		    (ni->ni_capinfo & IEEE80211_CAPINFO_SHORT_PREAMBLE)) {
-			vap->iv_flags |= IEEE80211_F_SHPREAMBLE;
-			vap->iv_flags &= ~IEEE80211_F_USEBARKER;
+			ic->ic_flags |= IEEE80211_F_SHPREAMBLE;
+			ic->ic_flags &= ~IEEE80211_F_USEBARKER;
 		} else {
-			vap->iv_flags &= ~IEEE80211_F_SHPREAMBLE;
-			vap->iv_flags |= IEEE80211_F_USEBARKER;
+			ic->ic_flags &= ~IEEE80211_F_SHPREAMBLE;
+			ic->ic_flags |= IEEE80211_F_USEBARKER;
 		}
 		ieee80211_vap_set_shortslottime(vap,
 			IEEE80211_IS_CHAN_A(ic->ic_curchan) ||
 			(ni->ni_capinfo & IEEE80211_CAPINFO_SHORT_SLOTTIME));
-		ieee80211_vap_update_preamble(vap);
 		/*
 		 * Honor ERP protection.
 		 *
@@ -1966,18 +1951,17 @@ sta_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 		 */
 		if (IEEE80211_IS_CHAN_ANYG(ic->ic_curchan) &&
 		    (ni->ni_erp & IEEE80211_ERP_USE_PROTECTION))
-			vap->iv_flags |= IEEE80211_F_USEPROT;
+			ic->ic_flags |= IEEE80211_F_USEPROT;
 		else
-			vap->iv_flags &= ~IEEE80211_F_USEPROT;
-		ieee80211_vap_update_erp_protmode(vap);
+			ic->ic_flags &= ~IEEE80211_F_USEPROT;
 		IEEE80211_NOTE_MAC(vap,
 		    IEEE80211_MSG_ASSOC | IEEE80211_MSG_DEBUG, wh->i_addr2,
 		    "%sassoc success at aid %d: %s preamble, %s slot time%s%s%s%s%s%s%s%s%s",
 		    ISREASSOC(subtype) ? "re" : "",
 		    IEEE80211_NODE_AID(ni),
-		    vap->iv_flags&IEEE80211_F_SHPREAMBLE ? "short" : "long",
+		    ic->ic_flags&IEEE80211_F_SHPREAMBLE ? "short" : "long",
 		    vap->iv_flags&IEEE80211_F_SHSLOT ? "short" : "long",
-		    vap->iv_flags&IEEE80211_F_USEPROT ? ", protection" : "",
+		    ic->ic_flags&IEEE80211_F_USEPROT ? ", protection" : "",
 		    ni->ni_flags & IEEE80211_NODE_QOS ? ", QoS" : "",
 		    ni->ni_flags & IEEE80211_NODE_HT ?
 			(ni->ni_chw == 40 ? ", HT40" : ", HT20") : "",

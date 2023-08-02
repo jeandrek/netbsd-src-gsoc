@@ -1,14 +1,3 @@
-*** Changes in 2023 for WiFi refresh.
-
-2023-07-28 12:00 Phil
-
-Update to FreeBSD HEAD on 2023-07-27.
-  git sha 81a7ce44047f02049760d70c0cdc74c2751e9bad
-  (diffs from sha 8379e8db7a92aa536a4103bfe8993c660ddcba0c)
-
-  Notes:
-  *check out ieee80211_priv vs changes here.  ieee80211_ioctl.c
-
 *** Changes in 2020 for WiFi refresh.
 
 2020-07-04 12:00 Martin

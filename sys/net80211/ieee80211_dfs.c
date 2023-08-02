@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_dfs.c,v 1.1.2.3 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2007-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -445,7 +445,7 @@ ieee80211_dfs_pickchannel(struct ieee80211com *ic)
 	 * one at random (skipping channels where radar has
 	 * been detected).
 	 */
-	net80211_get_random_bytes(&v, sizeof(v));
+	get_random_bytes(&v, sizeof(v));
 	v %= ic->ic_nchans;
 	for (i = v; i < ic->ic_nchans; i++) {
 		c = &ic->ic_channels[i];

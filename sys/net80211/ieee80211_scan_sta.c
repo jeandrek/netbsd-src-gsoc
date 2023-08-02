@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_scan_sta.c,v 1.1.56.8 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -1617,7 +1617,7 @@ static int
 adhoc_start(struct ieee80211_scan_state *ss, struct ieee80211vap *vap)
 {
 	struct sta_table *st = ss->ss_priv;
-
+	
 	makescanlist(ss, vap, adhocScanTable);
 
 	if (ss->ss_mindwell == 0)

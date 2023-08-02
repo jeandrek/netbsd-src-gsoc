@@ -1,7 +1,7 @@
 /*	$NetBSD: ieee80211_xauth.c,v 1.5.158.4 2019/06/10 22:09:46 christos Exp $ */
 
 /*-
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright (c) 2004 Video54 Technologies, Inc.
  * Copyright (c) 2004-2008 Sam Leffler, Errno Consulting

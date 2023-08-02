@@ -1,34 +1,35 @@
 /*	$NetBSD: ieee80211_hwmp.c,v 1.1.2.4 2019/06/10 22:09:46 christos Exp $ */
 
-/*-
- * SPDX-License-Identifier: BSD-2-Clause
+/*- 
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
- * Copyright (c) 2009 The FreeBSD Foundation
- *
+ * Copyright (c) 2009 The FreeBSD Foundation 
+ * All rights reserved. 
+ * 
  * This software was developed by Rui Paulo under sponsorship from the
- * FreeBSD Foundation.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+ * FreeBSD Foundation. 
+ *  
+ * Redistribution and use in source and binary forms, with or without 
+ * modification, are permitted provided that the following conditions 
+ * are met: 
+ * 1. Redistributions of source code must retain the above copyright 
+ *    notice, this list of conditions and the following disclaimer. 
+ * 2. Redistributions in binary form must reproduce the above copyright 
+ *    notice, this list of conditions and the following disclaimer in the 
+ *    documentation and/or other materials provided with the distribution. 
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND 
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE 
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS 
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY 
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+ * SUCH DAMAGE. 
+ */ 
 #include <sys/cdefs.h>
 #ifdef __FreeBSD__
 __FBSDID("$FreeBSD: head/sys/net80211/ieee80211_hwmp.c 358224 2020-02-21 16:32:17Z kaktus $$");
@@ -134,6 +135,7 @@ static void	hwmp_peerdown(struct ieee80211_node *);
 static struct timeval ieee80211_hwmp_preqminint = { 0, 100000 };
 static struct timeval ieee80211_hwmp_perrminint = { 0, 100000 };
 
+
 /* NB: the Target Address set in a Proactive PREQ is the broadcast address. */
 static const uint8_t	broadcastaddr[IEEE80211_ADDR_LEN] =
 	{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
@@ -187,7 +189,7 @@ SYSCTL_PROC(_net_wlan_hwmp, OID_AUTO, net_diameter_traversal_time,
     CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_MPSAFE,
     &ieee80211_hwmp_net_diameter_traversaltime, 0,
     ieee80211_sysctl_msecs_ticks, "I",
-    "estimate traversal time across the MBSS (ms)");
+    "estimate travelse time across the MBSS (ms)");
 static int	ieee80211_hwmp_roottimeout = -1;
 SYSCTL_PROC(_net_wlan_hwmp, OID_AUTO, roottimeout,
     CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_MPSAFE,
@@ -229,6 +231,7 @@ SYSCTL_PROC(_net_wlan_hwmp, OID_AUTO, inact,
     CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_NEEDGIANT,
     &mesh_proto_hwmp.mpp_inact, 0, ieee80211_sysctl_msecs_ticks, "I",
     "mesh route inactivity timeout (ms)");
+
 
 #ifdef __NetBSD__
 static int
@@ -311,7 +314,7 @@ hwmp_vdetach(struct ieee80211vap *vap)
 	callout_drain(&hs->hs_roottimer);
 	IEEE80211_FREE(vap->iv_hwmp, M_80211_VAP, sizeof(*hs));
 	vap->iv_hwmp = NULL;
-}
+} 
 
 static int
 hwmp_newstate(struct ieee80211vap *vap, enum ieee80211_state ostate, int arg)
@@ -407,7 +410,7 @@ verify_mesh_perr_len(struct ieee80211vap *vap,
 	}
 
 	iefrm_t += IEEE80211_MESHPERR_NDEST_OFFSET + 1; /* flag is next field */
-	/* We need to check each destination flag to know size */
+	/* We need to check each destionation flag to know size */
 	for(i = 0; i<ndest; i++) {
 		if ((*iefrm_t) & IEEE80211_MESHPERR_FLAGS_AE)
 			iefrm_t += IEEE80211_MESHPERR_DEST_SZ_AE;
@@ -477,7 +480,7 @@ hwmp_recv_action_meshpath(struct ieee80211_node *ni,
 			preq->preq_lifetime = le32dec(iefrm_t); iefrm_t += 4;
 			preq->preq_metric = le32dec(iefrm_t); iefrm_t += 4;
 			preq->preq_tcount = *iefrm_t++;
-
+			
 			for (i = 0; i < preq->preq_tcount; i++) {
 				preq->preq_targets[i].target_flags = *iefrm_t++;
 				IEEE80211_ADDR_COPY(
@@ -681,7 +684,7 @@ hwmp_send_action(struct ieee80211vap *vap,
 	}
 
 	m->m_pkthdr.len = m->m_len = frm - mtod(m, uint8_t *);
-	M_PREPEND(m, sizeof(struct ieee80211_frame), IEEE80211_M_NOWAIT);
+	M_PREPEND(m, sizeof(struct ieee80211_frame), M_NOWAIT);
 	if (m == NULL) {
 		ieee80211_free_node(ni);
 		vap->iv_stats.is_tx_nobuf++;
@@ -1032,7 +1035,7 @@ hwmp_recv_preq(struct ieee80211vap *vap, struct ieee80211_node *ni,
 		return;
 	}
 	/*
-	 * Acceptance criteria: if unicast addressed
+	 * Acceptance criteria: if unicast addressed 
 	 * AND no valid forwarding for Target of PREQ, discard this PREQ.
 	 */
 	if(rttarg != NULL)
@@ -1949,7 +1952,7 @@ hwmp_send_rann(struct ieee80211vap *vap,
 	 *     [6] addr3 = sa
 	 *     [1] action
 	 *     [1] category
-	 *     [tlv] root announcement
+	 *     [tlv] root annoucement
 	 */
 	rann->rann_ie = IEEE80211_ELEMID_MESHRANN;
 	rann->rann_len = IEEE80211_MESHRANN_BASE_SZ;
@@ -1984,6 +1987,7 @@ hwmp_rediscover_cb(void *arg)
 	}
 
 	hr->hr_preqretries++;
+
 
 	IEEE80211_NOTE_MAC(vap, IEEE80211_MSG_HWMP, rt->rt_dest,
 	    "start path rediscovery , target seq %u", hr->hr_seq);
@@ -2039,9 +2043,10 @@ hwmp_discover(struct ieee80211vap *vap,
 			rt = ieee80211_mesh_rt_add(vap, dest);
 			if (rt == NULL) {
 #ifdef IEEE80211_DEBUG
-				IEEE80211_DPRINTF(vap, IEEE80211_MSG_HWMP,
-				    "unable to add discovery path to %6D",
-                                     dest, ":");
+				char addr[IEEE80211_ADDR_PRINT_LEN];
+				IEEE80211_NOTE(vap, IEEE80211_MSG_HWMP,
+				    ni, "unable to add discovery path to %s",
+				    ether_snprintf(addr, sizeof(addr), dest));
 #endif
 				vap->iv_stats.is_mesh_rtaddfailed++;
 				goto done;
