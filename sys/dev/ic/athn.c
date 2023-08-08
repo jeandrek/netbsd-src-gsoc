@@ -2694,7 +2694,7 @@ athn_start(struct athn_softc *sc)
 		}
 
 		sc->sc_tx_timer = 5;
-		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
+		callout_schedule(&sc->sc_watchdog_to, hz);
 	}
 }
 
@@ -2712,7 +2712,7 @@ athn_watchdog(void *arg)
 			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
 			return;
 		}
-		callout_reset(&sc->sc_watchdog_to, hz, athn_watchdog, sc);
+		callout_schedule(&sc->sc_watchdog_to, hz);
 	}
 }
 
