@@ -130,7 +130,7 @@ typedef void (*usbwifi_rx_loop_cb)(struct usbwifi *, struct usbwifi_chain *,
 /* Tick callback. */
 typedef void (*usbwifi_tick_cb)(struct usbwifi *);
 /* Interrupt pipe callback. */
-typedef void (*usbwifi_intr_cb)(struct usbwifi *, usbd_status);
+typedef void (*usbwifi_intr_cb)(struct usbwifi *, usbd_status, uint32_t);
 
 /*
  * LOCKING

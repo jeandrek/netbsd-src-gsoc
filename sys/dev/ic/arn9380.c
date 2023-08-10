@@ -57,6 +57,8 @@ __KERNEL_RCSID(0, "$NetBSD: arn9380.c,v 1.4 2022/09/25 18:43:32 thorpej Exp $");
 #include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_regdomain.h>
 
+#include <dev/usb/usbwifi.h>
+
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -131,7 +133,7 @@ ar9380_attach(struct athn_softc *sc)
 Static void
 ar9380_setup(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct ar9380_eeprom *eep = sc->sc_eep;
 	struct ar9380_base_eep_hdr *base = &eep->baseEepHeader;
 	uint8_t type;

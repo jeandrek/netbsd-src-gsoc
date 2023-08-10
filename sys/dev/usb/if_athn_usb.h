@@ -440,6 +440,7 @@ struct athn_usb_node {
 struct athn_usb_softc {
 	struct athn_softc		usc_sc;
 #define usc_dev		usc_sc.sc_dev
+#define usc_uw		usc_sc.sc_uw
 
 	enum {
 		ATHN_INIT_NONE,
@@ -461,10 +462,9 @@ struct athn_usb_softc {
 	kmutex_t			usc_tx_mtx;
 
 	/* USB specific goo. */
-	struct usbd_device		*usc_udev;
-	struct usbd_interface		*usc_iface;
 	struct usb_task			usc_task;
-	int				usc_dying;
+	int				usc_ntxpipes;
+	int				usc_nrxpipes;
 
 	u_int				usc_flags;
 #define ATHN_USB_FLAG_NONE	0x00
@@ -491,9 +491,9 @@ struct athn_usb_softc {
 	struct ar_htc_msg_conn_svc_rsp	*usc_msg_conn_svc_rsp;
 
 	struct athn_usb_host_cmd_ring	usc_cmdq;
-	struct athn_usb_rx_data		usc_rx_data[ATHN_USB_RX_LIST_COUNT];
-	struct athn_usb_tx_data		usc_tx_data[ATHN_USB_TX_LIST_COUNT];
-	TAILQ_HEAD(, athn_usb_tx_data)	usc_tx_free_list;
+	//struct athn_usb_rx_data		usc_rx_data[ATHN_USB_RX_LIST_COUNT];
+	//struct athn_usb_tx_data		usc_tx_data[ATHN_USB_TX_LIST_COUNT];
+	//TAILQ_HEAD(, athn_usb_tx_data)	usc_tx_free_list;
 	struct athn_usb_tx_data		usc_tx_cmd;
 	struct athn_usb_tx_data		usc_tx_msg;
 	struct athn_usb_tx_data		*usc_tx_bcn;

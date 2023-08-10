@@ -60,6 +60,8 @@ __KERNEL_RCSID(0, "$NetBSD: arn5008.c,v 1.19 2022/03/18 23:32:24 riastradh Exp $
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
+#include <dev/usb/usbwifi.h>
+
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -163,7 +165,7 @@ PUBLIC int
 ar5008_attach(struct athn_softc *sc)
 {
 	struct athn_ops *ops = &sc->sc_ops;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct ar_base_eep_header *base;
 	uint8_t eep_ver, kc_entries_log;
 	int error;
@@ -728,7 +730,7 @@ ar5008_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
     struct ar_rx_desc *ds)
 {
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	uint64_t tsf;
 	uint32_t tstamp;
 	uint8_t rate;
@@ -788,7 +790,7 @@ ar5008_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
 static __inline int
 ar5008_rx_process(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct athn_rxq *rxq = &sc->sc_rxq[0];
 	struct athn_rx_buf *bf, *nbf;
 	struct ar_rx_desc *ds;
@@ -1097,7 +1099,7 @@ ar5008_tx_intr(struct athn_softc *sc)
 Static int
 ar5008_swba_intr(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct athn_tx_buf *bf = sc->sc_bcnbuf;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap;
@@ -1756,7 +1758,7 @@ ar5008_synth_delay(struct athn_softc *sc)
 	uint32_t synth_delay;
 
 	synth_delay = MS(AR_READ(sc, AR_PHY_RX_DELAY), AR_PHY_RX_DELAY_DELAY);
-	if (sc->sc_ic.ic_curmode == IEEE80211_MODE_11B)
+	if (sc->sc_ic->ic_curmode == IEEE80211_MODE_11B)
 		synth_delay = (synth_delay * 4) / 22;
 	else
 		synth_delay = synth_delay / 10;	/* in 100ns steps */

@@ -61,6 +61,8 @@ __KERNEL_RCSID(0, "$NetBSD: arn9003.c,v 1.16 2023/08/01 07:04:15 mrg Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
+#include <dev/usb/usbwifi.h>
+
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 #include <dev/ic/arn9003reg.h>
@@ -870,7 +872,7 @@ ar9003_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
     struct ar_rx_status *ds)
 {
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	uint64_t tsf;
 	uint32_t tstamp;
 	uint8_t rate;
@@ -927,7 +929,7 @@ ar9003_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
 Static int
 ar9003_rx_process(struct athn_softc *sc, int qid)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct ifnet *ifp;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
@@ -1231,7 +1233,7 @@ ar9003_tx_intr(struct athn_softc *sc)
 Static int
 ar9003_swba_intr(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct athn_tx_buf *bf = sc->sc_bcnbuf;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap;
@@ -1924,7 +1926,7 @@ ar9003_synth_delay(struct athn_softc *sc)
 	uint32_t synth_delay;
 
 	synth_delay = MS(AR_READ(sc, AR_PHY_RX_DELAY), AR_PHY_RX_DELAY_DELAY);
-	if (sc->sc_ic.ic_curmode == IEEE80211_MODE_11B)
+	if (sc->sc_ic->ic_curmode == IEEE80211_MODE_11B)
 		synth_delay = (synth_delay * 4) / 22;
 	else
 		synth_delay = synth_delay / 10;	/* in 100ns steps */
@@ -2781,7 +2783,7 @@ Static int
 ar9003_paprd_tx_tone(struct athn_softc *sc)
 {
 #define TONE_LEN	1800
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
 	struct mbuf *m;

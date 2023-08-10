@@ -47,6 +47,8 @@ __KERNEL_RCSID(0, "$NetBSD: if_athn_pci.c,v 1.14 2022/09/25 17:52:25 thorpej Exp
 #include <net80211/ieee80211_amrr.h>
 #include <net80211/ieee80211_radiotap.h>
 
+#include <dev/usb/usbwifi.h>
+
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -127,7 +129,7 @@ athn_pci_attach(device_t parent, device_t self, void *aux)
 {
 	struct athn_pci_softc *psc = device_private(self);
 	struct athn_softc *sc = &psc->psc_sc;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = &sc->sc_real_ic;
 	struct pci_attach_args *pa = aux;
 	const char *intrstr;
 	pcireg_t memtype, reg;
@@ -268,7 +270,7 @@ athn_pci_activate(device_t self, enum devact act)
 
 	switch (act) {
 	case DVACT_DEACTIVATE:
-		if_deactivate(TAILQ_FIRST(&(sc->sc_ic.ic_vaps))->iv_ifp);
+		if_deactivate(TAILQ_FIRST(&(sc->sc_ic->ic_vaps))->iv_ifp);
 		break;
 	}
 	return 0;

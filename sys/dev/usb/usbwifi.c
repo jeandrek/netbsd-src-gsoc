@@ -188,10 +188,10 @@ uwo_tick(struct usbwifi *un)
 }
 
 static void
-uwo_intr(struct usbwifi *un, usbd_status status)
+uwo_intr(struct usbwifi *un, usbd_status status, uint32_t len)
 {
 	if (un->uw_ops->uwo_intr)
-		(*un->uw_ops->uwo_intr)(un, status);
+		(*un->uw_ops->uwo_intr)(un, status, len);
 }
 
 /* Interrupt handling. */
@@ -387,6 +387,7 @@ usbwifi_pipe_intr(struct usbd_xfer *xfer, void *priv, usbd_status status)
 	struct usbwifi * const un = priv;
 	struct usbwifi_private * const unp = un->uw_pri;
 	struct usbwifi_intr * const uwi = un->uw_intr;
+	uint32_t len;
 
 	if (uwi == NULL || unp->uwp_dying || unp->uwp_stopping ||
 	    status == USBD_INVAL || status == USBD_NOT_STARTED ||
@@ -410,7 +411,8 @@ usbwifi_pipe_intr(struct usbd_xfer *xfer, void *priv, usbd_status status)
 		return;
 	}
 
-	uwo_intr(un, status);
+	usbd_get_xfer_status(xfer, NULL, NULL, &len, NULL);
+	uwo_intr(un, status, len);
 }
 
 /*

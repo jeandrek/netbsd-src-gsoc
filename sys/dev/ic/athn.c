@@ -65,6 +65,8 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
+#include <dev/usb/usbwifi.h>
+
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 #include <dev/ic/arn5008.h>
@@ -154,9 +156,15 @@ struct athn_vap {
 PUBLIC int
 athn_attach(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic;
 	int error;
 
+	if (sc->sc_ic != NULL) {
+		ic = &sc->sc_real_ic;
+		sc->sc_ic = ic;
+	} else {
+		ic = sc->sc_ic;
+	}
 	ic->ic_softc = sc;
 
 	/* Read hardware revision. */
@@ -348,14 +356,17 @@ athn_attach(struct athn_softc *sc)
 
 	ieee80211_ifattach(ic);
 
-	ic->ic_parent = athn_parent;
+	if (ic->ic_parent == NULL)
+		ic->ic_parent = athn_parent;
 	ic->ic_node_alloc = athn_node_alloc;
 	ic->ic_newassoc = athn_newassoc;
 	ic->ic_getradiocaps = athn_get_radiocaps;
 	ic->ic_vap_create = athn_vap_create;
 	ic->ic_vap_delete = athn_vap_delete;
-	ic->ic_transmit = athn_transmit;
-	ic->ic_raw_xmit = sc->sc_ops.tx;
+	if (ic->ic_transmit == NULL)
+		ic->ic_transmit = athn_transmit;
+	if (ic->ic_raw_xmit == NULL)
+		ic->ic_raw_xmit = sc->sc_ops.tx;
 	ic->ic_update_mcast = athn_set_multi;
 	ic->ic_scan_start = athn_scan_start;
 	ic->ic_scan_end = athn_scan_end;
@@ -408,7 +419,7 @@ athn_detach(struct athn_softc *sc)
 	/* XXX  How do we detach from bpf?
 	bpf_detach(if*p);
 	*/
-	ieee80211_ifdetach(&sc->sc_ic);
+	ieee80211_ifdetach(sc->sc_ic);
 	/* XXX
 	if_detach(if*p);
 	*/
@@ -425,7 +436,7 @@ athn_detach(struct athn_softc *sc)
 Static void
 athn_get_chanlist(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	uint8_t chan;
 	size_t i;
 
@@ -453,7 +464,7 @@ athn_get_chanlist(struct athn_softc *sc)
 PUBLIC void
 athn_rx_start(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	uint32_t rfilt;
 
 	/* Setup Rx DMA descriptors. */
@@ -927,7 +938,7 @@ athn_set_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	ops->rf_bus_release(sc);
 
 	/* Write delta slope coeffs for modes where OFDM may be used. */
-	if (sc->sc_ic.ic_curmode != IEEE80211_MODE_11B)
+	if (sc->sc_ic->ic_curmode != IEEE80211_MODE_11B)
 		ops->set_delta_slope(sc, curchan, extchan);
 
 	ops->spur_mitigate(sc, curchan, extchan);
@@ -1283,7 +1294,7 @@ athn_calib_to(void *arg)
 {
 	struct athn_softc *sc = arg;
 	struct athn_ops *ops = &sc->sc_ops;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	int s;
 
 	s = splnet();
@@ -1410,7 +1421,7 @@ athn_ani_ofdm_err_trigger(struct athn_softc *sc)
 	}
 
 #ifndef IEEE80211_STA_ONLY
-	if (sc->sc_ic.ic_opmode == IEEE80211_M_HOSTAP) {
+	if (sc->sc_ic->ic_opmode == IEEE80211_M_HOSTAP) {
 		if (ani->firstep_level < 2) {
 			ani->firstep_level++;
 			ops->set_firstep_level(sc, ani->firstep_level);
@@ -1446,7 +1457,7 @@ athn_ani_ofdm_err_trigger(struct athn_softc *sc)
 			ani->firstep_level++;
 			ops->set_firstep_level(sc, ani->firstep_level);
 		}
-	} else if (sc->sc_ic.ic_curmode != IEEE80211_MODE_11A) {
+	} else if (sc->sc_ic->ic_curmode != IEEE80211_MODE_11A) {
 		/*
 		 * Beacon RSSI is low, if in b/g mode, turn off OFDM weak
 		 * signal detection and zero first step level to maximize
@@ -1480,7 +1491,7 @@ athn_ani_cck_err_trigger(struct athn_softc *sc)
 	}
 
 #ifndef IEEE80211_STA_ONLY
-	if (sc->sc_ic.ic_opmode == IEEE80211_M_HOSTAP) {
+	if (sc->sc_ic->ic_opmode == IEEE80211_M_HOSTAP) {
 		if (ani->firstep_level < 2) {
 			ani->firstep_level++;
 			ops->set_firstep_level(sc, ani->firstep_level);
@@ -1498,7 +1509,7 @@ athn_ani_cck_err_trigger(struct athn_softc *sc)
 			ani->firstep_level++;
 			ops->set_firstep_level(sc, ani->firstep_level);
 		}
-	} else if (sc->sc_ic.ic_curmode != IEEE80211_MODE_11A) {
+	} else if (sc->sc_ic->ic_curmode != IEEE80211_MODE_11A) {
 		/*
 		 * Beacon RSSI is low, zero first step level to maximize
 		 * CCK sensitivity.
@@ -1520,7 +1531,7 @@ athn_ani_lower_immunity(struct athn_softc *sc)
 	int32_t rssi;
 
 #ifndef IEEE80211_STA_ONLY
-	if (sc->sc_ic.ic_opmode == IEEE80211_M_HOSTAP) {
+	if (sc->sc_ic->ic_opmode == IEEE80211_M_HOSTAP) {
 		if (ani->firstep_level > 0) {
 			ani->firstep_level--;
 			ops->set_firstep_level(sc, ani->firstep_level);
@@ -2058,7 +2069,7 @@ athn_set_opmode(struct athn_softc *sc)
 {
 	uint32_t reg;
 
-	switch (sc->sc_ic.ic_opmode) {
+	switch (sc->sc_ic->ic_opmode) {
 #ifndef IEEE80211_STA_ONLY
 	case IEEE80211_M_HOSTAP:
 		reg = AR_READ(sc, AR_STA_ID1);
@@ -2173,7 +2184,7 @@ PUBLIC int
 athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan, int init)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct athn_ops *ops = &sc->sc_ops;
 	uint32_t reg, def_ant, sta_id1, cfg_led, tsflo, tsfhi;
 	int i, error;
@@ -2440,7 +2451,7 @@ athn_newassoc(struct ieee80211_node *ni, int isnew)
 // athn_media_change(struct ifnet *i*fp)
 // {
 // 	struct athn_softc *sc = i*fp->if_softc;
-// 	struct ieee80211com *ic = &sc->sc_ic;
+// 	struct ieee80211com *ic = sc->sc_ic;
 // 	uint8_t rate, ridx;
 // 	int error;
 
@@ -2615,7 +2626,7 @@ athn_updateedca(struct ieee80211com *ic)
 Static int
 athn_clock_rate(struct athn_softc *sc)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	int clockrate;	/* MHz. */
 
 	if (ic->ic_curmode == IEEE80211_MODE_11A) {
@@ -2709,7 +2720,7 @@ athn_watchdog(void *arg)
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
 			(void)athn_init(sc);
-			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
+			ieee80211_stat_add(&sc->sc_ic->ic_oerrors, 1);
 			return;
 		}
 		callout_schedule(&sc->sc_watchdog_to, hz);
@@ -2775,7 +2786,7 @@ athn_set_multi(struct ieee80211com *ic)
 // athn_ioctl(struct ifnet *i*fp, u_long cmd, void *data)
 // {
 // 	struct athn_softc *sc = i*fp->if_softc;
-// 	struct ieee80211com *ic = &sc->sc_ic;
+// 	struct ieee80211com *ic = sc->sc_ic;
 // 	int s, error = 0;
 
 // 	s = splnet();
@@ -2847,7 +2858,7 @@ Static int
 athn_init(struct athn_softc *sc)
 {
 	struct athn_ops *ops = &sc->sc_ops;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct ieee80211_channel *curchan, *extchan;
 	size_t i;
 	int error;
@@ -2956,7 +2967,7 @@ athn_init(struct athn_softc *sc)
 PUBLIC void
 athn_stop(struct athn_softc *sc, int disable)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = sc->sc_ic;
 	struct ieee80211vap *nvap;
 	int qid;
 

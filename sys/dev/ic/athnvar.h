@@ -452,10 +452,14 @@ struct athn_ops {
 };
 
 struct athn_softc {
+	union {
+		struct ieee80211com		sc_real_ic;
+		struct usbwifi			sc_uw;
+	};
 	device_t			sc_dev;
 	device_suspensor_t		sc_suspensor;
 	pmf_qual_t			sc_qual;
-	struct ieee80211com		sc_ic;
+	struct ieee80211com		*sc_ic;
 	struct ethercom			sc_ec;
 #define sc_if	sc_ec.ec_if
 	struct ifaltq			sc_sendq;

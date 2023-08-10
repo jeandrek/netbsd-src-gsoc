@@ -60,6 +60,8 @@ __KERNEL_RCSID(0, "$NetBSD: arn9280.c,v 1.3 2022/09/25 18:43:32 thorpej Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
+#include <dev/usb/usbwifi.h>
+
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
