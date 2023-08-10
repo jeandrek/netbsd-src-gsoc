@@ -453,6 +453,15 @@ struct athn_ops {
 
 struct athn_softc {
 	union {
+		/*
+		 * Probably a better alternative:  Only ic here, uw at the
+		 * beginning of athn_usb_softc.  Then always use usc->usc_sc
+		 * instead of casting with ATHN_SOFTC.
+		 *
+		 * Probably the best alternative:  Don't use athn_softc for USB.
+		 * Make a smaller struct with common data, or exclusively for
+		 * the methods in athn_ops.  sc_ic as before.
+		 */
 		struct ieee80211com		sc_real_ic;
 		struct usbwifi			sc_uw;
 	};
