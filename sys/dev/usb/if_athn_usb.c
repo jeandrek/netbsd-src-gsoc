@@ -417,7 +417,7 @@ athn_usb_attachhook(device_t arg)
 
 	/* We're now ready to attach the bus agnostic driver. */
 	ic->ic_updateslot = athn_usb_updateslot;
-	//sc->sc_max_aid = AR_USB_MAX_STA;  /* Firmware is limited to 8 STA */
+	sc->sc_max_aid = AR_USB_MAX_STA;  /* Firmware is limited to 8 STA */
 	//sc->sc_media_change = athn_usb_media_change;
 
 	/* Override some operations for USB. */
