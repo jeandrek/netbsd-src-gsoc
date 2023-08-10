@@ -2920,10 +2920,7 @@ athn_usb_init_locked(struct athn_usb_softc *usc)
 			goto fail;
 	}
 	/* We're ready to go. */
-#if 0
-	ifp->if_flags &= ~IFF_OACTIVE;
-	ifp->if_flags |= IFF_RUNNING;
-#endif
+	sc->sc_flags |= ATHN_FLAG_TX_BUSY;
 
 #ifdef notyet
 	if (ic->ic_flags & IEEE80211_F_WEPON) {
@@ -2976,11 +2973,11 @@ athn_usb_stop_locked(struct athn_usb_softc *usc)
 	splx(s);
 
 	sc->sc_tx_timer = 0;
-	//ifp->if_timer = 0;
-	//ifp->if_flags &= ~(IFF_RUNNING | IFF_OACTIVE);
+	sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
 
 	callout_stop(&sc->sc_scan_to);
 	callout_stop(&sc->sc_calib_to);
+	callout_stop(&sc->sc_watchdog_to);
 
 	/* Abort Tx/Rx. */
 	usbd_abort_pipe(usc->usc_tx_data_pipe);
