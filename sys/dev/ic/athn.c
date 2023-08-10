@@ -356,14 +356,17 @@ athn_attach(struct athn_softc *sc)
 
 	ieee80211_ifattach(ic);
 
-	ic->ic_parent = athn_parent;
+	if (!(sc->sc_flags & ATHN_FLAG_USB))
+		ic->ic_parent = athn_parent;
 	ic->ic_node_alloc = athn_node_alloc;
 	ic->ic_newassoc = athn_newassoc;
 	ic->ic_getradiocaps = athn_get_radiocaps;
 	ic->ic_vap_create = athn_vap_create;
 	ic->ic_vap_delete = athn_vap_delete;
-	ic->ic_transmit = athn_transmit;
-	ic->ic_raw_xmit = sc->sc_ops.tx;
+	if (!(sc->sc_flags & ATHN_FLAG_USB)) {
+		ic->ic_transmit = athn_transmit;
+		ic->ic_raw_xmit = sc->sc_ops.tx;
+	}
 	ic->ic_update_mcast = athn_set_multi;
 	ic->ic_scan_start = athn_scan_start;
 	ic->ic_scan_end = athn_scan_end;
