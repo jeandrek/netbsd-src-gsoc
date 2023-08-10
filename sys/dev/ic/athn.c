@@ -159,7 +159,7 @@ athn_attach(struct athn_softc *sc)
 	struct ieee80211com *ic;
 	int error;
 
-	if (sc->sc_ic != NULL) {
+	if (sc->sc_ic == NULL) {
 		ic = &sc->sc_real_ic;
 		sc->sc_ic = ic;
 	} else {
