@@ -555,7 +555,7 @@ athn_usb_activate(device_t self, enum devact act)
 
 	DPRINTFN(DBG_FN, usc, "\n");
 
-	return ieee80211_activate(&sc->sc_ic);
+	return ieee80211_activate(&sc->sc_ic, act);
 }
 
 Static int
