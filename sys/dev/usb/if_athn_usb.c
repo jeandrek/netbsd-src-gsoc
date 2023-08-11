@@ -94,8 +94,10 @@ CFATTACH_DECL_NEW(athn_usb, sizeof(struct athn_usb_softc), athn_usb_match,
 Static int	athn_usb_alloc_tx_cmd(struct athn_usb_softc *);
 Static int	athn_usb_alloc_tx_msg(struct athn_usb_softc *);
 Static void	athn_usb_attachhook(device_t);
+#ifdef notyet
 Static void	athn_usb_bcneof(struct usbd_xfer *, void *,
 		    usbd_status);
+#endif
 Static void	athn_usb_abort_pipes(struct athn_usb_softc *);
 Static void	athn_usb_close_pipes(struct athn_usb_softc *);
 Static int	athn_usb_create_hw_node(struct athn_usb_softc *,
@@ -137,7 +139,9 @@ Static void	athn_usb_rx_loop(struct usbwifi *, struct usbwifi_chain *,
 		    uint32_t);
 Static void	athn_usb_stop(struct athn_usb_softc *, int disable);
 Static void	athn_usb_stop_locked(struct usbwifi *);
+#ifdef notyet
 Static void	athn_usb_swba(struct athn_usb_softc *);
+#endif
 //Static int	athn_usb_switch_chan(struct athn_softc *,
 //		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static void	athn_usb_task(void *);
@@ -1851,6 +1855,7 @@ athn_usb_delete_key_cb(struct athn_usb_softc *usc, void *arg)
 #endif /* notyet */
 
 #ifndef IEEE80211_STA_ONLY
+#ifdef notyet
 Static void
 athn_usb_bcneof(struct usbd_xfer *xfer, void * priv,
     usbd_status status)
@@ -1934,6 +1939,7 @@ athn_usb_swba(struct athn_usb_softc *usc)
 		usc->usc_tx_bcn = data;
 }
 #endif
+#endif
 
 Static void
 athn_usb_rx_wmi_ctrl(struct athn_usb_softc *usc, uint8_t *buf, size_t len)
@@ -1975,9 +1981,11 @@ athn_usb_rx_wmi_ctrl(struct athn_usb_softc *usc, uint8_t *buf, size_t len)
 	 */
 	switch (cmd_id & 0xfff) {
 #ifndef IEEE80211_STA_ONLY
+#ifdef notyet
 	case AR_WMI_EVT_SWBA:
 		athn_usb_swba(usc);
 		break;
+#endif
 #endif
 	case AR_WMI_EVT_FATAL:
 		aprint_error_dev(usc->usc_dev, "fatal firmware error\n");

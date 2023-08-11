@@ -448,7 +448,6 @@ struct athn_usb_softc {
 	} usc_init_state;
 	int				usc_athn_attached;
 
-	kmutex_t			usc_lock;
 	kcondvar_t			usc_wmi_cv;
 	kcondvar_t			usc_htc_cv;
 
@@ -472,9 +471,6 @@ struct athn_usb_softc {
 
 	struct athn_usb_rx_stream	usc_rx_stream;
 
-	struct usbd_pipe		*usc_tx_data_pipe;
-	struct usbd_pipe		*usc_rx_data_pipe;
-	struct usbd_pipe		*usc_rx_intr_pipe;
 	struct usbd_pipe		*usc_tx_intr_pipe;
 	uint8_t 			*usc_ibuf;
 	size_t				usc_ibufsize;
