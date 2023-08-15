@@ -112,14 +112,14 @@ ar9285_attach(struct athn_common *ac)
 	ac->ac_ops.spur_mitigate = ar9280_spur_mitigate;
 	ac->ac_ops.get_spur_chans = ar9285_get_spur_chans;
 #if NATHN_USB > 0
-	if (AR_SREV_9271(sc))
+	if (AR_SREV_9271(ac))
 		ac->ac_ini = &ar9271_ini;
 	else
 #endif
 		ac->ac_ini = &ar9285_1_2_ini;
 	ac->ac_serdes = &ar9280_2_0_serdes;
 
-	return ar5008_attach(sc);
+	return ar5008_attach(ac);
 }
 
 Static void
@@ -132,7 +132,7 @@ ar9285_setup(struct athn_common *ac)
 	type = eep->baseEepHeader.txGainType;
 	DPRINTFN(DBG_TX, sc, "Tx gain type=0x%x\n", type);
 #if NATHN_USB > 0
-	if (AR_SREV_9271(sc)) {
+	if (AR_SREV_9271(ac)) {
 		if (type == AR_EEP_TXGAIN_HIGH_POWER)
 			ac->ac_tx_gain = &ar9271_tx_gain_high_power;
 		else
@@ -140,7 +140,7 @@ ar9285_setup(struct athn_common *ac)
 	}
 	else
 #endif	/* NATHN_USB */
-	if ((AR_READ(sc, AR_AN_SYNTH9) & 0x7) == 0x1) {	/* XE rev. */
+	if ((AR_READ(ac, AR_AN_SYNTH9) & 0x7) == 0x1) {	/* XE rev. */
 		if (type == AR_EEP_TXGAIN_HIGH_POWER)
 			ac->ac_tx_gain = &ar9285_2_0_tx_gain_high_power;
 		else
@@ -190,16 +190,16 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 	uint8_t ob[5], db1[5], db2[5];
 	uint8_t txRxAtten;
 
-	AR_WRITE(sc, AR_PHY_SWITCH_COM, modal->antCtrlCommon);
-	AR_WRITE(sc, AR_PHY_SWITCH_CHAIN_0, modal->antCtrlChain);
+	AR_WRITE(ac, AR_PHY_SWITCH_COM, modal->antCtrlCommon);
+	AR_WRITE(ac, AR_PHY_SWITCH_CHAIN_0, modal->antCtrlChain);
 
-	reg = AR_READ(sc, AR_PHY_TIMING_CTRL4_0);
+	reg = AR_READ(ac, AR_PHY_TIMING_CTRL4_0);
 	reg = RW(reg, AR_PHY_TIMING_CTRL4_IQCORR_Q_I_COFF, modal->iqCalI);
 	reg = RW(reg, AR_PHY_TIMING_CTRL4_IQCORR_Q_Q_COFF, modal->iqCalQ);
-	AR_WRITE(sc, AR_PHY_TIMING_CTRL4_0, reg);
+	AR_WRITE(ac, AR_PHY_TIMING_CTRL4_0, reg);
 
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3) {
-		reg = AR_READ(sc, AR_PHY_GAIN_2GHZ);
+		reg = AR_READ(ac, AR_PHY_GAIN_2GHZ);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN1_MARGIN,
 		    modal->bswMargin);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN1_DB,
@@ -208,10 +208,10 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		    modal->xatten2Margin);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN2_DB,
 		    modal->xatten2Db);
-		AR_WRITE(sc, AR_PHY_GAIN_2GHZ, reg);
+		AR_WRITE(ac, AR_PHY_GAIN_2GHZ, reg);
 
 		/* Duplicate values of chain 0 for chain 1. */
-		reg = AR_READ(sc, AR_PHY_GAIN_2GHZ + offset);
+		reg = AR_READ(ac, AR_PHY_GAIN_2GHZ + offset);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN1_MARGIN,
 		    modal->bswMargin);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN1_DB,
@@ -220,26 +220,26 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		    modal->xatten2Margin);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN2_DB,
 		    modal->xatten2Db);
-		AR_WRITE(sc, AR_PHY_GAIN_2GHZ + offset, reg);
+		AR_WRITE(ac, AR_PHY_GAIN_2GHZ + offset, reg);
 	}
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3)
 		txRxAtten = modal->txRxAtten;
 	else	/* Workaround for ROM versions < 14.3. */
 		txRxAtten = 23;
-	reg = AR_READ(sc, AR_PHY_RXGAIN);
+	reg = AR_READ(ac, AR_PHY_RXGAIN);
 	reg = RW(reg, AR9280_PHY_RXGAIN_TXRX_ATTEN, txRxAtten);
 	reg = RW(reg, AR9280_PHY_RXGAIN_TXRX_MARGIN, modal->rxTxMargin);
-	AR_WRITE(sc, AR_PHY_RXGAIN, reg);
+	AR_WRITE(ac, AR_PHY_RXGAIN, reg);
 
 	/* Duplicate values of chain 0 for chain 1. */
-	reg = AR_READ(sc, AR_PHY_RXGAIN + offset);
+	reg = AR_READ(ac, AR_PHY_RXGAIN + offset);
 	reg = RW(reg, AR9280_PHY_RXGAIN_TXRX_ATTEN, txRxAtten);
 	reg = RW(reg, AR9280_PHY_RXGAIN_TXRX_MARGIN, modal->rxTxMargin);
-	AR_WRITE(sc, AR_PHY_RXGAIN + offset, reg);
+	AR_WRITE(ac, AR_PHY_RXGAIN + offset, reg);
 
 	if (modal->version >= 3) {
 		/* Setup antenna diversity from ROM. */
-		reg = AR_READ(sc, AR_PHY_MULTICHAIN_GAIN_CTL);
+		reg = AR_READ(ac, AR_PHY_MULTICHAIN_GAIN_CTL);
 		reg = RW(reg, AR9285_PHY_ANT_DIV_CTL_ALL, 0);
 		reg = RW(reg, AR9285_PHY_ANT_DIV_CTL,
 		    (modal->ob_234  >> 12) & 0x1);
@@ -251,16 +251,16 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		    (modal->ob_234  >> 13) & 0x1);
 		reg = RW(reg, AR9285_PHY_ANT_DIV_MAIN_GAINTB,
 		    (modal->ob_234  >> 14) & 0x1);
-		AR_WRITE(sc, AR_PHY_MULTICHAIN_GAIN_CTL, reg);
-		reg = AR_READ(sc, AR_PHY_MULTICHAIN_GAIN_CTL);	/* Flush. */
+		AR_WRITE(ac, AR_PHY_MULTICHAIN_GAIN_CTL, reg);
+		reg = AR_READ(ac, AR_PHY_MULTICHAIN_GAIN_CTL);	/* Flush. */
 
-		reg = AR_READ(sc, AR_PHY_CCK_DETECT);
+		reg = AR_READ(ac, AR_PHY_CCK_DETECT);
 		if (modal->ob_234 & (1 << 15))
 			reg |= AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV;
 		else
 			reg &= ~AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV;
-		AR_WRITE(sc, AR_PHY_CCK_DETECT, reg);
-		reg = AR_READ(sc, AR_PHY_CCK_DETECT);		/* Flush. */
+		AR_WRITE(ac, AR_PHY_CCK_DETECT, reg);
+		reg = AR_READ(ac, AR_PHY_CCK_DETECT);		/* Flush. */
 	}
 	if (modal->version >= 2) {
 		ob [0] = (modal->ob_01   >> 0) & 0xf;
@@ -311,25 +311,25 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		db2[1] = db2[2] = db2[3] = db2[4] = db2[0];
 	}
 #if NATHN_USB > 0
-	if (AR_SREV_9271(sc)) {
-		reg = AR_READ(sc, AR9285_AN_RF2G3);
+	if (AR_SREV_9271(ac)) {
+		reg = AR_READ(ac, AR9285_AN_RF2G3);
 		reg = RW(reg, AR9271_AN_RF2G3_OB_CCK, ob [0]);
 		reg = RW(reg, AR9271_AN_RF2G3_OB_PSK, ob [1]);
 		reg = RW(reg, AR9271_AN_RF2G3_OB_QAM, ob [2]);
 		reg = RW(reg, AR9271_AN_RF2G3_DB1,    db1[0]);
-		AR_WRITE(sc, AR9285_AN_RF2G3, reg);
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, AR9285_AN_RF2G3, reg);
+		AR_WRITE_BARRIER(ac);
 		DELAY(100);
-		reg = AR_READ(sc, AR9285_AN_RF2G4);
+		reg = AR_READ(ac, AR9285_AN_RF2G4);
 		reg = RW(reg, AR9271_AN_RF2G4_DB2, (uint32_t)db2[0]);
-		AR_WRITE(sc, AR9285_AN_RF2G4, reg);
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, AR9285_AN_RF2G4, reg);
+		AR_WRITE_BARRIER(ac);
 		DELAY(100);
 	}
 	else
 #endif	/* ATHN_USB */
 	{
-		reg = AR_READ(sc, AR9285_AN_RF2G3);
+		reg = AR_READ(ac, AR9285_AN_RF2G3);
 		reg = RW(reg, AR9285_AN_RF2G3_OB_0,  ob [0]);
 		reg = RW(reg, AR9285_AN_RF2G3_OB_1,  ob [1]);
 		reg = RW(reg, AR9285_AN_RF2G3_OB_2,  ob [2]);
@@ -338,10 +338,10 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		reg = RW(reg, AR9285_AN_RF2G3_DB1_0, db1[0]);
 		reg = RW(reg, AR9285_AN_RF2G3_DB1_1, db1[1]);
 		reg = RW(reg, AR9285_AN_RF2G3_DB1_2, db1[2]);
-		AR_WRITE(sc, AR9285_AN_RF2G3, reg);
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, AR9285_AN_RF2G3, reg);
+		AR_WRITE_BARRIER(ac);
 		DELAY(100);
-		reg = AR_READ(sc, AR9285_AN_RF2G4);
+		reg = AR_READ(ac, AR9285_AN_RF2G4);
 		reg = RW(reg, AR9285_AN_RF2G4_DB1_3, db1[3]);
 		reg = RW(reg, AR9285_AN_RF2G4_DB1_4, db1[4]);
 		reg = RW(reg, AR9285_AN_RF2G4_DB2_0, db2[0]);
@@ -349,53 +349,53 @@ ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		reg = RW(reg, AR9285_AN_RF2G4_DB2_2, db2[2]);
 		reg = RW(reg, AR9285_AN_RF2G4_DB2_3, db2[3]);
 		reg = RW(reg, AR9285_AN_RF2G4_DB2_4, db2[4]);
-		AR_WRITE(sc, AR9285_AN_RF2G4, reg);
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, AR9285_AN_RF2G4, reg);
+		AR_WRITE_BARRIER(ac);
 		DELAY(100);
 	}
 
-	reg = AR_READ(sc, AR_PHY_SETTLING);
+	reg = AR_READ(ac, AR_PHY_SETTLING);
 	reg = RW(reg, AR_PHY_SETTLING_SWITCH, modal->switchSettling);
-	AR_WRITE(sc, AR_PHY_SETTLING, reg);
+	AR_WRITE(ac, AR_PHY_SETTLING, reg);
 
-	reg = AR_READ(sc, AR_PHY_DESIRED_SZ);
+	reg = AR_READ(ac, AR_PHY_DESIRED_SZ);
 	reg = RW(reg, AR_PHY_DESIRED_SZ_ADC, modal->adcDesiredSize);
-	AR_WRITE(sc, AR_PHY_DESIRED_SZ, reg);
+	AR_WRITE(ac, AR_PHY_DESIRED_SZ, reg);
 
 	reg =  SM(AR_PHY_RF_CTL4_TX_END_XPAA_OFF, modal->txEndToXpaOff);
 	reg |= SM(AR_PHY_RF_CTL4_TX_END_XPAB_OFF, modal->txEndToXpaOff);
 	reg |= SM(AR_PHY_RF_CTL4_FRAME_XPAA_ON, modal->txFrameToXpaOn);
 	reg |= SM(AR_PHY_RF_CTL4_FRAME_XPAB_ON, modal->txFrameToXpaOn);
-	AR_WRITE(sc, AR_PHY_RF_CTL4, reg);
+	AR_WRITE(ac, AR_PHY_RF_CTL4, reg);
 
-	reg = AR_READ(sc, AR_PHY_RF_CTL3);
+	reg = AR_READ(ac, AR_PHY_RF_CTL3);
 	reg = RW(reg, AR_PHY_TX_END_TO_A2_RX_ON, modal->txEndToRxOn);
-	AR_WRITE(sc, AR_PHY_RF_CTL3, reg);
+	AR_WRITE(ac, AR_PHY_RF_CTL3, reg);
 
-	reg = AR_READ(sc, AR_PHY_CCA(0));
+	reg = AR_READ(ac, AR_PHY_CCA(0));
 	reg = RW(reg, AR9280_PHY_CCA_THRESH62, modal->thresh62);
-	AR_WRITE(sc, AR_PHY_CCA(0), reg);
+	AR_WRITE(ac, AR_PHY_CCA(0), reg);
 
-	reg = AR_READ(sc, AR_PHY_EXT_CCA0);
+	reg = AR_READ(ac, AR_PHY_EXT_CCA0);
 	reg = RW(reg, AR_PHY_EXT_CCA0_THRESH62, modal->thresh62);
-	AR_WRITE(sc, AR_PHY_EXT_CCA0, reg);
+	AR_WRITE(ac, AR_PHY_EXT_CCA0, reg);
 
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2) {
-		reg = AR_READ(sc, AR_PHY_RF_CTL2);
+		reg = AR_READ(ac, AR_PHY_RF_CTL2);
 		reg = RW(reg, AR_PHY_TX_END_PA_ON,
 		    modal->txFrameToPaOn);
 		reg = RW(reg, AR_PHY_TX_END_DATA_START,
 		    modal->txFrameToDataStart);
-		AR_WRITE(sc, AR_PHY_RF_CTL2, reg);
+		AR_WRITE(ac, AR_PHY_RF_CTL2, reg);
 	}
 #ifndef IEEE80211_NO_HT
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3 && extc != NULL) {
-		reg = AR_READ(sc, AR_PHY_SETTLING);
+		reg = AR_READ(ac, AR_PHY_SETTLING);
 		reg = RW(reg, AR_PHY_SETTLING_SWITCH, modal->swSettleHt40);
-		AR_WRITE(sc, AR_PHY_SETTLING, reg);
+		AR_WRITE(ac, AR_PHY_SETTLING, reg);
 	}
 #endif
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE_BARRIER(ac);
 }
 
 PUBLIC void
@@ -415,90 +415,90 @@ ar9285_pa_calib(struct athn_common *ac)
 	size_t i;
 
 	/* No PA calibration needed for high power solutions. */
-	if (AR_SREV_9285(sc) &&
+	if (AR_SREV_9285(ac) &&
 	    ((struct ar9285_base_eep_header *)ac->ac_eep)->txGainType ==
 	     AR_EEP_TXGAIN_HIGH_POWER)	/* XXX AR9287? */
 		return;
 
 	/* Save registers. */
 	for (i = 0; i < __arraycount(regs); i++)
-		svg[i] = AR_READ(sc, regs[i]);
+		svg[i] = AR_READ(ac, regs[i]);
 
-	AR_CLRBITS(sc, AR9285_AN_RF2G6, 1);
-	AR_SETBITS(sc, AR_PHY(2), 1 << 27);
+	AR_CLRBITS(ac, AR9285_AN_RF2G6, 1);
+	AR_SETBITS(ac, AR_PHY(2), 1 << 27);
 
-	AR_SETBITS(sc, AR9285_AN_TOP3, AR9285_AN_TOP3_PWDDAC);
-	AR_SETBITS(sc, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDRXTXBB1);
-	AR_SETBITS(sc, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDV2I);
-	AR_SETBITS(sc, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDDACIF);
-	AR_CLRBITS(sc, AR9285_AN_RF2G2, AR9285_AN_RF2G2_OFFCAL);
-	AR_CLRBITS(sc, AR9285_AN_RF2G7, AR9285_AN_RF2G7_PWDDB);
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_ENPACAL);
+	AR_SETBITS(ac, AR9285_AN_TOP3, AR9285_AN_TOP3_PWDDAC);
+	AR_SETBITS(ac, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDRXTXBB1);
+	AR_SETBITS(ac, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDV2I);
+	AR_SETBITS(ac, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDDACIF);
+	AR_CLRBITS(ac, AR9285_AN_RF2G2, AR9285_AN_RF2G2_OFFCAL);
+	AR_CLRBITS(ac, AR9285_AN_RF2G7, AR9285_AN_RF2G7_PWDDB);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_ENPACAL);
 	/* Power down PA drivers. */
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV1);
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV2);
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPAOUT);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV1);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV2);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPAOUT);
 
-	reg = AR_READ(sc, AR9285_AN_RF2G8);
+	reg = AR_READ(ac, AR9285_AN_RF2G8);
 	reg = RW(reg, AR9285_AN_RF2G8_PADRVGN2TAB0, 7);
-	AR_WRITE(sc, AR9285_AN_RF2G8, reg);
+	AR_WRITE(ac, AR9285_AN_RF2G8, reg);
 
-	reg = AR_READ(sc, AR9285_AN_RF2G7);
+	reg = AR_READ(ac, AR9285_AN_RF2G7);
 	reg = RW(reg, AR9285_AN_RF2G7_PADRVGN2TAB0, 0);
-	AR_WRITE(sc, AR9285_AN_RF2G7, reg);
+	AR_WRITE(ac, AR9285_AN_RF2G7, reg);
 
-	reg = AR_READ(sc, AR9285_AN_RF2G6);
+	reg = AR_READ(ac, AR9285_AN_RF2G6);
 	/* Save compensation capacitor value. */
 	ccomp_svg = MS(reg, AR9285_AN_RF2G6_CCOMP);
 	/* Program compensation capacitor for dynamic PA. */
 	reg = RW(reg, AR9285_AN_RF2G6_CCOMP, 0xf);
-	AR_WRITE(sc, AR9285_AN_RF2G6, reg);
+	AR_WRITE(ac, AR9285_AN_RF2G6, reg);
 
-	AR_WRITE(sc, AR9285_AN_TOP2, AR9285_AN_TOP2_DEFAULT);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR9285_AN_TOP2, AR9285_AN_TOP2_DEFAULT);
+	AR_WRITE_BARRIER(ac);
 	DELAY(30);
 
 	/* Clear offsets 6-1. */
-	AR_CLRBITS(sc, AR9285_AN_RF2G6, AR9285_AN_RF2G6_OFFS_6_1);
+	AR_CLRBITS(ac, AR9285_AN_RF2G6, AR9285_AN_RF2G6_OFFS_6_1);
 	/* Clear offset 0. */
-	AR_CLRBITS(sc, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
+	AR_CLRBITS(ac, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
 	/* Set offsets 6-1. */
 	for (i = 6; i >= 1; i--) {
-		AR_SETBITS(sc, AR9285_AN_RF2G6, AR9285_AN_RF2G6_OFFS(i));
-		AR_WRITE_BARRIER(sc);
+		AR_SETBITS(ac, AR9285_AN_RF2G6, AR9285_AN_RF2G6_OFFS(i));
+		AR_WRITE_BARRIER(ac);
 		DELAY(1);
-		if (AR_READ(sc, AR9285_AN_RF2G9) & AR9285_AN_RXTXBB1_SPARE9) {
-			AR_SETBITS(sc, AR9285_AN_RF2G6,
+		if (AR_READ(ac, AR9285_AN_RF2G9) & AR9285_AN_RXTXBB1_SPARE9) {
+			AR_SETBITS(ac, AR9285_AN_RF2G6,
 			    AR9285_AN_RF2G6_OFFS(i));
 		}
 		else {
-			AR_CLRBITS(sc, AR9285_AN_RF2G6,
+			AR_CLRBITS(ac, AR9285_AN_RF2G6,
 			    AR9285_AN_RF2G6_OFFS(i));
 		}
 	}
 	/* Set offset 0. */
-	AR_SETBITS(sc, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
-	AR_WRITE_BARRIER(sc);
+	AR_SETBITS(ac, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
+	AR_WRITE_BARRIER(ac);
 	DELAY(1);
-	if (AR_READ(sc, AR9285_AN_RF2G9) & AR9285_AN_RXTXBB1_SPARE9)
-		AR_SETBITS(sc, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
+	if (AR_READ(ac, AR9285_AN_RF2G9) & AR9285_AN_RXTXBB1_SPARE9)
+		AR_SETBITS(ac, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
 	else
-		AR_CLRBITS(sc, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
+		AR_CLRBITS(ac, AR9285_AN_RF2G3, AR9285_AN_RF2G3_PDVCCOMP);
 
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE_BARRIER(ac);
 
-	AR_SETBITS(sc, AR9285_AN_RF2G6, 1);
-	AR_CLRBITS(sc, AR_PHY(2), 1 << 27);
+	AR_SETBITS(ac, AR9285_AN_RF2G6, 1);
+	AR_CLRBITS(ac, AR_PHY(2), 1 << 27);
 
 	/* Restore registers. */
 	for (i = 0; i < __arraycount(regs); i++)
-		AR_WRITE(sc, regs[i], svg[i]);
+		AR_WRITE(ac, regs[i], svg[i]);
 
 	/* Restore compensation capacitor value. */
-	reg = AR_READ(sc, AR9285_AN_RF2G6);
+	reg = AR_READ(ac, AR9285_AN_RF2G6);
 	reg = RW(reg, AR9285_AN_RF2G6_CCOMP, ccomp_svg);
-	AR_WRITE(sc, AR9285_AN_RF2G6, reg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR9285_AN_RF2G6, reg);
+	AR_WRITE_BARRIER(ac);
 }
 
 PUBLIC void
@@ -520,66 +520,66 @@ ar9271_pa_calib(struct athn_common *ac)
 
 	/* Save registers. */
 	for (i = 0; i < __arraycount(regs); i++)
-		svg[i] = AR_READ(sc, regs[i]);
+		svg[i] = AR_READ(ac, regs[i]);
 
-	AR_CLRBITS(sc, AR9285_AN_RF2G6, 1);
-	AR_SETBITS(sc, AR_PHY(2), 1 << 27);
+	AR_CLRBITS(ac, AR9285_AN_RF2G6, 1);
+	AR_SETBITS(ac, AR_PHY(2), 1 << 27);
 
-	AR_SETBITS(sc, AR9285_AN_TOP3, AR9285_AN_TOP3_PWDDAC);
-	AR_SETBITS(sc, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDRXTXBB1);
-	AR_SETBITS(sc, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDV2I);
-	AR_SETBITS(sc, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDDACIF);
-	AR_CLRBITS(sc, AR9285_AN_RF2G2, AR9285_AN_RF2G2_OFFCAL);
-	AR_CLRBITS(sc, AR9285_AN_RF2G7, AR9285_AN_RF2G7_PWDDB);
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_ENPACAL);
+	AR_SETBITS(ac, AR9285_AN_TOP3, AR9285_AN_TOP3_PWDDAC);
+	AR_SETBITS(ac, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDRXTXBB1);
+	AR_SETBITS(ac, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDV2I);
+	AR_SETBITS(ac, AR9285_AN_RXTXBB1, AR9285_AN_RXTXBB1_PDDACIF);
+	AR_CLRBITS(ac, AR9285_AN_RF2G2, AR9285_AN_RF2G2_OFFCAL);
+	AR_CLRBITS(ac, AR9285_AN_RF2G7, AR9285_AN_RF2G7_PWDDB);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_ENPACAL);
 	/* Power down PA drivers. */
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV1);
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV2);
-	AR_CLRBITS(sc, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPAOUT);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV1);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPADRV2);
+	AR_CLRBITS(ac, AR9285_AN_RF2G1, AR9285_AN_RF2G1_PDPAOUT);
 
-	reg = AR_READ(sc, AR9285_AN_RF2G8);
+	reg = AR_READ(ac, AR9285_AN_RF2G8);
 	reg = RW(reg, AR9285_AN_RF2G8_PADRVGN2TAB0, 7);
-	AR_WRITE(sc, AR9285_AN_RF2G8, reg);
+	AR_WRITE(ac, AR9285_AN_RF2G8, reg);
 
-	reg = AR_READ(sc, AR9285_AN_RF2G7);
+	reg = AR_READ(ac, AR9285_AN_RF2G7);
 	reg = RW(reg, AR9285_AN_RF2G7_PADRVGN2TAB0, 0);
-	AR_WRITE(sc, AR9285_AN_RF2G7, reg);
+	AR_WRITE(ac, AR9285_AN_RF2G7, reg);
 
 	/* Save compensation capacitor value. */
-	reg = rf2g3_svg = AR_READ(sc, AR9285_AN_RF2G3);
+	reg = rf2g3_svg = AR_READ(ac, AR9285_AN_RF2G3);
 	/* Program compensation capacitor for dynamic PA. */
 	reg = RW(reg, AR9271_AN_RF2G3_CCOMP, 0xfff);
-	AR_WRITE(sc, AR9285_AN_RF2G3, reg);
+	AR_WRITE(ac, AR9285_AN_RF2G3, reg);
 
-	AR_WRITE(sc, AR9285_AN_TOP2, AR9285_AN_TOP2_DEFAULT);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR9285_AN_TOP2, AR9285_AN_TOP2_DEFAULT);
+	AR_WRITE_BARRIER(ac);
 	DELAY(30);
 
 	/* Clear offsets 6-0. */
-	AR_CLRBITS(sc, AR9285_AN_RF2G6, AR9271_AN_RF2G6_OFFS_6_0);
+	AR_CLRBITS(ac, AR9285_AN_RF2G6, AR9271_AN_RF2G6_OFFS_6_0);
 	/* Set offsets 6-1. */
 	for (i = 6; i >= 1; i--) {
-		reg = AR_READ(sc, AR9285_AN_RF2G6);
+		reg = AR_READ(ac, AR9285_AN_RF2G6);
 		reg |= AR9271_AN_RF2G6_OFFS(i);
-		AR_WRITE(sc, AR9285_AN_RF2G6, reg);
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, AR9285_AN_RF2G6, reg);
+		AR_WRITE_BARRIER(ac);
 		DELAY(1);
-		if (!(AR_READ(sc, AR9285_AN_RF2G9) & AR9285_AN_RXTXBB1_SPARE9))
+		if (!(AR_READ(ac, AR9285_AN_RF2G9) & AR9285_AN_RXTXBB1_SPARE9))
 			reg &= ~AR9271_AN_RF2G6_OFFS(i);
-		AR_WRITE(sc, AR9285_AN_RF2G6, reg);
+		AR_WRITE(ac, AR9285_AN_RF2G6, reg);
 	}
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE_BARRIER(ac);
 
-	AR_SETBITS(sc, AR9285_AN_RF2G6, 1);
-	AR_CLRBITS(sc, AR_PHY(2), 1 << 27);
+	AR_SETBITS(ac, AR9285_AN_RF2G6, 1);
+	AR_CLRBITS(ac, AR_PHY(2), 1 << 27);
 
 	/* Restore registers. */
 	for (i = 0; i < __arraycount(regs); i++)
-		AR_WRITE(sc, regs[i], svg[i]);
+		AR_WRITE(ac, regs[i], svg[i]);
 
 	/* Restore compensation capacitor value. */
-	AR_WRITE(sc, AR9285_AN_RF2G3, rf2g3_svg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR9285_AN_RF2G3, rf2g3_svg);
+	AR_WRITE_BARRIER(ac);
 #endif	/* NATHN_USB */
 }
 
@@ -592,44 +592,44 @@ ar9285_cl_cal(struct athn_common *ac, struct ieee80211_channel *c,
 {
 	int ntries;
 
-	AR_SETBITS(sc, AR_PHY_CL_CAL_CTL, AR_PHY_CL_CAL_ENABLE);
+	AR_SETBITS(ac, AR_PHY_CL_CAL_CTL, AR_PHY_CL_CAL_ENABLE);
 #ifndef IEEE80211_NO_HT
 	if (0 && extc == NULL) {	/* XXX IS_CHAN_HT20!! */
-		AR_SETBITS(sc, AR_PHY_CL_CAL_CTL, AR_PHY_PARALLEL_CAL_ENABLE);
-		AR_SETBITS(sc, AR_PHY_TURBO, AR_PHY_FC_DYN2040_EN);
-		AR_CLRBITS(sc, AR_PHY_AGC_CONTROL,
+		AR_SETBITS(ac, AR_PHY_CL_CAL_CTL, AR_PHY_PARALLEL_CAL_ENABLE);
+		AR_SETBITS(ac, AR_PHY_TURBO, AR_PHY_FC_DYN2040_EN);
+		AR_CLRBITS(ac, AR_PHY_AGC_CONTROL,
 		    AR_PHY_AGC_CONTROL_FLTR_CAL);
-		AR_CLRBITS(sc, AR_PHY_TPCRG1, AR_PHY_TPCRG1_PD_CAL_ENABLE);
-		AR_SETBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_CAL);
+		AR_CLRBITS(ac, AR_PHY_TPCRG1, AR_PHY_TPCRG1_PD_CAL_ENABLE);
+		AR_SETBITS(ac, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_CAL);
 		for (ntries = 0; ntries < 10000; ntries++) {
-			if (!(AR_READ(sc, AR_PHY_AGC_CONTROL) &
+			if (!(AR_READ(ac, AR_PHY_AGC_CONTROL) &
 			    AR_PHY_AGC_CONTROL_CAL))
 				break;
 			DELAY(10);
 		}
 		if (ntries == 10000)
 			return ETIMEDOUT;
-		AR_CLRBITS(sc, AR_PHY_TURBO, AR_PHY_FC_DYN2040_EN);
-		AR_CLRBITS(sc, AR_PHY_CL_CAL_CTL, AR_PHY_PARALLEL_CAL_ENABLE);
-		AR_CLRBITS(sc, AR_PHY_CL_CAL_CTL, AR_PHY_CL_CAL_ENABLE);
+		AR_CLRBITS(ac, AR_PHY_TURBO, AR_PHY_FC_DYN2040_EN);
+		AR_CLRBITS(ac, AR_PHY_CL_CAL_CTL, AR_PHY_PARALLEL_CAL_ENABLE);
+		AR_CLRBITS(ac, AR_PHY_CL_CAL_CTL, AR_PHY_CL_CAL_ENABLE);
 	}
 #endif
-	AR_CLRBITS(sc, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
-	AR_SETBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_FLTR_CAL);
-	AR_SETBITS(sc, AR_PHY_TPCRG1, AR_PHY_TPCRG1_PD_CAL_ENABLE);
-	AR_SETBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_CAL);
+	AR_CLRBITS(ac, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
+	AR_SETBITS(ac, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_FLTR_CAL);
+	AR_SETBITS(ac, AR_PHY_TPCRG1, AR_PHY_TPCRG1_PD_CAL_ENABLE);
+	AR_SETBITS(ac, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_CAL);
 	for (ntries = 0; ntries < 10000; ntries++) {
-		if (!(AR_READ(sc, AR_PHY_AGC_CONTROL) &
+		if (!(AR_READ(ac, AR_PHY_AGC_CONTROL) &
 		    AR_PHY_AGC_CONTROL_CAL))
 			break;
 		DELAY(10);
 	}
 	if (ntries == 10000)
 		return ETIMEDOUT;
-	AR_SETBITS(sc, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
-	AR_CLRBITS(sc, AR_PHY_CL_CAL_CTL, AR_PHY_CL_CAL_ENABLE);
-	AR_CLRBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_FLTR_CAL);
-	AR_WRITE_BARRIER(sc);
+	AR_SETBITS(ac, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
+	AR_CLRBITS(ac, AR_PHY_CL_CAL_CTL, AR_PHY_CL_CAL_ENABLE);
+	AR_CLRBITS(ac, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_FLTR_CAL);
+	AR_WRITE_BARRIER(ac);
 	return 0;
 }
 
@@ -639,15 +639,15 @@ ar9271_load_ani(struct athn_common *ac)
 
 #if NATHN_USB > 0
 	/* Write ANI registers. */
-	AR_WRITE(sc, AR_PHY_DESIRED_SZ, 0x6d4000e2);
-	AR_WRITE(sc, AR_PHY_AGC_CTL1,   0x3139605e);
-	AR_WRITE(sc, AR_PHY_FIND_SIG,   0x7ec84d2e);
-	AR_WRITE(sc, AR_PHY_SFCORR_LOW, 0x06903881);
-	AR_WRITE(sc, AR_PHY_SFCORR,     0x5ac640d0);
-	AR_WRITE(sc, AR_PHY_CCK_DETECT, 0x803e68c8);
-	AR_WRITE(sc, AR_PHY_TIMING5,    0xd00a8007);
-	AR_WRITE(sc, AR_PHY_SFCORR_EXT, 0x05eea6d4);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_DESIRED_SZ, 0x6d4000e2);
+	AR_WRITE(ac, AR_PHY_AGC_CTL1,   0x3139605e);
+	AR_WRITE(ac, AR_PHY_FIND_SIG,   0x7ec84d2e);
+	AR_WRITE(ac, AR_PHY_SFCORR_LOW, 0x06903881);
+	AR_WRITE(ac, AR_PHY_SFCORR,     0x5ac640d0);
+	AR_WRITE(ac, AR_PHY_CCK_DETECT, 0x803e68c8);
+	AR_WRITE(ac, AR_PHY_TIMING5,    0xd00a8007);
+	AR_WRITE(ac, AR_PHY_SFCORR_EXT, 0x05eea6d4);
+	AR_WRITE_BARRIER(ac);
 #endif	/* NATHN_USB */
 }
 
@@ -659,19 +659,19 @@ ar9285_init_calib(struct athn_common *ac, struct ieee80211_channel *c,
 	int i, maxgain, nclcs, thresh, error;
 
 	/* Do carrier leakage calibration. */
-	if ((error = ar9285_cl_cal(sc, c, extc)) != 0)
+	if ((error = ar9285_cl_cal(ac, c, extc)) != 0)
 		return error;
 
 	/* Workaround for high temperature is not applicable on AR9271. */
-	if (AR_SREV_9271(sc))
+	if (AR_SREV_9271(ac))
 		return 0;
 
 	mask = 0;
 	nclcs = 0;
-	reg = AR_READ(sc, AR_PHY_TX_PWRCTRL7);
+	reg = AR_READ(ac, AR_PHY_TX_PWRCTRL7);
 	maxgain = MS(reg, AR_PHY_TX_PWRCTRL_TX_GAIN_TAB_MAX);
 	for (i = 0; i <= maxgain; i++) {
-		reg = AR_READ(sc, AR_PHY_TX_GAIN_TBL(i));
+		reg = AR_READ(ac, AR_PHY_TX_GAIN_TBL(i));
 		clcgain = MS(reg, AR_PHY_TX_GAIN_CLC);
 		/* NB: clcgain <= 0xf. */
 		if (!(mask & (1 << clcgain))) {
@@ -681,7 +681,7 @@ ar9285_init_calib(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 	thresh = 0;
 	for (i = 0; i < nclcs; i++) {
-		reg = AR_READ(sc, AR_PHY_CLC_TBL(i));
+		reg = AR_READ(ac, AR_PHY_CLC_TBL(i));
 		if (MS(reg, AR_PHY_CLC_I0) == 0)
 			thresh++;
 		if (MS(reg, AR_PHY_CLC_Q0) == 0)
@@ -692,16 +692,16 @@ ar9285_init_calib(struct athn_common *ac, struct ieee80211_channel *c,
 
 	/* Threshold reached, redo carrier leakage calibration. */
 	DPRINTFN(DBG_INIT, sc, "CLC threshold=%d\n", thresh);
-	rf2g5_svg = reg = AR_READ(sc, AR9285_AN_RF2G5);
-	if ((AR_READ(sc, AR_AN_SYNTH9) & 0x7) == 0x1)	/* XE rev. */
+	rf2g5_svg = reg = AR_READ(ac, AR9285_AN_RF2G5);
+	if ((AR_READ(ac, AR_AN_SYNTH9) & 0x7) == 0x1)	/* XE rev. */
 		reg = RW(reg, AR9285_AN_RF2G5_IC50TX, 0x5);
 	else
 		reg = RW(reg, AR9285_AN_RF2G5_IC50TX, 0x4);
-	AR_WRITE(sc, AR9285_AN_RF2G5, reg);
-	AR_WRITE_BARRIER(sc);
-	error = ar9285_cl_cal(sc, c, extc);
-	AR_WRITE(sc, AR9285_AN_RF2G5, rf2g5_svg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR9285_AN_RF2G5, reg);
+	AR_WRITE_BARRIER(ac);
+	error = ar9285_cl_cal(ac, c, extc);
+	AR_WRITE(ac, AR9285_AN_RF2G5, rf2g5_svg);
+	AR_WRITE_BARRIER(ac);
 	return error;
 }
 
@@ -732,7 +732,7 @@ ar9285_get_pdadcs(struct athn_common *ac, struct ieee80211_channel *c,
 		hipier.pwr[i] = pierdata[lo].pwrPdg[i];
 		hipier.vpd[i] = pierdata[lo].vpdPdg[i];
 	}
-	ar5008_get_pdadcs(sc, fbin, &lopier, &hipier, nxpdgains,
+	ar5008_get_pdadcs(ac, fbin, &lopier, &hipier, nxpdgains,
 	    AR9285_PD_GAIN_ICEPTS, overlap, boundaries, pdadcs);
 }
 
@@ -748,7 +748,7 @@ ar9285_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 	int i, nxpdgains;
 
 	if (ac->ac_eep_rev < AR_EEP_MINOR_VER_2) {
-		overlap = MS(AR_READ(sc, AR_PHY_TPCRG5),
+		overlap = MS(AR_READ(ac, AR_PHY_TPCRG5),
 		    AR_PHY_TPCRG5_PD_GAIN_OVERLAP);
 	}
 	else
@@ -762,14 +762,14 @@ ar9285_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 		if (eep->modalHeader.xpdGain & (1 << i))
 			xpdgains[nxpdgains++] = i;
 	}
-	reg = AR_READ(sc, AR_PHY_TPCRG1);
+	reg = AR_READ(ac, AR_PHY_TPCRG1);
 	reg = RW(reg, AR_PHY_TPCRG1_NUM_PD_GAIN, nxpdgains - 1);
 	reg = RW(reg, AR_PHY_TPCRG1_PD_GAIN_1, xpdgains[0]);
 	reg = RW(reg, AR_PHY_TPCRG1_PD_GAIN_2, xpdgains[1]);
-	AR_WRITE(sc, AR_PHY_TPCRG1, reg);
+	AR_WRITE(ac, AR_PHY_TPCRG1, reg);
 
 	/* NB: No open loop power control for AR9285. */
-	ar9285_get_pdadcs(sc, c, nxpdgains, overlap, boundaries, pdadcs);
+	ar9285_get_pdadcs(ac, c, nxpdgains, overlap, boundaries, pdadcs);
 
 	/* Write boundaries. */
 	reg  = SM(AR_PHY_TPCRG5_PD_GAIN_OVERLAP, overlap);
@@ -777,17 +777,17 @@ ar9285_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 	reg |= SM(AR_PHY_TPCRG5_PD_GAIN_BOUNDARY_2, boundaries[1]);
 	reg |= SM(AR_PHY_TPCRG5_PD_GAIN_BOUNDARY_3, boundaries[2]);
 	reg |= SM(AR_PHY_TPCRG5_PD_GAIN_BOUNDARY_4, boundaries[3]);
-	AR_WRITE(sc, AR_PHY_TPCRG5, reg);
+	AR_WRITE(ac, AR_PHY_TPCRG5, reg);
 
 	/* Write PDADC values. */
 	for (i = 0; i < AR_NUM_PDADC_VALUES; i += 4) {
-		AR_WRITE(sc, AR_PHY_PDADC_TBL_BASE + i,
+		AR_WRITE(ac, AR_PHY_PDADC_TBL_BASE + i,
 		    pdadcs[i + 0] <<  0 |
 		    pdadcs[i + 1] <<  8 |
 		    pdadcs[i + 2] << 16 |
 		    (uint32_t)pdadcs[i + 3] << 24);
 	}
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE_BARRIER(ac);
 }
 
 Static void
@@ -807,7 +807,7 @@ ar9285_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	int16_t power[ATHN_POWER_COUNT];
 	int i;
 
-	ar9285_set_power_calib(sc, c);
+	ar9285_set_power_calib(ac, c);
 
 #ifdef notyet
 	/* Compute transmit power reduction due to antenna gain. */
@@ -816,31 +816,31 @@ ar9285_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 #endif
 
 	/* Get CCK target powers. */
-	ar5008_get_lg_tpow(sc, c, AR_CTL_11B, eep->calTargetPowerCck,
+	ar5008_get_lg_tpow(ac, c, AR_CTL_11B, eep->calTargetPowerCck,
 	    AR9285_NUM_2G_CCK_TARGET_POWERS, tpow_cck);
 
 	/* Get OFDM target powers. */
-	ar5008_get_lg_tpow(sc, c, AR_CTL_11G, eep->calTargetPower2G,
+	ar5008_get_lg_tpow(ac, c, AR_CTL_11G, eep->calTargetPower2G,
 	    AR9285_NUM_2G_20_TARGET_POWERS, tpow_ofdm);
 
 #ifndef IEEE80211_NO_HT
 	/* Get HT-20 target powers. */
-	ar5008_get_ht_tpow(sc, c, AR_CTL_2GHT20, eep->calTargetPower2GHT20,
+	ar5008_get_ht_tpow(ac, c, AR_CTL_2GHT20, eep->calTargetPower2GHT20,
 	    AR9285_NUM_2G_20_TARGET_POWERS, tpow_ht20);
 
 	if (extc != NULL) {
 		/* Get HT-40 target powers. */
-		ar5008_get_ht_tpow(sc, c, AR_CTL_2GHT40,
+		ar5008_get_ht_tpow(ac, c, AR_CTL_2GHT40,
 		    eep->calTargetPower2GHT40, AR9285_NUM_2G_40_TARGET_POWERS,
 		    tpow_ht40);
 
 		/* Get secondary channel CCK target powers. */
-		ar5008_get_lg_tpow(sc, extc, AR_CTL_11B,
+		ar5008_get_lg_tpow(ac, extc, AR_CTL_11B,
 		    eep->calTargetPowerCck, AR9285_NUM_2G_CCK_TARGET_POWERS,
 		    tpow_cck_ext);
 
 		/* Get secondary channel OFDM target powers. */
-		ar5008_get_lg_tpow(sc, extc, AR_CTL_11G,
+		ar5008_get_lg_tpow(ac, extc, AR_CTL_11G,
 		    eep->calTargetPower2G, AR9285_NUM_2G_20_TARGET_POWERS,
 		    tpow_ofdm_ext);
 	}
@@ -889,5 +889,5 @@ ar9285_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 
 	/* Commit transmit power values to hardware. */
-	ar5008_write_txpower(sc, power);
+	ar5008_write_txpower(ac, power);
 }

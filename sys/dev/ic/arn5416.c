@@ -108,24 +108,24 @@ ar5416_attach(struct athn_common *ac)
 	ac->ac_ops.set_synth = ar5416_set_synth;
 	ac->ac_ops.spur_mitigate = ar5416_spur_mitigate;
 	ac->ac_ops.get_spur_chans = ar5416_get_spur_chans;
-	if (AR_SREV_9160_10_OR_LATER(sc))
+	if (AR_SREV_9160_10_OR_LATER(ac))
 		ac->ac_ini = &ar9160_ini;
 	else
 		ac->ac_ini = &ar5416_ini;
 	ac->ac_serdes = &ar5416_serdes;
 
-	return ar5008_attach(sc);
+	return ar5008_attach(ac);
 }
 
 Static void
 ar5416_setup(struct athn_common *ac)
 {
 	/* Select ADDAC programming. */
-	if (AR_SREV_9160_11(sc))
+	if (AR_SREV_9160_11(ac))
 		ac->ac_addac = &ar9160_1_1_addac;
-	else if (AR_SREV_9160_10_OR_LATER(sc))
+	else if (AR_SREV_9160_10_OR_LATER(ac))
 		ac->ac_addac = &ar9160_1_0_addac;
-	else if (AR_SREV_5416_22_OR_LATER(sc))
+	else if (AR_SREV_5416_22_OR_LATER(ac))
 		ac->ac_addac = &ar5416_2_2_addac;
 	else
 		ac->ac_addac = &ar5416_2_1_addac;
@@ -182,16 +182,16 @@ ar5416_set_synth(struct athn_common *ac, struct ieee80211_channel *c,
 			return EINVAL;
 		chansel <<= 2;
 
-		reg = AR_READ(sc, AR_PHY_CCK_TX_CTRL);
+		reg = AR_READ(ac, AR_PHY_CCK_TX_CTRL);
 		if (freq == 2484)	/* Channel 14. */
 			reg |= AR_PHY_CCK_TX_CTRL_JAPAN;
 		else
 			reg &= ~AR_PHY_CCK_TX_CTRL_JAPAN;
-		AR_WRITE(sc, AR_PHY_CCK_TX_CTRL, reg);
+		AR_WRITE(ac, AR_PHY_CCK_TX_CTRL, reg);
 
 		/* Fix for orientation sensitivity issue. */
-		if (AR_SREV_5416(sc))
-			ar5416_force_bias(sc, c);
+		if (AR_SREV_5416(ac))
+			ar5416_force_bias(ac, c);
 	}
 	else {
 		if (freq >= 5120 && (freq % 20) == 0) {
@@ -202,7 +202,7 @@ ar5416_set_synth(struct athn_common *ac, struct ieee80211_channel *c,
 		else if ((freq % 10) == 0) {
 			chansel = (freq - 4800) / 10;
 			chansel <<= 1;
-			if (AR_SREV_9160_10_OR_LATER(sc))
+			if (AR_SREV_9160_10_OR_LATER(ac))
 				phy |= SM(AR5416_AMODE_REFSEL, 1);
 			else
 				phy |= SM(AR5416_AMODE_REFSEL, 2);
@@ -217,7 +217,7 @@ ar5416_set_synth(struct athn_common *ac, struct ieee80211_channel *c,
 	chansel = ar5416_reverse_bits(chansel, 8);
 	phy |= chansel << 8 | 1 << 5 | 1;
 	DPRINTFN(DBG_RF, sc, "AR_PHY(0x37)=0x%08x\n", phy);
-	AR_WRITE(sc, AR_PHY(0x37), phy);
+	AR_WRITE(ac, AR_PHY(0x37), phy);
 	return 0;
 }
 
@@ -234,89 +234,89 @@ ar5416_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 
 	modal = &eep->modalHeader[IEEE80211_IS_CHAN_2GHZ(c)];
 
-	AR_WRITE(sc, AR_PHY_SWITCH_COM, modal->antCtrlCommon);
+	AR_WRITE(ac, AR_PHY_SWITCH_COM, modal->antCtrlCommon);
 
 	for (i = 0; i < AR5416_MAX_CHAINS; i++) {
-		if (AR_SREV_5416_20_OR_LATER(sc) &&
+		if (AR_SREV_5416_20_OR_LATER(ac) &&
 		    (ac->ac_rxchainmask == 0x5 || ac->ac_txchainmask == 0x5))
 			offset = chainoffset[i];
 		else
 			offset = i * 0x1000;
 
-		AR_WRITE(sc, AR_PHY_SWITCH_CHAIN_0 + offset,
+		AR_WRITE(ac, AR_PHY_SWITCH_CHAIN_0 + offset,
 		    modal->antCtrlChain[i]);
 
-		reg = AR_READ(sc, AR_PHY_TIMING_CTRL4_0 + offset);
+		reg = AR_READ(ac, AR_PHY_TIMING_CTRL4_0 + offset);
 		reg = RW(reg, AR_PHY_TIMING_CTRL4_IQCORR_Q_I_COFF,
 		    modal->iqCalICh[i]);
 		reg = RW(reg, AR_PHY_TIMING_CTRL4_IQCORR_Q_Q_COFF,
 		    modal->iqCalQCh[i]);
-		AR_WRITE(sc, AR_PHY_TIMING_CTRL4_0 + offset, reg);
+		AR_WRITE(ac, AR_PHY_TIMING_CTRL4_0 + offset, reg);
 
-		if (i > 0 && !AR_SREV_5416_20_OR_LATER(sc))
+		if (i > 0 && !AR_SREV_5416_20_OR_LATER(ac))
 			continue;
 
 		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3) {
-			reg = AR_READ(sc, AR_PHY_GAIN_2GHZ + offset);
+			reg = AR_READ(ac, AR_PHY_GAIN_2GHZ + offset);
 			reg = RW(reg, AR_PHY_GAIN_2GHZ_BSW_MARGIN,
 			    modal->bswMargin[i]);
 			reg = RW(reg, AR_PHY_GAIN_2GHZ_BSW_ATTEN,
 			    modal->bswAtten[i]);
-			AR_WRITE(sc, AR_PHY_GAIN_2GHZ + offset, reg);
+			AR_WRITE(ac, AR_PHY_GAIN_2GHZ + offset, reg);
 		}
 		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3)
 			txRxAtten = modal->txRxAttenCh[i];
 		else	/* Workaround for ROM versions < 14.3. */
 			txRxAtten = IEEE80211_IS_CHAN_2GHZ(c) ? 23 : 44;
-		reg = AR_READ(sc, AR_PHY_RXGAIN + offset);
+		reg = AR_READ(ac, AR_PHY_RXGAIN + offset);
 		reg = RW(reg, AR_PHY_RXGAIN_TXRX_ATTEN, txRxAtten);
-		AR_WRITE(sc, AR_PHY_RXGAIN + offset, reg);
+		AR_WRITE(ac, AR_PHY_RXGAIN + offset, reg);
 
-		reg = AR_READ(sc, AR_PHY_GAIN_2GHZ + offset);
+		reg = AR_READ(ac, AR_PHY_GAIN_2GHZ + offset);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_RXTX_MARGIN,
 		    modal->rxTxMarginCh[i]);
-		AR_WRITE(sc, AR_PHY_GAIN_2GHZ + offset, reg);
+		AR_WRITE(ac, AR_PHY_GAIN_2GHZ + offset, reg);
 	}
-	reg = AR_READ(sc, AR_PHY_SETTLING);
+	reg = AR_READ(ac, AR_PHY_SETTLING);
 	reg = RW(reg, AR_PHY_SETTLING_SWITCH, modal->switchSettling);
-	AR_WRITE(sc, AR_PHY_SETTLING, reg);
+	AR_WRITE(ac, AR_PHY_SETTLING, reg);
 
-	reg = AR_READ(sc, AR_PHY_DESIRED_SZ);
+	reg = AR_READ(ac, AR_PHY_DESIRED_SZ);
 	reg = RW(reg, AR_PHY_DESIRED_SZ_ADC, modal->adcDesiredSize);
 	reg = RW(reg, AR_PHY_DESIRED_SZ_PGA, modal->pgaDesiredSize);
-	AR_WRITE(sc, AR_PHY_DESIRED_SZ, reg);
+	AR_WRITE(ac, AR_PHY_DESIRED_SZ, reg);
 
 	reg =  SM(AR_PHY_RF_CTL4_TX_END_XPAA_OFF, modal->txEndToXpaOff);
 	reg |= SM(AR_PHY_RF_CTL4_TX_END_XPAB_OFF, modal->txEndToXpaOff);
 	reg |= SM(AR_PHY_RF_CTL4_FRAME_XPAA_ON, modal->txFrameToXpaOn);
 	reg |= SM(AR_PHY_RF_CTL4_FRAME_XPAB_ON, modal->txFrameToXpaOn);
-	AR_WRITE(sc, AR_PHY_RF_CTL4, reg);
+	AR_WRITE(ac, AR_PHY_RF_CTL4, reg);
 
-	reg = AR_READ(sc, AR_PHY_RF_CTL3);
+	reg = AR_READ(ac, AR_PHY_RF_CTL3);
 	reg = RW(reg, AR_PHY_TX_END_TO_A2_RX_ON, modal->txEndToRxOn);
-	AR_WRITE(sc, AR_PHY_RF_CTL3, reg);
+	AR_WRITE(ac, AR_PHY_RF_CTL3, reg);
 
-	reg = AR_READ(sc, AR_PHY_CCA(0));
+	reg = AR_READ(ac, AR_PHY_CCA(0));
 	reg = RW(reg, AR_PHY_CCA_THRESH62, modal->thresh62);
-	AR_WRITE(sc, AR_PHY_CCA(0), reg);
+	AR_WRITE(ac, AR_PHY_CCA(0), reg);
 
-	reg = AR_READ(sc, AR_PHY_EXT_CCA(0));
+	reg = AR_READ(ac, AR_PHY_EXT_CCA(0));
 	reg = RW(reg, AR_PHY_EXT_CCA_THRESH62, modal->thresh62);
-	AR_WRITE(sc, AR_PHY_EXT_CCA(0), reg);
+	AR_WRITE(ac, AR_PHY_EXT_CCA(0), reg);
 
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2) {
-		reg = AR_READ(sc, AR_PHY_RF_CTL2);
+		reg = AR_READ(ac, AR_PHY_RF_CTL2);
 		reg = RW(reg, AR_PHY_TX_END_DATA_START,
 		    modal->txFrameToDataStart);
 		reg = RW(reg, AR_PHY_TX_END_PA_ON, modal->txFrameToPaOn);
-		AR_WRITE(sc, AR_PHY_RF_CTL2, reg);
+		AR_WRITE(ac, AR_PHY_RF_CTL2, reg);
 	}
 #ifndef IEEE80211_NO_HT
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3 && extc != NULL) {
 		/* Overwrite switch settling with HT-40 value. */
-		reg = AR_READ(sc, AR_PHY_SETTLING);
+		reg = AR_READ(ac, AR_PHY_SETTLING);
 		reg = RW(reg, AR_PHY_SETTLING_SWITCH, modal->swSettleHt40);
-		AR_WRITE(sc, AR_PHY_SETTLING, reg);
+		AR_WRITE(ac, AR_PHY_SETTLING, reg);
 	}
 #endif
 }
@@ -327,26 +327,26 @@ ar5416_init_calib(struct athn_common *ac, struct ieee80211_channel *c,
 {
 	int ntries;
 
-	if (AR_SREV_9280_10_OR_LATER(sc)) {
+	if (AR_SREV_9280_10_OR_LATER(ac)) {
 		/* XXX Linux tests AR9287?! */
-		AR_CLRBITS(sc, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
-		AR_SETBITS(sc, AR_PHY_AGC_CONTROL,
+		AR_CLRBITS(ac, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
+		AR_SETBITS(ac, AR_PHY_AGC_CONTROL,
 		    AR_PHY_AGC_CONTROL_FLTR_CAL);
 	}
 	/* Calibrate the AGC. */
-	AR_SETBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_CAL);
+	AR_SETBITS(ac, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_CAL);
 	/* Poll for offset calibration completion. */
 	for (ntries = 0; ntries < 10000; ntries++) {
-		if (!(AR_READ(sc, AR_PHY_AGC_CONTROL) &
+		if (!(AR_READ(ac, AR_PHY_AGC_CONTROL) &
 		    AR_PHY_AGC_CONTROL_CAL))
 			break;
 		DELAY(10);
 	}
 	if (ntries == 10000)
 		return ETIMEDOUT;
-	if (AR_SREV_9280_10_OR_LATER(sc)) {
-		AR_SETBITS(sc, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
-		AR_CLRBITS(sc, AR_PHY_AGC_CONTROL,
+	if (AR_SREV_9280_10_OR_LATER(ac)) {
+		AR_SETBITS(ac, AR_PHY_ADC_CTL, AR_PHY_ADC_CTL_OFF_PWDADC);
+		AR_CLRBITS(ac, AR_PHY_AGC_CONTROL,
 		    AR_PHY_AGC_CONTROL_FLTR_CAL);
 	}
 	return 0;
@@ -387,10 +387,10 @@ ar5416_get_pdadcs(struct athn_common *ac, struct ieee80211_channel *c,
 		hipier.pwr[i] = pierdata[lo].pwrPdg[i];
 		hipier.vpd[i] = pierdata[lo].vpdPdg[i];
 	}
-	ar5008_get_pdadcs(sc, fbin, &lopier, &hipier, nxpdgains,
+	ar5008_get_pdadcs(ac, fbin, &lopier, &hipier, nxpdgains,
 	    AR5416_PD_GAIN_ICEPTS, overlap, boundaries, pdadcs);
 
-	if (!AR_SREV_9280_20_OR_LATER(sc))
+	if (!AR_SREV_9280_20_OR_LATER(ac))
 		return;
 
 	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_21)
@@ -430,7 +430,7 @@ ar5416_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 	modal = &eep->modalHeader[IEEE80211_IS_CHAN_2GHZ(c)];
 
 	if (ac->ac_eep_rev < AR_EEP_MINOR_VER_2) {
-		overlap = MS(AR_READ(sc, AR_PHY_TPCRG5),
+		overlap = MS(AR_READ(ac, AR_PHY_TPCRG5),
 		    AR_PHY_TPCRG5_PD_GAIN_OVERLAP);
 	}
 	else
@@ -451,47 +451,47 @@ ar5416_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 		if (modal->xpdGain & (1 << i))
 			xpdgains[nxpdgains++] = i;
 	}
-	reg = AR_READ(sc, AR_PHY_TPCRG1);
+	reg = AR_READ(ac, AR_PHY_TPCRG1);
 	reg = RW(reg, AR_PHY_TPCRG1_NUM_PD_GAIN, nxpdgains - 1);
 	reg = RW(reg, AR_PHY_TPCRG1_PD_GAIN_1, xpdgains[0]);
 	reg = RW(reg, AR_PHY_TPCRG1_PD_GAIN_2, xpdgains[1]);
 	reg = RW(reg, AR_PHY_TPCRG1_PD_GAIN_3, xpdgains[2]);
-	AR_WRITE(sc, AR_PHY_TPCRG1, reg);
+	AR_WRITE(ac, AR_PHY_TPCRG1, reg);
 
 	for (i = 0; i < AR5416_MAX_CHAINS; i++) {
 		if (!(ac->ac_txchainmask & (1 << i)))
 			continue;
 
-		if (AR_SREV_5416_20_OR_LATER(sc) &&
+		if (AR_SREV_5416_20_OR_LATER(ac) &&
 		    (ac->ac_rxchainmask == 0x5 || ac->ac_txchainmask == 0x5))
 			offset = chainoffset[i];
 		else
 			offset = i * 0x1000;
 
 		if (ac->ac_flags & ATHN_FLAG_OLPC) {
-			ar9280_olpc_get_pdadcs(sc, c, i, boundaries,
+			ar9280_olpc_get_pdadcs(ac, c, i, boundaries,
 			    pdadcs, &txgain);
 
-			reg = AR_READ(sc, AR_PHY_TX_PWRCTRL6_0);
+			reg = AR_READ(ac, AR_PHY_TX_PWRCTRL6_0);
 			reg = RW(reg, AR_PHY_TX_PWRCTRL_ERR_EST_MODE, 3);
-			AR_WRITE(sc, AR_PHY_TX_PWRCTRL6_0, reg);
+			AR_WRITE(ac, AR_PHY_TX_PWRCTRL6_0, reg);
 
-			reg = AR_READ(sc, AR_PHY_TX_PWRCTRL6_1);
+			reg = AR_READ(ac, AR_PHY_TX_PWRCTRL6_1);
 			reg = RW(reg, AR_PHY_TX_PWRCTRL_ERR_EST_MODE, 3);
-			AR_WRITE(sc, AR_PHY_TX_PWRCTRL6_1, reg);
+			AR_WRITE(ac, AR_PHY_TX_PWRCTRL6_1, reg);
 
-			reg = AR_READ(sc, AR_PHY_TX_PWRCTRL7);
+			reg = AR_READ(ac, AR_PHY_TX_PWRCTRL7);
 			reg = RW(reg, AR_PHY_TX_PWRCTRL_INIT_TX_GAIN, txgain);
-			AR_WRITE(sc, AR_PHY_TX_PWRCTRL7, reg);
+			AR_WRITE(ac, AR_PHY_TX_PWRCTRL7, reg);
 
 			overlap = 6;
 		}
 		else {
-			ar5416_get_pdadcs(sc, c, i, nxpdgains, overlap,
+			ar5416_get_pdadcs(ac, c, i, nxpdgains, overlap,
 			    boundaries, pdadcs);
 		}
 		/* Write boundaries. */
-		if (i == 0 || AR_SREV_5416_20_OR_LATER(sc)) {
+		if (i == 0 || AR_SREV_5416_20_OR_LATER(ac)) {
 			reg  = SM(AR_PHY_TPCRG5_PD_GAIN_OVERLAP,
 			    overlap);
 			reg |= SM(AR_PHY_TPCRG5_PD_GAIN_BOUNDARY_1,
@@ -502,11 +502,11 @@ ar5416_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 			    boundaries[2]);
 			reg |= SM(AR_PHY_TPCRG5_PD_GAIN_BOUNDARY_4,
 			    boundaries[3]);
-			AR_WRITE(sc, AR_PHY_TPCRG5 + offset, reg);
+			AR_WRITE(ac, AR_PHY_TPCRG5 + offset, reg);
 		}
 		/* Write PDADC values. */
 		for (j = 0; j < AR_NUM_PDADC_VALUES; j += 4) {
-			AR_WRITE(sc, AR_PHY_PDADC_TBL_BASE + offset + j,
+			AR_WRITE(ac, AR_PHY_PDADC_TBL_BASE + offset + j,
 			    pdadcs[j + 0] <<  0 |
 			    pdadcs[j + 1] <<  8 |
 			    pdadcs[j + 2] << 16 |
@@ -531,7 +531,7 @@ ar5416_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	uint8_t cckinc;
 	int i;
 
-	ar5416_set_power_calib(sc, c);
+	ar5416_set_power_calib(ac, c);
 
 	modal = &eep->modalHeader[IEEE80211_IS_CHAN_2GHZ(c)];
 
@@ -553,32 +553,32 @@ ar5416_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 
 	if (IEEE80211_IS_CHAN_2GHZ(c)) {
 		/* Get CCK target powers. */
-		ar5008_get_lg_tpow(sc, c, AR_CTL_11B, eep->calTargetPowerCck,
+		ar5008_get_lg_tpow(ac, c, AR_CTL_11B, eep->calTargetPowerCck,
 		    AR5416_NUM_2G_CCK_TARGET_POWERS, tpow_cck);
 
 		/* Get OFDM target powers. */
-		ar5008_get_lg_tpow(sc, c, AR_CTL_11G, eep->calTargetPower2G,
+		ar5008_get_lg_tpow(ac, c, AR_CTL_11G, eep->calTargetPower2G,
 		    AR5416_NUM_2G_20_TARGET_POWERS, tpow_ofdm);
 
 #ifndef IEEE80211_NO_HT
 		/* Get HT-20 target powers. */
-		ar5008_get_ht_tpow(sc, c, AR_CTL_2GHT20,
+		ar5008_get_ht_tpow(ac, c, AR_CTL_2GHT20,
 		    eep->calTargetPower2GHT20, AR5416_NUM_2G_20_TARGET_POWERS,
 		    tpow_ht20);
 
 		if (extc != NULL) {
 			/* Get HT-40 target powers. */
-			ar5008_get_ht_tpow(sc, c, AR_CTL_2GHT40,
+			ar5008_get_ht_tpow(ac, c, AR_CTL_2GHT40,
 			    eep->calTargetPower2GHT40,
 			    AR5416_NUM_2G_40_TARGET_POWERS, tpow_ht40);
 
 			/* Get secondary channel CCK target powers. */
-			ar5008_get_lg_tpow(sc, extc, AR_CTL_11B,
+			ar5008_get_lg_tpow(ac, extc, AR_CTL_11B,
 			    eep->calTargetPowerCck,
 			    AR5416_NUM_2G_CCK_TARGET_POWERS, tpow_cck_ext);
 
 			/* Get secondary channel OFDM target powers. */
-			ar5008_get_lg_tpow(sc, extc, AR_CTL_11G,
+			ar5008_get_lg_tpow(ac, extc, AR_CTL_11G,
 			    eep->calTargetPower2G,
 			    AR5416_NUM_2G_20_TARGET_POWERS, tpow_ofdm_ext);
 		}
@@ -586,23 +586,23 @@ ar5416_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 	else {
 		/* Get OFDM target powers. */
-		ar5008_get_lg_tpow(sc, c, AR_CTL_11A, eep->calTargetPower5G,
+		ar5008_get_lg_tpow(ac, c, AR_CTL_11A, eep->calTargetPower5G,
 		    AR5416_NUM_5G_20_TARGET_POWERS, tpow_ofdm);
 
 #ifndef IEEE80211_NO_HT
 		/* Get HT-20 target powers. */
-		ar5008_get_ht_tpow(sc, c, AR_CTL_5GHT20,
+		ar5008_get_ht_tpow(ac, c, AR_CTL_5GHT20,
 		    eep->calTargetPower5GHT20, AR5416_NUM_5G_20_TARGET_POWERS,
 		    tpow_ht20);
 
 		if (extc != NULL) {
 			/* Get HT-40 target powers. */
-			ar5008_get_ht_tpow(sc, c, AR_CTL_5GHT40,
+			ar5008_get_ht_tpow(ac, c, AR_CTL_5GHT40,
 			    eep->calTargetPower5GHT40,
 			    AR5416_NUM_5G_40_TARGET_POWERS, tpow_ht40);
 
 			/* Get secondary channel OFDM target powers. */
-			ar5008_get_lg_tpow(sc, extc, AR_CTL_11A,
+			ar5008_get_lg_tpow(ac, extc, AR_CTL_11A,
 			    eep->calTargetPower5G,
 			    AR5416_NUM_5G_20_TARGET_POWERS, tpow_ofdm_ext);
 		}
@@ -651,7 +651,7 @@ ar5416_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 #endif
 
-	if (AR_SREV_9280_10_OR_LATER(sc)) {
+	if (AR_SREV_9280_10_OR_LATER(ac)) {
 		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_21)
 			pwroff = eep->baseEepHeader.pwrTableOffset;
 		else
@@ -665,13 +665,13 @@ ar5416_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 
 	/* Write transmit power values to hardware. */
-	ar5008_write_txpower(sc, power);
+	ar5008_write_txpower(ac, power);
 
 	/*
 	 * Write transmit power substraction for dynamic chain changing
 	 * and per-packet transmit power.
 	 */
-	AR_WRITE(sc, AR_PHY_POWER_TX_SUB,
+	AR_WRITE(ac, AR_PHY_POWER_TX_SUB,
 	    (modal->pwrDecreaseFor3Chain & 0x3f) << 6 |
 	    (modal->pwrDecreaseFor2Chain & 0x3f));
 }
@@ -697,13 +697,13 @@ ar5416_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
 		return; /* XXX disable if it was enabled! */
 	DPRINTFN(DBG_RF, sc, "enabling spur mitigation\n");
 
-	AR_SETBITS(sc, AR_PHY_TIMING_CTRL4_0,
+	AR_SETBITS(ac, AR_PHY_TIMING_CTRL4_0,
 	    AR_PHY_TIMING_CTRL4_ENABLE_SPUR_RSSI |
 	    AR_PHY_TIMING_CTRL4_ENABLE_SPUR_FILTER |
 	    AR_PHY_TIMING_CTRL4_ENABLE_CHAN_MASK |
 	    AR_PHY_TIMING_CTRL4_ENABLE_PILOT_MASK);
 
-	AR_WRITE(sc, AR_PHY_SPUR_REG,
+	AR_WRITE(ac, AR_PHY_SPUR_REG,
 	    AR_PHY_SPUR_REG_MASK_RATE_CNTL |
 	    AR_PHY_SPUR_REG_ENABLE_MASK_PPM |
 	    AR_PHY_SPUR_REG_MASK_RATE_SELECT |
@@ -716,13 +716,13 @@ ar5416_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
 	else
 		spur_freq_sd = (spur * 2048) / 400;
 
-	AR_WRITE(sc, AR_PHY_TIMING11,
+	AR_WRITE(ac, AR_PHY_TIMING11,
 	    AR_PHY_TIMING11_USE_SPUR_IN_AGC |
 	    SM(AR_PHY_TIMING11_SPUR_FREQ_SD, spur_freq_sd) |
 	    SM(AR_PHY_TIMING11_SPUR_DELTA_PHASE, spur_delta_phase));
 
 	bin = spur * 32;
-	ar5008_set_viterbi_mask(sc, bin);
+	ar5008_set_viterbi_mask(ac, bin);
 }
 
 Static uint8_t
@@ -742,12 +742,12 @@ ar5416_get_rf_rev(struct athn_common *ac)
 	int i;
 
 	/* Allow access to analog chips. */
-	AR_WRITE(sc, AR_PHY(0), 0x00000007);
+	AR_WRITE(ac, AR_PHY(0), 0x00000007);
 
-	AR_WRITE(sc, AR_PHY(0x36), 0x00007058);
+	AR_WRITE(ac, AR_PHY(0x36), 0x00007058);
 	for (i = 0; i < 8; i++)
-		AR_WRITE(sc, AR_PHY(0x20), 0x00010000);
-	reg = (AR_READ(sc, AR_PHY(256)) >> 24) & 0xff;
+		AR_WRITE(ac, AR_PHY(0x20), 0x00010000);
+	reg = (AR_READ(ac, AR_PHY(256)) >> 24) & 0xff;
 	reg = (reg & 0xf0) >> 4 | (reg & 0x0f) << 4;
 
 	rev = ar5416_reverse_bits(reg, 8);
@@ -813,25 +813,25 @@ ar5416_rf_reset(struct athn_common *ac, struct ieee80211_channel *c)
 	int i;
 
 	/* Bank 0. */
-	AR_WRITE(sc, 0x98b0, 0x1e5795e5);
-	AR_WRITE(sc, 0x98e0, 0x02008020);
+	AR_WRITE(ac, 0x98b0, 0x1e5795e5);
+	AR_WRITE(ac, 0x98e0, 0x02008020);
 
 	/* Bank 1. */
-	AR_WRITE(sc, 0x98b0, 0x02108421);
-	AR_WRITE(sc, 0x98ec, 0x00000008);
+	AR_WRITE(ac, 0x98b0, 0x02108421);
+	AR_WRITE(ac, 0x98ec, 0x00000008);
 
 	/* Bank 2. */
-	AR_WRITE(sc, 0x98b0, 0x0e73ff17);
-	AR_WRITE(sc, 0x98e0, 0x00000420);
+	AR_WRITE(ac, 0x98b0, 0x0e73ff17);
+	AR_WRITE(ac, 0x98e0, 0x00000420);
 
 	/* Bank 3. */
 	if (IEEE80211_IS_CHAN_5GHZ(c))
-		AR_WRITE(sc, 0x98f0, 0x01400018);
+		AR_WRITE(ac, 0x98f0, 0x01400018);
 	else
-		AR_WRITE(sc, 0x98f0, 0x01c00018);
+		AR_WRITE(ac, 0x98f0, 0x01c00018);
 
 	/* Select the Bank 6 TPC values to use. */
-	if (AR_SREV_9160_10_OR_LATER(sc))
+	if (AR_SREV_9160_10_OR_LATER(ac))
 		bank6tpc = ar9160_bank6tpc_vals;
 	else
 		bank6tpc = ar5416_bank6tpc_vals;
@@ -840,21 +840,21 @@ ar5416_rf_reset(struct athn_common *ac, struct ieee80211_channel *c)
 
 		/* Copy values from .rodata to writable buffer. */
 		memcpy(rwbank6tpc, bank6tpc, 32 * sizeof(uint32_t));
-		ar5416_rw_bank6tpc(sc, c, rwbank6tpc);
+		ar5416_rw_bank6tpc(ac, c, rwbank6tpc);
 		bank6tpc = rwbank6tpc;
 	}
 	/* Bank 6 TPC. */
 	for (i = 0; i < 32; i++)
-		AR_WRITE(sc, 0x989c, bank6tpc[i]);
+		AR_WRITE(ac, 0x989c, bank6tpc[i]);
 	if (IEEE80211_IS_CHAN_5GHZ(c))
-		AR_WRITE(sc, 0x98d0, 0x0000000f);
+		AR_WRITE(ac, 0x98d0, 0x0000000f);
 	else
-		AR_WRITE(sc, 0x98d0, 0x0010000f);
+		AR_WRITE(ac, 0x98d0, 0x0010000f);
 
 	/* Bank 7. */
-	AR_WRITE(sc, 0x989c, 0x00000500);
-	AR_WRITE(sc, 0x989c, 0x00000800);
-	AR_WRITE(sc, 0x98cc, 0x0000000e);
+	AR_WRITE(ac, 0x989c, 0x00000500);
+	AR_WRITE(ac, 0x989c, 0x00000800);
+	AR_WRITE(ac, 0x98cc, 0x0000000e);
 }
 
 PUBLIC void
@@ -868,7 +868,7 @@ ar5416_reset_bb_gain(struct athn_common *ac, struct ieee80211_channel *c)
 	else
 		pvals = ar5416_bb_rfgain_vals_5g;
 	for (i = 0; i < 64; i++)
-		AR_WRITE(sc, AR_PHY_BB_RFGAIN(i), pvals[i]);
+		AR_WRITE(ac, AR_PHY_BB_RFGAIN(i), pvals[i]);
 }
 
 /*
@@ -900,8 +900,8 @@ ar5416_force_bias(struct athn_common *ac, struct ieee80211_channel *c)
 
 	/* Write Bank 6. */
 	for (i = 0; i < 32; i++)
-		AR_WRITE(sc, 0x989c, rwbank6[i]);
-	AR_WRITE(sc, 0x98d0, 0x0010000f);
+		AR_WRITE(ac, 0x989c, rwbank6[i]);
+	AR_WRITE(ac, 0x98d0, 0x0010000f);
 }
 
 /*
@@ -949,17 +949,17 @@ ar5416_reset_addac(struct athn_common *ac, struct ieee80211_channel *c)
 	const uint32_t *pvals;
 	int i;
 
-	if (AR_SREV_9160(sc) && ac->ac_eep_rev >= AR_EEP_MINOR_VER_7) {
+	if (AR_SREV_9160(ac) && ac->ac_eep_rev >= AR_EEP_MINOR_VER_7) {
 		uint32_t *rwaddac = ac->ac_rwbuf;
 
 		/* Copy values from .rodata to writable buffer. */
 		memcpy(rwaddac, addac->vals, addac->nvals * sizeof(uint32_t));
-		ar9160_rw_addac(sc, c, rwaddac);
+		ar9160_rw_addac(ac, c, rwaddac);
 		pvals = rwaddac;
 	}
 	else
 		pvals = addac->vals;
 	for (i = 0; i < addac->nvals; i++)
-		AR_WRITE(sc, 0x989c, pvals[i]);
-	AR_WRITE(sc, 0x98cc, 0);	/* Finalize. */
+		AR_WRITE(ac, 0x989c, pvals[i]);
+	AR_WRITE(ac, 0x98cc, 0);	/* Finalize. */
 }

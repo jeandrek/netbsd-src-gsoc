@@ -116,7 +116,7 @@ ar9380_attach(struct athn_common *ac)
 	ac->ac_cca_max_2g = AR9380_PHY_CCA_MAX_GOOD_VAL_2GHZ;
 	ac->ac_cca_min_5g = AR9380_PHY_CCA_MIN_GOOD_VAL_5GHZ;
 	ac->ac_cca_max_5g = AR9380_PHY_CCA_MAX_GOOD_VAL_5GHZ;
-	if (AR_SREV_9485(sc)) {
+	if (AR_SREV_9485(ac)) {
 		ac->ac_ini = &ar9485_1_1_ini;
 		ac->ac_serdes = &ar9485_1_1_serdes;
 	}
@@ -125,7 +125,7 @@ ar9380_attach(struct athn_common *ac)
 		ac->ac_serdes = &ar9380_2_2_serdes;
 	}
 
-	return ar9003_attach(sc);
+	return ar9003_attach(ac);
 }
 
 Static void
@@ -179,7 +179,7 @@ ar9380_setup(struct athn_common *ac)
 
 	/* Select initialization values based on ROM. */
 	type = MS(eep->baseEepHeader.txrxgain, AR_EEP_RX_GAIN);
-	if (!AR_SREV_9485(sc)) {
+	if (!AR_SREV_9485(ac)) {
 		if (type == AR_EEP_RX_GAIN_WO_XLNA)
 			ac->ac_rx_gain = &ar9380_2_2_rx_gain_wo_xlna;
 		else
@@ -190,7 +190,7 @@ ar9380_setup(struct athn_common *ac)
 
 	/* Select initialization values based on ROM. */
 	type = MS(eep->baseEepHeader.txrxgain, AR_EEP_TX_GAIN);
-	if (!AR_SREV_9485(sc)) {
+	if (!AR_SREV_9485(ac)) {
 		if (type == AR_EEP_TX_GAIN_HIGH_OB_DB)
 			ac->ac_tx_gain = &ar9380_2_2_tx_gain_high_ob_db;
 		else if (type == AR_EEP_TX_GAIN_LOW_OB_DB)
@@ -270,31 +270,31 @@ ar9380_set_synth(struct athn_common *ac, struct ieee80211_channel *c,
 	uint32_t chansel, phy;
 
 	if (IEEE80211_IS_CHAN_2GHZ(c)) {
-		if (AR_SREV_9485(sc))
+		if (AR_SREV_9485(ac))
 			chansel = ((freq << 16) - 215) / 15;
 		else
 			chansel = (freq << 16) / 15;
-		AR_WRITE(sc, AR_PHY_SYNTH_CONTROL, AR9380_BMODE);
+		AR_WRITE(ac, AR_PHY_SYNTH_CONTROL, AR9380_BMODE);
 	}
 	else {
 		chansel = (freq << 15) / 15;
 		chansel >>= 1;
-		AR_WRITE(sc, AR_PHY_SYNTH_CONTROL, 0);
+		AR_WRITE(ac, AR_PHY_SYNTH_CONTROL, 0);
 	}
 
 	/* Enable Long Shift Select for synthesizer. */
-	AR_SETBITS(sc, AR_PHY_65NM_CH0_SYNTH4,
+	AR_SETBITS(ac, AR_PHY_65NM_CH0_SYNTH4,
 	    AR_PHY_SYNTH4_LONG_SHIFT_SELECT);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE_BARRIER(ac);
 
 	/* Program synthesizer. */
 	phy = (chansel << 2) | AR9380_FRACMODE;
 	DPRINTFN(DBG_RF, sc, "AR_PHY_65NM_CH0_SYNTH7=0x%08x\n", phy);
-	AR_WRITE(sc, AR_PHY_65NM_CH0_SYNTH7, phy);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_65NM_CH0_SYNTH7, phy);
+	AR_WRITE_BARRIER(ac);
 	/* Toggle Load Synth Channel bit. */
-	AR_WRITE(sc, AR_PHY_65NM_CH0_SYNTH7, phy | AR9380_LOAD_SYNTH);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_65NM_CH0_SYNTH7, phy | AR9380_LOAD_SYNTH);
+	AR_WRITE_BARRIER(ac);
 	return 0;
 }
 
@@ -314,69 +314,69 @@ ar9380_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		modal = &eep->modalHeader5G;
 
 	/* Apply XPA bias level. */
-	if (AR_SREV_9485(sc)) {
-		reg = AR_READ(sc, AR9485_PHY_65NM_CH0_TOP2);
+	if (AR_SREV_9485(ac)) {
+		reg = AR_READ(ac, AR9485_PHY_65NM_CH0_TOP2);
 		reg = RW(reg, AR9485_PHY_65NM_CH0_TOP2_XPABIASLVL,
 		    modal->xpaBiasLvl);
-		AR_WRITE(sc, AR9485_PHY_65NM_CH0_TOP2, reg);
+		AR_WRITE(ac, AR9485_PHY_65NM_CH0_TOP2, reg);
 	}
 	else {
-		reg = AR_READ(sc, AR_PHY_65NM_CH0_TOP);
+		reg = AR_READ(ac, AR_PHY_65NM_CH0_TOP);
 		reg = RW(reg, AR_PHY_65NM_CH0_TOP_XPABIASLVL,
 		    modal->xpaBiasLvl & 0x3);
-		AR_WRITE(sc, AR_PHY_65NM_CH0_TOP, reg);
-		reg = AR_READ(sc, AR_PHY_65NM_CH0_THERM);
+		AR_WRITE(ac, AR_PHY_65NM_CH0_TOP, reg);
+		reg = AR_READ(ac, AR_PHY_65NM_CH0_THERM);
 		reg = RW(reg, AR_PHY_65NM_CH0_THERM_XPABIASLVL_MSB,
 		    modal->xpaBiasLvl >> 2);
 		reg |= AR_PHY_65NM_CH0_THERM_XPASHORT2GND;
-		AR_WRITE(sc, AR_PHY_65NM_CH0_THERM, reg);
+		AR_WRITE(ac, AR_PHY_65NM_CH0_THERM, reg);
 	}
 
 	/* Apply antenna control. */
-	reg = AR_READ(sc, AR_PHY_SWITCH_COM);
+	reg = AR_READ(ac, AR_PHY_SWITCH_COM);
 	reg = RW(reg, AR_SWITCH_TABLE_COM_ALL, modal->antCtrlCommon);
-	AR_WRITE(sc, AR_PHY_SWITCH_COM, reg);
-	reg = AR_READ(sc, AR_PHY_SWITCH_COM_2);
+	AR_WRITE(ac, AR_PHY_SWITCH_COM, reg);
+	reg = AR_READ(ac, AR_PHY_SWITCH_COM_2);
 	reg = RW(reg, AR_SWITCH_TABLE_COM_2_ALL, modal->antCtrlCommon2);
-	AR_WRITE(sc, AR_PHY_SWITCH_COM_2, reg);
+	AR_WRITE(ac, AR_PHY_SWITCH_COM_2, reg);
 
-	maxchains = AR_SREV_9485(sc) ? 1 : AR9380_MAX_CHAINS;
+	maxchains = AR_SREV_9485(ac) ? 1 : AR9380_MAX_CHAINS;
 	for (i = 0; i < maxchains; i++) {
-		reg = AR_READ(sc, AR_PHY_SWITCH_CHAIN(i));
+		reg = AR_READ(ac, AR_PHY_SWITCH_CHAIN(i));
 		reg = RW(reg, AR_SWITCH_TABLE_ALL, modal->antCtrlChain[i]);
-		AR_WRITE(sc, AR_PHY_SWITCH_CHAIN(i), reg);
+		AR_WRITE(ac, AR_PHY_SWITCH_CHAIN(i), reg);
 	}
 
-	if (AR_SREV_9485(sc)) {
+	if (AR_SREV_9485(ac)) {
 		ant_div_ctrl = eep->base_ext1.ant_div_control;
-		reg = AR_READ(sc, AR_PHY_MC_GAIN_CTRL);
+		reg = AR_READ(ac, AR_PHY_MC_GAIN_CTRL);
 		reg = RW(reg, AR_PHY_MC_GAIN_CTRL_ANT_DIV_CTRL_ALL,
 		    MS(ant_div_ctrl, AR_EEP_ANT_DIV_CTRL_ALL));
 		if (ant_div_ctrl & AR_EEP_ANT_DIV_CTRL_ANT_DIV)
 			reg |= AR_PHY_MC_GAIN_CTRL_ENABLE_ANT_DIV;
 		else
 			reg &= ~AR_PHY_MC_GAIN_CTRL_ENABLE_ANT_DIV;
-		AR_WRITE(sc, AR_PHY_MC_GAIN_CTRL, reg);
-		reg = AR_READ(sc, AR_PHY_CCK_DETECT);
+		AR_WRITE(ac, AR_PHY_MC_GAIN_CTRL, reg);
+		reg = AR_READ(ac, AR_PHY_CCK_DETECT);
 		if (ant_div_ctrl & AR_EEP_ANT_DIV_CTRL_FAST_DIV)
 			reg |= AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV;
 		else
 			reg &= ~AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV;
-		AR_WRITE(sc, AR_PHY_CCK_DETECT, reg);
+		AR_WRITE(ac, AR_PHY_CCK_DETECT, reg);
 	}
 
 	if (eep->baseEepHeader.miscConfiguration & AR_EEP_DRIVE_STRENGTH) {
 		/* Apply drive strength. */
-		reg = AR_READ(sc, AR_PHY_65NM_CH0_BIAS1);
+		reg = AR_READ(ac, AR_PHY_65NM_CH0_BIAS1);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS1_0, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS1_1, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS1_2, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS1_3, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS1_4, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS1_5, 5);
-		AR_WRITE(sc, AR_PHY_65NM_CH0_BIAS1, reg);
+		AR_WRITE(ac, AR_PHY_65NM_CH0_BIAS1, reg);
 
-		reg = AR_READ(sc, AR_PHY_65NM_CH0_BIAS2);
+		reg = AR_READ(ac, AR_PHY_65NM_CH0_BIAS2);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS2_0, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS2_1, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS2_2, 5);
@@ -386,17 +386,17 @@ ar9380_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS2_6, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS2_7, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS2_8, 5);
-		AR_WRITE(sc, AR_PHY_65NM_CH0_BIAS2, reg);
+		AR_WRITE(ac, AR_PHY_65NM_CH0_BIAS2, reg);
 
-		reg = AR_READ(sc, AR_PHY_65NM_CH0_BIAS4);
+		reg = AR_READ(ac, AR_PHY_65NM_CH0_BIAS4);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS4_0, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS4_1, 5);
 		reg = RW(reg, AR_PHY_65NM_CH0_BIAS4_2, 5);
-		AR_WRITE(sc, AR_PHY_65NM_CH0_BIAS4, reg);
+		AR_WRITE(ac, AR_PHY_65NM_CH0_BIAS4, reg);
 	}
 
 	/* Apply attenuation settings. */
-	maxchains = AR_SREV_9485(sc) ? 1 : AR9380_MAX_CHAINS;
+	maxchains = AR_SREV_9485(ac) ? 1 : AR9380_MAX_CHAINS;
 	for (i = 0; i < maxchains; i++) {
 		if (IEEE80211_IS_CHAN_5GHZ(c) &&
 		    eep->base_ext2.xatten1DBLow[i] != 0) {
@@ -428,29 +428,29 @@ ar9380_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
 		}
 		else
 			margin = modal->xatten1Margin[i];
-		reg = AR_READ(sc, AR_PHY_EXT_ATTEN_CTL(i));
+		reg = AR_READ(ac, AR_PHY_EXT_ATTEN_CTL(i));
 		reg = RW(reg, AR_PHY_EXT_ATTEN_CTL_XATTEN1_DB, db);
 		reg = RW(reg, AR_PHY_EXT_ATTEN_CTL_XATTEN1_MARGIN, margin);
-		AR_WRITE(sc, AR_PHY_EXT_ATTEN_CTL(i), reg);
+		AR_WRITE(ac, AR_PHY_EXT_ATTEN_CTL(i), reg);
 	}
 
 	/* Initialize switching regulator. */
-	if (AR_SREV_9485(sc))
-		ar9485_init_swreg(sc);
+	if (AR_SREV_9485(ac))
+		ar9485_init_swreg(ac);
 	else
-		ar9485_init_swreg(sc);
+		ar9485_init_swreg(ac);
 
 	/* Apply tuning capabilities. */
-	if (AR_SREV_9485(sc) &&
+	if (AR_SREV_9485(ac) &&
 	    (eep->baseEepHeader.featureEnable & AR_EEP_TUNING_CAPS)) {
-		reg = AR_READ(sc, AR9485_PHY_CH0_XTAL);
+		reg = AR_READ(ac, AR9485_PHY_CH0_XTAL);
 		reg = RW(reg, AR9485_PHY_CH0_XTAL_CAPINDAC,
 		    eep->baseEepHeader.params_for_tuning_caps[0]);
 		reg = RW(reg, AR9485_PHY_CH0_XTAL_CAPOUTDAC,
 		    eep->baseEepHeader.params_for_tuning_caps[0]);
-		AR_WRITE(sc, AR9485_PHY_CH0_XTAL, reg);
+		AR_WRITE(ac, AR9485_PHY_CH0_XTAL, reg);
 	}
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE_BARRIER(ac);
 }
 
 #ifdef notused
@@ -461,15 +461,15 @@ ar9380_init_swreg(struct athn_common *ac)
 
 	if (eep->baseEepHeader.featureEnable & AR_EEP_INTERNAL_REGULATOR) {
 		/* Internal regulator is ON. */
-		AR_CLRBITS(sc, AR_RTC_REG_CONTROL1,
+		AR_CLRBITS(ac, AR_RTC_REG_CONTROL1,
 		    AR_RTC_REG_CONTROL1_SWREG_PROGRAM);
-		AR_WRITE(sc, AR_RTC_REG_CONTROL0, eep->baseEepHeader.swreg);
-		AR_SETBITS(sc, AR_RTC_REG_CONTROL1,
+		AR_WRITE(ac, AR_RTC_REG_CONTROL0, eep->baseEepHeader.swreg);
+		AR_SETBITS(ac, AR_RTC_REG_CONTROL1,
 		    AR_RTC_REG_CONTROL1_SWREG_PROGRAM);
 	}
 	else
-		AR_SETBITS(sc, AR_RTC_SLEEP_CLK, AR_RTC_FORCE_SWREG_PRD);
-	AR_WRITE_BARRIER(sc);
+		AR_SETBITS(ac, AR_RTC_SLEEP_CLK, AR_RTC_FORCE_SWREG_PRD);
+	AR_WRITE_BARRIER(ac);
 }
 #endif /* notused */
 
@@ -478,13 +478,13 @@ ar9485_pmu_write(struct athn_common *ac, uint32_t addr, uint32_t val)
 {
 	int ntries;
 
-	AR_WRITE(sc, addr, val);
+	AR_WRITE(ac, addr, val);
 	/* Wait for write to complete. */
 	for (ntries = 0; ntries < 100; ntries++) {
-		if (AR_READ(sc, addr) == val)
+		if (AR_READ(ac, addr) == val)
 			return 0;
-		AR_WRITE(sc, addr, val);	/* Insist. */
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, addr, val);	/* Insist. */
+		AR_WRITE_BARRIER(ac);
 		DELAY(10);
 	}
 	return ETIMEDOUT;
@@ -496,23 +496,23 @@ ar9485_init_swreg(struct athn_common *ac)
 	const struct ar9380_eeprom *eep = ac->ac_eep;
 	uint32_t reg;
 
-	ar9485_pmu_write(sc, AR_PHY_PMU2,
-	    ar9485_pmu_read(sc, AR_PHY_PMU2) & ~AR_PHY_PMU2_PGM);
+	ar9485_pmu_write(ac, AR_PHY_PMU2,
+	    ar9485_pmu_read(ac, AR_PHY_PMU2) & ~AR_PHY_PMU2_PGM);
 
 	if (eep->baseEepHeader.featureEnable & AR_EEP_INTERNAL_REGULATOR) {
-		ar9485_pmu_write(sc, AR_PHY_PMU1, 0x131dc17a);
+		ar9485_pmu_write(ac, AR_PHY_PMU1, 0x131dc17a);
 
-		reg = ar9485_pmu_read(sc, AR_PHY_PMU2);
+		reg = ar9485_pmu_read(ac, AR_PHY_PMU2);
 		reg = (reg & ~0xffc00000) | 0x10000000;
-		ar9485_pmu_write(sc, AR_PHY_PMU2, reg);
+		ar9485_pmu_write(ac, AR_PHY_PMU2, reg);
 	}
 	else {
-		ar9485_pmu_write(sc, AR_PHY_PMU1,
-		    ar9485_pmu_read(sc, AR_PHY_PMU1) | AR_PHY_PMU1_PWD);
+		ar9485_pmu_write(ac, AR_PHY_PMU1,
+		    ar9485_pmu_read(ac, AR_PHY_PMU1) | AR_PHY_PMU1_PWD);
 	}
 
-	ar9485_pmu_write(sc, AR_PHY_PMU2,
-	    ar9485_pmu_read(sc, AR_PHY_PMU2) | AR_PHY_PMU2_PGM);
+	ar9485_pmu_write(ac, AR_PHY_PMU2,
+	    ar9485_pmu_read(ac, AR_PHY_PMU2) | AR_PHY_PMU2_PGM);
 }
 
 /*
@@ -534,29 +534,29 @@ ar9380_spur_mitigate_cck(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 	if (i == __arraycount(freqs)) {
 		/* Disable CCK spur mitigation. */
-		reg = AR_READ(sc, AR_PHY_AGC_CONTROL);
+		reg = AR_READ(ac, AR_PHY_AGC_CONTROL);
 		reg = RW(reg, AR_PHY_AGC_CONTROL_YCOK_MAX, 0x5);
-		AR_WRITE(sc, AR_PHY_AGC_CONTROL, reg);
-		reg = AR_READ(sc, AR_PHY_CCK_SPUR_MIT);
+		AR_WRITE(ac, AR_PHY_AGC_CONTROL, reg);
+		reg = AR_READ(ac, AR_PHY_CCK_SPUR_MIT);
 		reg = RW(reg, AR_PHY_CCK_SPUR_MIT_CCK_SPUR_FREQ, 0);
 		reg &= ~AR_PHY_CCK_SPUR_MIT_USE_CCK_SPUR_MIT;
-		AR_WRITE(sc, AR_PHY_CCK_SPUR_MIT, reg);
-		AR_WRITE_BARRIER(sc);
+		AR_WRITE(ac, AR_PHY_CCK_SPUR_MIT, reg);
+		AR_WRITE_BARRIER(ac);
 		return;
 	}
 	freq = (spur * 524288) / 11;
 
-	reg = AR_READ(sc, AR_PHY_AGC_CONTROL);
+	reg = AR_READ(ac, AR_PHY_AGC_CONTROL);
 	reg = RW(reg, AR_PHY_AGC_CONTROL_YCOK_MAX, 0x7);
-	AR_WRITE(sc, AR_PHY_AGC_CONTROL, reg);
+	AR_WRITE(ac, AR_PHY_AGC_CONTROL, reg);
 
-	reg = AR_READ(sc, AR_PHY_CCK_SPUR_MIT);
+	reg = AR_READ(ac, AR_PHY_CCK_SPUR_MIT);
 	reg = RW(reg, AR_PHY_CCK_SPUR_MIT_CCK_SPUR_FREQ, freq);
 	reg = RW(reg, AR_PHY_CCK_SPUR_MIT_SPUR_RSSI_THR, 0x7f);
 	reg = RW(reg, AR_PHY_CCK_SPUR_MIT_SPUR_FILTER_TYPE, 0x2);
 	reg |= AR_PHY_CCK_SPUR_MIT_USE_CCK_SPUR_MIT;
-	AR_WRITE(sc, AR_PHY_CCK_SPUR_MIT, reg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_CCK_SPUR_MIT, reg);
+	AR_WRITE_BARRIER(ac);
 }
 
 Static void
@@ -577,33 +577,33 @@ ar9380_spur_mitigate_ofdm(struct athn_common *ac, struct ieee80211_channel *c,
 		return;
 
 	/* Disable OFDM spur mitigation. */
-	AR_CLRBITS(sc, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_FILTER);
+	AR_CLRBITS(ac, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_FILTER);
 
-	reg = AR_READ(sc, AR_PHY_TIMING11);
+	reg = AR_READ(ac, AR_PHY_TIMING11);
 	reg = RW(reg, AR_PHY_TIMING11_SPUR_FREQ_SD, 0);
 	reg = RW(reg, AR_PHY_TIMING11_SPUR_DELTA_PHASE, 0);
 	reg &= ~AR_PHY_TIMING11_USE_SPUR_FILTER_IN_AGC;
 	reg &= ~AR_PHY_TIMING11_USE_SPUR_FILTER_IN_SELFCOR;
-	AR_WRITE(sc, AR_PHY_TIMING11, reg);
+	AR_WRITE(ac, AR_PHY_TIMING11, reg);
 
-	AR_CLRBITS(sc, AR_PHY_SFCORR_EXT,
+	AR_CLRBITS(ac, AR_PHY_SFCORR_EXT,
 	    AR_PHY_SFCORR_EXT_SPUR_SUBCHANNEL_SD);
 
-	AR_CLRBITS(sc, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_RSSI);
+	AR_CLRBITS(ac, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_RSSI);
 
-	reg = AR_READ(sc, AR_PHY_SPUR_REG);
+	reg = AR_READ(ac, AR_PHY_SPUR_REG);
 	reg = RW(reg, AR_PHY_SPUR_REG_MASK_RATE_CNTL, 0);
 	reg &= ~AR_PHY_SPUR_REG_EN_VIT_SPUR_RSSI;
 	reg &= ~AR_PHY_SPUR_REG_ENABLE_NF_RSSI_SPUR_MIT;
 	reg &= ~AR_PHY_SPUR_REG_ENABLE_MASK_PPM;
-	AR_WRITE(sc, AR_PHY_SPUR_REG, reg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_SPUR_REG, reg);
+	AR_WRITE_BARRIER(ac);
 
 	freq = c->ic_freq;
 #ifndef IEEE80211_NO_HT
 	if (extc != NULL) {
 		range = 19;	/* +/- 19MHz range. */
-		if (AR_READ(sc, AR_PHY_GEN_CTRL) & AR_PHY_GC_DYN2040_PRI_CH)
+		if (AR_READ(ac, AR_PHY_GEN_CTRL) & AR_PHY_GC_DYN2040_PRI_CH)
 			freq += 10;
 		else
 			freq -= 10;
@@ -631,7 +631,7 @@ ar9380_spur_mitigate_ofdm(struct athn_common *ac, struct ieee80211_channel *c,
 #ifndef IEEE80211_NO_HT
 	if (extc != NULL) {
 		spur_delta_phase = (spur * 131072) / 5;
-		reg = AR_READ(sc, AR_PHY_GEN_CTRL);
+		reg = AR_READ(ac, AR_PHY_GEN_CTRL);
 		if (spur < 0) {
 			spur_subchannel_sd =
 			    (reg & AR_PHY_GC_DYN2040_PRI_CH) == 0;
@@ -652,57 +652,57 @@ ar9380_spur_mitigate_ofdm(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 	spur_freq_sd = (spur_off * 512) / 11;
 
-	AR_SETBITS(sc, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_FILTER);
+	AR_SETBITS(ac, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_FILTER);
 
-	reg = AR_READ(sc, AR_PHY_TIMING11);
+	reg = AR_READ(ac, AR_PHY_TIMING11);
 	reg = RW(reg, AR_PHY_TIMING11_SPUR_FREQ_SD, spur_freq_sd);
 	reg = RW(reg, AR_PHY_TIMING11_SPUR_DELTA_PHASE, spur_delta_phase);
 	reg |= AR_PHY_TIMING11_USE_SPUR_FILTER_IN_AGC;
 	reg |= AR_PHY_TIMING11_USE_SPUR_FILTER_IN_SELFCOR;
-	AR_WRITE(sc, AR_PHY_TIMING11, reg);
+	AR_WRITE(ac, AR_PHY_TIMING11, reg);
 
-	reg = AR_READ(sc, AR_PHY_SFCORR_EXT);
+	reg = AR_READ(ac, AR_PHY_SFCORR_EXT);
 	if (spur_subchannel_sd)
 		reg |= AR_PHY_SFCORR_EXT_SPUR_SUBCHANNEL_SD;
 	else
 		reg &= ~AR_PHY_SFCORR_EXT_SPUR_SUBCHANNEL_SD;
-	AR_WRITE(sc, AR_PHY_SFCORR_EXT, reg);
+	AR_WRITE(ac, AR_PHY_SFCORR_EXT, reg);
 
-	AR_SETBITS(sc, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_RSSI);
+	AR_SETBITS(ac, AR_PHY_TIMING4, AR_PHY_TIMING4_ENABLE_SPUR_RSSI);
 
-	reg = AR_READ(sc, AR_PHY_SPUR_REG);
+	reg = AR_READ(ac, AR_PHY_SPUR_REG);
 	reg = RW(reg, AR_PHY_SPUR_REG_MASK_RATE_CNTL, 0xff);
 	reg = RW(reg, AR_PHY_SPUR_REG_SPUR_RSSI_THRESH, 34);
 	reg |= AR_PHY_SPUR_REG_EN_VIT_SPUR_RSSI;
-	if (AR_READ(sc, AR_PHY_MODE) & AR_PHY_MODE_DYNAMIC)
+	if (AR_READ(ac, AR_PHY_MODE) & AR_PHY_MODE_DYNAMIC)
 		reg |= AR_PHY_SPUR_REG_ENABLE_NF_RSSI_SPUR_MIT;
 	reg |= AR_PHY_SPUR_REG_ENABLE_MASK_PPM;
-	AR_WRITE(sc, AR_PHY_SPUR_REG, reg);
+	AR_WRITE(ac, AR_PHY_SPUR_REG, reg);
 
 	idx = (spur * 16) / 5;
 	if (idx < 0)
 		idx--;
 
 	/* Write pilot mask. */
-	AR_SETBITS(sc, AR_PHY_TIMING4,
+	AR_SETBITS(ac, AR_PHY_TIMING4,
 	    AR_PHY_TIMING4_ENABLE_PILOT_MASK |
 	    AR_PHY_TIMING4_ENABLE_CHAN_MASK);
 
-	reg = AR_READ(sc, AR_PHY_PILOT_SPUR_MASK);
+	reg = AR_READ(ac, AR_PHY_PILOT_SPUR_MASK);
 	reg = RW(reg, AR_PHY_PILOT_SPUR_MASK_CF_PILOT_MASK_IDX_A, idx);
 	reg = RW(reg, AR_PHY_PILOT_SPUR_MASK_CF_PILOT_MASK_A, 0x0c);
-	AR_WRITE(sc, AR_PHY_PILOT_SPUR_MASK, reg);
+	AR_WRITE(ac, AR_PHY_PILOT_SPUR_MASK, reg);
 
-	reg = AR_READ(sc, AR_PHY_SPUR_MASK_A);
+	reg = AR_READ(ac, AR_PHY_SPUR_MASK_A);
 	reg = RW(reg, AR_PHY_SPUR_MASK_A_CF_PUNC_MASK_IDX_A, idx);
 	reg = RW(reg, AR_PHY_SPUR_MASK_A_CF_PUNC_MASK_A, 0xa0);
-	AR_WRITE(sc, AR_PHY_SPUR_MASK_A, reg);
+	AR_WRITE(ac, AR_PHY_SPUR_MASK_A, reg);
 
-	reg = AR_READ(sc, AR_PHY_CHAN_SPUR_MASK);
+	reg = AR_READ(ac, AR_PHY_CHAN_SPUR_MASK);
 	reg = RW(reg, AR_PHY_CHAN_SPUR_MASK_CF_CHAN_MASK_IDX_A, idx);
 	reg = RW(reg, AR_PHY_CHAN_SPUR_MASK_CF_CHAN_MASK_A, 0x0c);
-	AR_WRITE(sc, AR_PHY_CHAN_SPUR_MASK, reg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_CHAN_SPUR_MASK, reg);
+	AR_WRITE_BARRIER(ac);
 }
 
 Static void
@@ -711,8 +711,8 @@ ar9380_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
 {
 
 	/* NB: We call spur_mitigate_cck for 5GHz too, just to disable it. */
-	ar9380_spur_mitigate_cck(sc, c, extc);
-	ar9380_spur_mitigate_ofdm(sc, c, extc);
+	ar9380_spur_mitigate_cck(ac, c, extc);
+	ar9380_spur_mitigate_ofdm(ac, c, extc);
 }
 
 Static void
@@ -726,23 +726,23 @@ ar9380_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 
 	if (IEEE80211_IS_CHAN_2GHZ(c)) {
 		/* Get CCK target powers. */
-		ar9003_get_lg_tpow(sc, c, AR_CTL_11B,
+		ar9003_get_lg_tpow(ac, c, AR_CTL_11B,
 		    eep->calTargetFbinCck, eep->calTargetPowerCck,
 		    AR9380_NUM_2G_CCK_TARGET_POWERS, tpow_cck);
 
 		/* Get OFDM target powers. */
-		ar9003_get_lg_tpow(sc, c, AR_CTL_11G,
+		ar9003_get_lg_tpow(ac, c, AR_CTL_11G,
 		    eep->calTargetFbin2G, eep->calTargetPower2G,
 		    AR9380_NUM_2G_20_TARGET_POWERS, tpow_ofdm);
 
 		/* Get HT-20 target powers. */
-		ar9003_get_ht_tpow(sc, c, AR_CTL_2GHT20,
+		ar9003_get_ht_tpow(ac, c, AR_CTL_2GHT20,
 		    eep->calTargetFbin2GHT20, eep->calTargetPower2GHT20,
 		    AR9380_NUM_2G_20_TARGET_POWERS, tpow_ht20);
 
 		if (extc != NULL) {
 			/* Get HT-40 target powers. */
-			ar9003_get_ht_tpow(sc, c, AR_CTL_2GHT40,
+			ar9003_get_ht_tpow(ac, c, AR_CTL_2GHT40,
 			    eep->calTargetFbin2GHT40,
 			    eep->calTargetPower2GHT40,
 			    AR9380_NUM_2G_40_TARGET_POWERS, tpow_ht40);
@@ -750,18 +750,18 @@ ar9380_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 	else {
 		/* Get OFDM target powers. */
-		ar9003_get_lg_tpow(sc, c, AR_CTL_11A,
+		ar9003_get_lg_tpow(ac, c, AR_CTL_11A,
 		    eep->calTargetFbin5G, eep->calTargetPower5G,
 		    AR9380_NUM_5G_20_TARGET_POWERS, tpow_ofdm);
 
 		/* Get HT-20 target powers. */
-		ar9003_get_ht_tpow(sc, c, AR_CTL_5GHT20,
+		ar9003_get_ht_tpow(ac, c, AR_CTL_5GHT20,
 		    eep->calTargetFbin5GHT20, eep->calTargetPower5GHT20,
 		    AR9380_NUM_5G_20_TARGET_POWERS, tpow_ht20);
 
 		if (extc != NULL) {
 			/* Get HT-40 target powers. */
-			ar9003_get_ht_tpow(sc, c, AR_CTL_5GHT40,
+			ar9003_get_ht_tpow(ac, c, AR_CTL_5GHT40,
 			    eep->calTargetFbin5GHT40,
 			    eep->calTargetPower5GHT40,
 			    AR9380_NUM_5G_40_TARGET_POWERS, tpow_ht40);
@@ -823,10 +823,10 @@ ar9380_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
 	}
 
 	/* Write transmit power values to hardware. */
-	ar9003_write_txpower(sc, power);
+	ar9003_write_txpower(ac, power);
 
 	/* Apply transmit power correction. */
-	ar9380_set_correction(sc, c);
+	ar9380_set_correction(ac, c);
 }
 
 Static void
@@ -877,18 +877,18 @@ ar9380_set_correction(struct athn_common *ac, struct ieee80211_channel *c)
 
 	temp0 = 0;	/* XXX: gcc */
 	for (i = 0; i < AR9380_MAX_CHAINS; i++) {
-		ar9380_get_correction(sc, c, i, &corr, &temp);
+		ar9380_get_correction(ac, c, i, &corr, &temp);
 		if (i == 0)
 			temp0 = temp;
 
-		reg = AR_READ(sc, AR_PHY_TPC_11_B(i));
+		reg = AR_READ(ac, AR_PHY_TPC_11_B(i));
 		reg = RW(reg, AR_PHY_TPC_11_OLPC_GAIN_DELTA, corr);
-		AR_WRITE(sc, AR_PHY_TPC_11_B(i), reg);
+		AR_WRITE(ac, AR_PHY_TPC_11_B(i), reg);
 
 		/* Enable open loop power control. */
-		reg = AR_READ(sc, AR_PHY_TPC_6_B(i));
+		reg = AR_READ(ac, AR_PHY_TPC_6_B(i));
 		reg = RW(reg, AR_PHY_TPC_6_ERROR_EST_MODE, 3);
-		AR_WRITE(sc, AR_PHY_TPC_6_B(i), reg);
+		AR_WRITE(ac, AR_PHY_TPC_6_B(i), reg);
 	}
 
 	/* Enable temperature compensation. */
@@ -908,12 +908,12 @@ ar9380_set_correction(struct athn_common *ac, struct ieee80211_channel *c)
 	else
 		slope = modal->tempSlope;
 
-	reg = AR_READ(sc, AR_PHY_TPC_19);
+	reg = AR_READ(ac, AR_PHY_TPC_19);
 	reg = RW(reg, AR_PHY_TPC_19_ALPHA_THERM, slope);
-	AR_WRITE(sc, AR_PHY_TPC_19, reg);
+	AR_WRITE(ac, AR_PHY_TPC_19, reg);
 
-	reg = AR_READ(sc, AR_PHY_TPC_18);
+	reg = AR_READ(ac, AR_PHY_TPC_18);
 	reg = RW(reg, AR_PHY_TPC_18_THERM_CAL, temp0);
-	AR_WRITE(sc, AR_PHY_TPC_18, reg);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_PHY_TPC_18, reg);
+	AR_WRITE_BARRIER(ac);
 }
