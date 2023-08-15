@@ -493,13 +493,13 @@ athn_rx_start(struct athn_softc *sc)
 			rfilt |= AR_RX_FILTER_PSPOLL;
 #endif
 	}
-	athn_set_rxfilter(sc, rfilt);
+	athn_set_rxfilter(ac, rfilt);
 
 	/* Set BSSID mask. */
 	AR_WRITE(ac, AR_BSSMSKL, 0xffffffff);
 	AR_WRITE(ac, AR_BSSMSKU, 0xffff);
 
-	athn_set_opmode(sc);
+	athn_set_opmode(ac);
 
 	/* Set multicast filter. */
 	AR_WRITE(ac, AR_MCAST_FIL0, 0xffffffff);
@@ -974,7 +974,7 @@ athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	AR_WRITE(ac, AR_MIBC, AR_MIBC_CMC);
 	AR_WRITE(ac, AR_FILT_OFDM, 0);
 	AR_WRITE(ac, AR_FILT_CCK, 0);
-	athn_set_rxfilter(sc, 0);
+	athn_set_rxfilter(ac, 0);
 	error = athn_stop_rx_dma(sc);
 	if (error != 0)
 		goto reset;
@@ -991,19 +991,19 @@ athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 		DPRINTFN(DBG_RF, sc, "channel band switch\n");
 		goto reset;
 	}
-	error = athn_set_power_awake(sc);
+	error = athn_set_power_awake(ac);
 	if (error != 0)
 		goto reset;
 
-	error = athn_set_chan(sc, curchan, extchan);
+	error = athn_set_chan(ac, curchan, extchan);
 	if (error != 0) {
  reset:		/* Error found, try a full reset. */
 		DPRINTFN(DBG_RF, sc, "needs a full reset\n");
-		error = athn_hw_reset(sc, curchan, extchan, 0);
+		error = athn_hw_reset(ac, curchan, extchan, 0);
 		if (error != 0)	/* Hopeless case. */
 			return error;
 	}
-	athn_rx_start(sc);
+	athn_rx_start(ac);
 
 	/* Re-enable interrupts. */
 	athn_enable_interrupts(sc);
@@ -1147,12 +1147,12 @@ athn_delete_key(struct ieee80211com *ic, struct ieee80211_node *ni,
 	case IEEE80211_CIPHER_WEP104:
 	case IEEE80211_CIPHER_CCMP:
 		entry = (uintptr_t)k->k_priv;
-		athn_reset_key(sc, entry);
+		athn_reset_key(ac, entry);
 		break;
 	case IEEE80211_CIPHER_TKIP:
 		entry = (uintptr_t)k->k_priv;
-		athn_reset_key(sc, entry);
-		athn_reset_key(sc, entry + 64);
+		athn_reset_key(ac, entry);
+		athn_reset_key(ac, entry + 64);
 		break;
 	default:
 		/* Fallback to software crypto for other ciphers. */
@@ -2241,7 +2241,7 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 		return error;
 	}
 
-	athn_init_pll(sc, curchan);
+	athn_init_pll(ac, curchan);
 	ops->set_rf_mode(ac, curchan);
 
 	if (ac->ac_flags & ATHN_FLAG_RFSILENT) {
@@ -2306,7 +2306,7 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	AR_WRITE(ac, AR_STA_ID1, LE_READ_2(&ic->ic_macaddr[4]) |
 	    sta_id1 | AR_STA_ID1_RTS_USE_DEF | AR_STA_ID1_CRPT_MIC_ENABLE);
 
-	athn_set_opmode(sc);
+	athn_set_opmode(ac);
 
 	AR_WRITE(ac, AR_BSSMSKL, 0xffffffff);
 	AR_WRITE(ac, AR_BSSMSKU, 0xffff);
@@ -2530,18 +2530,18 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 	switch (nstate) {
 	case IEEE80211_S_INIT:
-		athn_set_led(sc, 0);
+		athn_set_led(ac, 0);
 		break;
 	case IEEE80211_S_SCAN:
 		/* Make the LED blink while scanning. */
-		athn_set_led(sc, !ac->ac_led_state);
+		athn_set_led(ac, !ac->ac_led_state);
 		error = athn_switch_chan(sc, ic->ic_curchan, NULL);
 		if (error != 0)
 			return error;
 		callout_schedule(&avap->av_scan_to, hz / 5);
 		break;
 	case IEEE80211_S_AUTH:
-		athn_set_led(sc, 0);
+		athn_set_led(ac, 0);
 		error = athn_switch_chan(sc, ic->ic_curchan, NULL);
 		if (error != 0)
 			return error;
@@ -2549,7 +2549,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	case IEEE80211_S_ASSOC:
 		break;
 	case IEEE80211_S_RUN:
-		athn_set_led(sc, 1);
+		athn_set_led(ac, 1);
 
 		if (ic->ic_opmode == IEEE80211_M_MONITOR)
 			break;
@@ -2557,7 +2557,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		/* Fake a join to initialize the Tx rate. */
 		athn_newassoc(vap->iv_bss, 1);
 
-		athn_set_bss(sc, vap->iv_bss);
+		athn_set_bss(ac, vap->iv_bss);
 		athn_disable_interrupts(sc);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
@@ -2912,31 +2912,31 @@ athn_init(struct athn_softc *sc)
 
 	/* Reset HW key cache entries. */
 	for (i = 0; i < ac->ac_kc_entries; i++)
-		athn_reset_key(sc, i);
+		athn_reset_key(ac, i);
 
 	ops->enable_antenna_diversity(ac);
 
 #ifdef ATHN_BT_COEXISTENCE
 	/* Configure bluetooth coexistence for combo chips. */
 	if (ac->ac_flags & ATHN_FLAG_BTCOEX)
-		athn_btcoex_init(sc);
+		athn_btcoex_init(ac);
 #endif
 
 	/* Configure LED. */
-	athn_led_init(sc);
+	athn_led_init(ac);
 
 	/* Configure hardware radio switch. */
 	if (ac->ac_flags & ATHN_FLAG_RFSILENT)
 		ops->rfsilent_init(ac);
 
-	if ((error = athn_hw_reset(sc, curchan, extchan, 1)) != 0) {
+	if ((error = athn_hw_reset(ac, curchan, extchan, 1)) != 0) {
 		aprint_error_dev(sc->sc_dev,
 		    "unable to reset hardware; reset status %d\n", error);
 		goto fail;
 	}
 
 	/* Enable Rx. */
-	athn_rx_start(sc);
+	athn_rx_start(ac);
 
 	/* Enable interrupts. */
 	athn_enable_interrupts(sc);
@@ -3017,16 +3017,16 @@ athn_stop(struct athn_softc *sc, int disable)
 	AR_WRITE(ac, AR_FILT_OFDM, 0);
 	AR_WRITE(ac, AR_FILT_CCK, 0);
 	AR_WRITE_BARRIER(ac);
-	athn_set_rxfilter(sc, 0);
+	athn_set_rxfilter(ac, 0);
 	athn_stop_rx_dma(sc);
 
 	athn_reset(ac, 0);
-	athn_init_pll(sc, NULL);
-	athn_set_power_awake(sc);
+	athn_init_pll(ac, NULL);
+	athn_set_power_awake(ac);
 	athn_reset(ac, 1);
-	athn_init_pll(sc, NULL);
+	athn_init_pll(ac, NULL);
 
-	athn_set_power_sleep(sc);
+	athn_set_power_sleep(ac);
 
 #if 0	/* XXX: shouldn't the pmf stuff take care of this? */
 	/* For CardBus, power down the socket. */
