@@ -61,8 +61,6 @@ __KERNEL_RCSID(0, "$NetBSD: arn9003.c,v 1.16 2023/08/01 07:04:15 mrg Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
-#include <dev/usb/usbwifi.h>
-
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 #include <dev/ic/arn9003reg.h>
@@ -70,84 +68,84 @@ __KERNEL_RCSID(0, "$NetBSD: arn9003.c,v 1.16 2023/08/01 07:04:15 mrg Exp $");
 
 #define Static static
 
-Static void	ar9003_calib_iq(struct athn_softc *);
-Static int	ar9003_calib_tx_iq(struct athn_softc *);
-Static void	ar9003_disable_ofdm_weak_signal(struct athn_softc *);
-Static void	ar9003_disable_phy(struct athn_softc *);
-Static int	ar9003_dma_alloc(struct athn_softc *);
-Static void	ar9003_dma_free(struct athn_softc *);
-Static void	ar9003_do_calib(struct athn_softc *);
-Static void	ar9003_do_noisefloor_calib(struct athn_softc *);
-Static void	ar9003_enable_antenna_diversity(struct athn_softc *);
-Static void	ar9003_enable_ofdm_weak_signal(struct athn_softc *);
-Static int	ar9003_find_rom(struct athn_softc *);
-Static int	ar9003_get_iq_corr(struct athn_softc *, int32_t[6], int32_t[2]);
-Static void	ar9003_gpio_config_input(struct athn_softc *, int);
-Static void	ar9003_gpio_config_output(struct athn_softc *, int, int);
-Static int	ar9003_gpio_read(struct athn_softc *, int);
-Static void	ar9003_gpio_write(struct athn_softc *, int, int);
-Static void	ar9003_hw_init(struct athn_softc *, struct ieee80211_channel *,
+Static void	ar9003_calib_iq(struct athn_common *);
+Static int	ar9003_calib_tx_iq(struct athn_common *);
+Static void	ar9003_disable_ofdm_weak_signal(struct athn_common *);
+Static void	ar9003_disable_phy(struct athn_common *);
+Static int	ar9003_dma_alloc(struct athn_common *);
+Static void	ar9003_dma_free(struct athn_common *);
+Static void	ar9003_do_calib(struct athn_common *);
+Static void	ar9003_do_noisefloor_calib(struct athn_common *);
+Static void	ar9003_enable_antenna_diversity(struct athn_common *);
+Static void	ar9003_enable_ofdm_weak_signal(struct athn_common *);
+Static int	ar9003_find_rom(struct athn_common *);
+Static int	ar9003_get_iq_corr(struct athn_common *, int32_t[6], int32_t[2]);
+Static void	ar9003_gpio_config_input(struct athn_common *, int);
+Static void	ar9003_gpio_config_output(struct athn_common *, int, int);
+Static int	ar9003_gpio_read(struct athn_common *, int);
+Static void	ar9003_gpio_write(struct athn_common *, int, int);
+Static void	ar9003_hw_init(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-Static void	ar9003_init_baseband(struct athn_softc *);
-Static void	ar9003_init_chains(struct athn_softc *);
-Static int	ar9003_intr_status(struct athn_softc *);
-Static int	ar9003_intr(struct athn_softc *);
-Static void	ar9003_next_calib(struct athn_softc *);
-Static int	ar9003_read_eep_data(struct athn_softc *, uint32_t, void *,
+Static void	ar9003_init_baseband(struct athn_common *);
+Static void	ar9003_init_chains(struct athn_common *);
+Static int	ar9003_intr_status(struct athn_common *);
+Static int	ar9003_intr(struct athn_common *);
+Static void	ar9003_next_calib(struct athn_common *);
+Static int	ar9003_read_eep_data(struct athn_common *, uint32_t, void *,
 		    int);
-Static int	ar9003_read_eep_word(struct athn_softc *, uint32_t,
+Static int	ar9003_read_eep_word(struct athn_common *, uint32_t,
 		    uint16_t *);
-Static int	ar9003_read_otp_data(struct athn_softc *, uint32_t, void *,
+Static int	ar9003_read_otp_data(struct athn_common *, uint32_t, void *,
 		    int);
-Static int	ar9003_read_otp_word(struct athn_softc *, uint32_t,
+Static int	ar9003_read_otp_word(struct athn_common *, uint32_t,
 		    uint32_t *);
-Static int	ar9003_read_rom(struct athn_softc *);
-Static void	ar9003_reset_rx_gain(struct athn_softc *,
+Static int	ar9003_read_rom(struct athn_common *);
+Static void	ar9003_reset_rx_gain(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar9003_reset_tx_gain(struct athn_softc *,
+Static void	ar9003_reset_tx_gain(struct athn_common *,
 		    struct ieee80211_channel *);
-Static int	ar9003_restore_rom_block(struct athn_softc *, uint8_t,
+Static int	ar9003_restore_rom_block(struct athn_common *, uint8_t,
 		    uint8_t, const uint8_t *, size_t);
-Static void	ar9003_rf_bus_release(struct athn_softc *);
-Static int	ar9003_rf_bus_request(struct athn_softc *);
-Static void	ar9003_rfsilent_init(struct athn_softc *);
-Static int	ar9003_rx_alloc(struct athn_softc *, int, int);
-Static void	ar9003_rx_enable(struct athn_softc *);
-Static void	ar9003_rx_free(struct athn_softc *, int);
-Static void	ar9003_rx_intr(struct athn_softc *, int);
-Static int	ar9003_rx_process(struct athn_softc *, int);
-Static void	ar9003_rx_radiotap(struct athn_softc *, struct mbuf *,
+Static void	ar9003_rf_bus_release(struct athn_common *);
+Static int	ar9003_rf_bus_request(struct athn_common *);
+Static void	ar9003_rfsilent_init(struct athn_common *);
+Static int	ar9003_rx_alloc(struct athn_common *, int, int);
+Static void	ar9003_rx_enable(struct athn_common *);
+Static void	ar9003_rx_free(struct athn_common *, int);
+Static void	ar9003_rx_intr(struct athn_common *, int);
+Static int	ar9003_rx_process(struct athn_common *, int);
+Static void	ar9003_rx_radiotap(struct athn_common *, struct mbuf *,
 		    struct ar_rx_status *);
-Static void	ar9003_set_cck_weak_signal(struct athn_softc *, int);
-Static void	ar9003_set_delta_slope(struct athn_softc *,
+Static void	ar9003_set_cck_weak_signal(struct athn_common *, int);
+Static void	ar9003_set_delta_slope(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9003_set_firstep_level(struct athn_softc *, int);
-Static void	ar9003_set_noise_immunity_level(struct athn_softc *, int);
-Static void	ar9003_set_phy(struct athn_softc *, struct ieee80211_channel *,
+Static void	ar9003_set_firstep_level(struct athn_common *, int);
+Static void	ar9003_set_noise_immunity_level(struct athn_common *, int);
+Static void	ar9003_set_phy(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-Static void	ar9003_set_rf_mode(struct athn_softc *,
+Static void	ar9003_set_rf_mode(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar9003_set_rxchains(struct athn_softc *);
-Static void	ar9003_set_spur_immunity_level(struct athn_softc *, int);
-Static int	ar9003_swba_intr(struct athn_softc *);
+Static void	ar9003_set_rxchains(struct athn_common *);
+Static void	ar9003_set_spur_immunity_level(struct athn_common *, int);
+Static int	ar9003_swba_intr(struct athn_common *);
 Static int	ar9003_tx(struct ieee80211_node *, struct mbuf *,
 		    const struct ieee80211_bpf_params *);
-Static int	ar9003_tx_alloc(struct athn_softc *);
-Static void	ar9003_tx_free(struct athn_softc *);
-Static void	ar9003_tx_intr(struct athn_softc *);
-Static int	ar9003_tx_process(struct athn_softc *);
+Static int	ar9003_tx_alloc(struct athn_common *);
+Static void	ar9003_tx_free(struct athn_common *);
+Static void	ar9003_tx_intr(struct athn_common *);
+Static int	ar9003_tx_process(struct athn_common *);
 
 #ifdef notused
-Static void	ar9003_bb_load_noisefloor(struct athn_softc *);
-Static void	ar9003_get_noisefloor(struct athn_softc *,
+Static void	ar9003_bb_load_noisefloor(struct athn_common *);
+Static void	ar9003_get_noisefloor(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar9003_paprd_calib(struct athn_softc *,
+Static void	ar9003_paprd_calib(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar9003_read_noisefloor(struct athn_softc *, int16_t *,
+Static void	ar9003_read_noisefloor(struct athn_common *, int16_t *,
 		    int16_t *);
-Static void	ar9003_write_noisefloor(struct athn_softc *, int16_t *,
+Static void	ar9003_write_noisefloor(struct athn_common *, int16_t *,
 		    int16_t *);
-Static void	ar9300_noisefloor_calib(struct athn_softc *);
+Static void	ar9300_noisefloor_calib(struct athn_common *);
 #endif /* notused */
 
 /*
@@ -156,7 +154,7 @@ Static void	ar9300_noisefloor_calib(struct athn_softc *);
  *      ar5008.c and ar9003.c?
  */
 static struct mbuf *
-MCLGETI(struct athn_softc *sc __unused, int how,
+MCLGETI(struct athn_common *ac __unused, int how,
     struct ifnet *ifp __unused, u_int size)
 {
 	struct mbuf *m;
@@ -174,9 +172,9 @@ MCLGETI(struct athn_softc *sc __unused, int how,
 }
 
 PUBLIC int
-ar9003_attach(struct athn_softc *sc)
+ar9003_attach(struct athn_common *ac)
 {
-	struct athn_ops *ops = &sc->sc_ops;
+	struct athn_ops *ops = &ac->ac_ops;
 	int error;
 
 	/* Set callbacks for AR9003 family. */
@@ -215,10 +213,10 @@ ar9003_attach(struct athn_softc *sc)
 	ops->set_spur_immunity_level = ar9003_set_spur_immunity_level;
 
 	/* Set MAC registers offsets. */
-	sc->sc_obs_off = AR_OBS;
-	sc->sc_gpio_input_en_off = AR_GPIO_INPUT_EN_VAL;
+	ac->ac_obs_off = AR_OBS;
+	ac->ac_gpio_input_en_off = AR_GPIO_INPUT_EN_VAL;
 
-	if (!(sc->sc_flags & ATHN_FLAG_PCIE))
+	if (!(ac->ac_flags & ATHN_FLAG_PCIE))
 		athn_config_nonpcie(sc);
 	else
 		athn_config_pcie(sc);
@@ -236,7 +234,7 @@ ar9003_attach(struct athn_softc *sc)
 
 	/* Determine if it is a non-enterprise AR9003 card. */
 	if (AR_READ(sc, AR_ENT_OTP) & AR_ENT_OTP_MPSD)
-		sc->sc_flags |= ATHN_FLAG_NON_ENTERPRISE;
+		ac->ac_flags |= ATHN_FLAG_NON_ENTERPRISE;
 
 	ops->setup(sc);
 	return 0;
@@ -246,7 +244,7 @@ ar9003_attach(struct athn_softc *sc)
  * Read 16-bit word from EEPROM.
  */
 Static int
-ar9003_read_eep_word(struct athn_softc *sc, uint32_t addr, uint16_t *val)
+ar9003_read_eep_word(struct athn_common *ac, uint32_t addr, uint16_t *val)
 {
 	uint32_t reg;
 	int ntries;
@@ -270,7 +268,7 @@ ar9003_read_eep_word(struct athn_softc *sc, uint32_t addr, uint16_t *val)
  * NB: The address may not be 16-bit aligned.
  */
 Static int
-ar9003_read_eep_data(struct athn_softc *sc, uint32_t addr, void *buf, int len)
+ar9003_read_eep_data(struct athn_common *ac, uint32_t addr, void *buf, int len)
 {
 	uint8_t *dst = buf;
 	uint16_t val;
@@ -308,7 +306,7 @@ ar9003_read_eep_data(struct athn_softc *sc, uint32_t addr, void *buf, int len)
  * Read 32-bit word from OTPROM.
  */
 Static int
-ar9003_read_otp_word(struct athn_softc *sc, uint32_t addr, uint32_t *val)
+ar9003_read_otp_word(struct athn_common *ac, uint32_t addr, uint32_t *val)
 {
 	uint32_t reg;
 	int ntries;
@@ -330,7 +328,7 @@ ar9003_read_otp_word(struct athn_softc *sc, uint32_t addr, uint32_t *val)
  * NB: The address may not be 32-bit aligned.
  */
 Static int
-ar9003_read_otp_data(struct athn_softc *sc, uint32_t addr, void *buf, int len)
+ar9003_read_otp_data(struct athn_common *ac, uint32_t addr, void *buf, int len)
 {
 	uint8_t *dst = buf;
 	uint32_t val;
@@ -350,39 +348,39 @@ ar9003_read_otp_data(struct athn_softc *sc, uint32_t addr, void *buf, int len)
  * Determine if the chip has an external EEPROM or an OTPROM and its size.
  */
 Static int
-ar9003_find_rom(struct athn_softc *sc)
+ar9003_find_rom(struct athn_common *ac)
 {
-	struct athn_ops *ops = &sc->sc_ops;
+	struct athn_ops *ops = &ac->ac_ops;
 	uint32_t hdr;
 	int error;
 
 	/* Try EEPROM. */
 	ops->read_rom_data = ar9003_read_eep_data;
 
-	sc->sc_eep_size = AR_SREV_9485(sc) ? 4096 : 1024;
-	sc->sc_eep_base = sc->sc_eep_size - 1;
-	error = ops->read_rom_data(sc, sc->sc_eep_base, &hdr, sizeof(hdr));
+	ac->ac_eep_size = AR_SREV_9485(sc) ? 4096 : 1024;
+	ac->ac_eep_base = ac->ac_eep_size - 1;
+	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
-	sc->sc_eep_size = 512;
-	sc->sc_eep_base = sc->sc_eep_size - 1;
-	error = ops->read_rom_data(sc, sc->sc_eep_base, &hdr, sizeof(hdr));
+	ac->ac_eep_size = 512;
+	ac->ac_eep_base = ac->ac_eep_size - 1;
+	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
 	/* Try OTPROM. */
 	ops->read_rom_data = ar9003_read_otp_data;
 
-	sc->sc_eep_size = 1024;
-	sc->sc_eep_base = sc->sc_eep_size - 1;
-	error = ops->read_rom_data(sc, sc->sc_eep_base, &hdr, sizeof(hdr));
+	ac->ac_eep_size = 1024;
+	ac->ac_eep_base = ac->ac_eep_size - 1;
+	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
-	sc->sc_eep_size = 512;
-	sc->sc_eep_base = sc->sc_eep_size - 1;
-	error = ops->read_rom_data(sc, sc->sc_eep_base, &hdr, sizeof(hdr));
+	ac->ac_eep_size = 512;
+	ac->ac_eep_base = ac->ac_eep_size - 1;
+	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
@@ -390,23 +388,23 @@ ar9003_find_rom(struct athn_softc *sc)
 }
 
 Static int
-ar9003_restore_rom_block(struct athn_softc *sc, uint8_t alg, uint8_t ref,
+ar9003_restore_rom_block(struct athn_common *ac, uint8_t alg, uint8_t ref,
     const uint8_t *buf, size_t len)
 {
 	const uint8_t *def, *ptr, *end;
-	uint8_t *eep = sc->sc_eep;
+	uint8_t *eep = ac->ac_eep;
 	size_t off, clen;
 
 	if (alg == AR_EEP_COMPRESS_BLOCK) {
 		/* Block contains chunks that shadow ROM template. */
-		def = sc->sc_ops.get_rom_template(sc, ref);
+		def = ac->ac_ops.get_rom_template(sc, ref);
 		if (def == NULL) {
 			DPRINTFN(DBG_INIT, sc, "unknown template image %d\n",
 			    ref);
 			return EINVAL;
 		}
 		/* Start with template. */
-		memcpy(eep, def, sc->sc_eep_size);
+		memcpy(eep, def, ac->ac_eep_size);
 		/* Shadow template with chunks. */
 		off = 0;	/* Offset in ROM image. */
 		ptr = buf;	/* Offset in block. */
@@ -419,7 +417,7 @@ ar9003_restore_rom_block(struct athn_softc *sc, uint8_t alg, uint8_t ref,
 			if (ptr + clen > end)
 				return EINVAL;
 			/* Make sure chunk fits in ROM image. */
-			if (off + clen > sc->sc_eep_size)
+			if (off + clen > ac->ac_eep_size)
 				return EINVAL;
 			/* Restore chunk. */
 			DPRINTFN(DBG_INIT, sc, "ROM chunk @%zd/%zd\n",
@@ -431,7 +429,7 @@ ar9003_restore_rom_block(struct athn_softc *sc, uint8_t alg, uint8_t ref,
 	}
 	else if (alg == AR_EEP_COMPRESS_NONE) {
 		/* Block contains full ROM image. */
-		if (len != sc->sc_eep_size) {
+		if (len != ac->ac_eep_size) {
 			DPRINTFN(DBG_INIT, sc, "block length mismatch %zd\n",
 			    len);
 			return EINVAL;
@@ -442,9 +440,9 @@ ar9003_restore_rom_block(struct athn_softc *sc, uint8_t alg, uint8_t ref,
 }
 
 Static int
-ar9003_read_rom(struct athn_softc *sc)
+ar9003_read_rom(struct athn_common *ac)
 {
-	struct athn_ops *ops = &sc->sc_ops;
+	struct athn_ops *ops = &ac->ac_ops;
 	uint8_t *buf, *ptr, alg, ref;
 	uint16_t sum, rsum;
 	uint32_t hdr;
@@ -452,13 +450,13 @@ ar9003_read_rom(struct athn_softc *sc)
 	size_t len, i, j;
 
 	/* Allocate space to store ROM in host memory. */
-	sc->sc_eep = malloc(sc->sc_eep_size, M_DEVBUF, M_WAITOK);
+	ac->ac_eep = malloc(ac->ac_eep_size, M_DEVBUF, M_WAITOK);
 
 	/* Allocate temporary buffer to store ROM blocks. */
 	buf = malloc(2048, M_DEVBUF, M_WAITOK);
 
 	/* Restore vendor-specified ROM blocks. */
-	addr = sc->sc_eep_base;
+	addr = ac->ac_eep_base;
 	for (i = 0; i < 100; i++) {
 		/* Read block header. */
 		error = ops->read_rom_data(sc, addr, &hdr, sizeof(hdr));
@@ -516,20 +514,20 @@ ar9003_read_rom(struct athn_softc *sc)
  * Access to General Purpose Input/Output ports.
  */
 Static int
-ar9003_gpio_read(struct athn_softc *sc, int pin)
+ar9003_gpio_read(struct athn_common *ac, int pin)
 {
 
-	KASSERT(pin < sc->sc_ngpiopins);
+	KASSERT(pin < ac->ac_ngpiopins);
 	return ((AR_READ(sc, AR_GPIO_IN) & AR9300_GPIO_IN_VAL) &
 	    (1 << pin)) != 0;
 }
 
 Static void
-ar9003_gpio_write(struct athn_softc *sc, int pin, int set)
+ar9003_gpio_write(struct athn_common *ac, int pin, int set)
 {
 	uint32_t reg;
 
-	KASSERT(pin < sc->sc_ngpiopins);
+	KASSERT(pin < ac->ac_ngpiopins);
 	reg = AR_READ(sc, AR_GPIO_IN_OUT);
 	if (set)
 		reg |= 1 << pin;
@@ -540,7 +538,7 @@ ar9003_gpio_write(struct athn_softc *sc, int pin, int set)
 }
 
 Static void
-ar9003_gpio_config_input(struct athn_softc *sc, int pin)
+ar9003_gpio_config_input(struct athn_common *ac, int pin)
 {
 	uint32_t reg;
 
@@ -552,7 +550,7 @@ ar9003_gpio_config_input(struct athn_softc *sc, int pin)
 }
 
 Static void
-ar9003_gpio_config_output(struct athn_softc *sc, int pin, int type)
+ar9003_gpio_config_output(struct athn_common *ac, int pin, int type)
 {
 	uint32_t reg;
 	int mux, off;
@@ -573,7 +571,7 @@ ar9003_gpio_config_output(struct athn_softc *sc, int pin, int type)
 }
 
 Static void
-ar9003_rfsilent_init(struct athn_softc *sc)
+ar9003_rfsilent_init(struct athn_common *ac)
 {
 	uint32_t reg;
 
@@ -582,17 +580,17 @@ ar9003_rfsilent_init(struct athn_softc *sc)
 	reg = AR_READ(sc, AR_GPIO_INPUT_MUX2);
 	reg = RW(reg, AR_GPIO_INPUT_MUX2_RFSILENT, 0);
 	AR_WRITE(sc, AR_GPIO_INPUT_MUX2, reg);
-	ar9003_gpio_config_input(sc, sc->sc_rfsilent_pin);
+	ar9003_gpio_config_input(sc, ac->ac_rfsilent_pin);
 	AR_SETBITS(sc, AR_PHY_TEST, AR_PHY_TEST_RFSILENT_BB);
-	if (!(sc->sc_flags & ATHN_FLAG_RFSILENT_REVERSED)) {
+	if (!(ac->ac_flags & ATHN_FLAG_RFSILENT_REVERSED)) {
 		AR_SETBITS(sc, AR_GPIO_INTR_POL,
-		    AR_GPIO_INTR_POL_PIN(sc->sc_rfsilent_pin));
+		    AR_GPIO_INTR_POL_PIN(ac->ac_rfsilent_pin));
 	}
 	AR_WRITE_BARRIER(sc);
 }
 
 Static int
-ar9003_dma_alloc(struct athn_softc *sc)
+ar9003_dma_alloc(struct athn_common *ac)
 {
 	int error;
 
@@ -612,7 +610,7 @@ ar9003_dma_alloc(struct athn_softc *sc)
 }
 
 Static void
-ar9003_dma_free(struct athn_softc *sc)
+ar9003_dma_free(struct athn_common *ac)
 {
 
 	ar9003_tx_free(sc);
@@ -621,7 +619,7 @@ ar9003_dma_free(struct athn_softc *sc)
 }
 
 Static int
-ar9003_tx_alloc(struct athn_softc *sc)
+ar9003_tx_alloc(struct athn_common *ac)
 {
 	struct athn_tx_buf *bf;
 	bus_size_t size;
@@ -632,23 +630,23 @@ ar9003_tx_alloc(struct athn_softc *sc)
 	 */
 	size = AR9003_NTXSTATUS * sizeof(struct ar_tx_status);
 
-	error = bus_dmamap_create(sc->sc_dmat, size, 1, size, 0,
-	    BUS_DMA_NOWAIT, &sc->sc_txsmap);
+	error = bus_dmamap_create(ac->ac_dmat, size, 1, size, 0,
+	    BUS_DMA_NOWAIT, &ac->ac_txsmap);
 	if (error != 0)
 		goto fail;
 
-	error = bus_dmamem_alloc(sc->sc_dmat, size, 4, 0, &sc->sc_txsseg, 1,
+	error = bus_dmamem_alloc(ac->ac_dmat, size, 4, 0, &ac->ac_txsseg, 1,
 // XXX	    &nsegs, BUS_DMA_NOWAIT | BUS_DMA_ZERO);
 	    &nsegs, BUS_DMA_NOWAIT);
 	if (error != 0)
 		goto fail;
 
-	error = bus_dmamem_map(sc->sc_dmat, &sc->sc_txsseg, 1, size,
-	    (void **)&sc->sc_txsring, BUS_DMA_NOWAIT | BUS_DMA_COHERENT);
+	error = bus_dmamem_map(ac->ac_dmat, &ac->ac_txsseg, 1, size,
+	    (void **)&ac->ac_txsring, BUS_DMA_NOWAIT | BUS_DMA_COHERENT);
 	if (error != 0)
 		goto fail;
 
-	error = bus_dmamap_load(sc->sc_dmat, sc->sc_txsmap, sc->sc_txsring,
+	error = bus_dmamap_load(ac->ac_dmat, ac->ac_txsmap, ac->ac_txsring,
 	     size, NULL, BUS_DMA_NOWAIT | BUS_DMA_READ);
 	if (error != 0)
 		goto fail;
@@ -658,32 +656,32 @@ ar9003_tx_alloc(struct athn_softc *sc)
 	 */
 	size = ATHN_NTXBUFS * sizeof(struct ar_tx_desc);
 
-	error = bus_dmamap_create(sc->sc_dmat, size, 1, size, 0,
-	    BUS_DMA_NOWAIT, &sc->sc_map);
+	error = bus_dmamap_create(ac->ac_dmat, size, 1, size, 0,
+	    BUS_DMA_NOWAIT, &ac->ac_map);
 	if (error != 0)
 		goto fail;
 
-	error = bus_dmamem_alloc(sc->sc_dmat, size, 4, 0, &sc->sc_seg, 1,
+	error = bus_dmamem_alloc(ac->ac_dmat, size, 4, 0, &ac->ac_seg, 1,
 // XXX	    &nsegs, BUS_DMA_NOWAIT | BUS_DMA_ZERO);
 	    &nsegs, BUS_DMA_NOWAIT);
 	if (error != 0)
 		goto fail;
 
-	error = bus_dmamem_map(sc->sc_dmat, &sc->sc_seg, 1, size,
-	    (void **)&sc->sc_descs, BUS_DMA_NOWAIT | BUS_DMA_COHERENT);
+	error = bus_dmamem_map(ac->ac_dmat, &ac->ac_seg, 1, size,
+	    (void **)&ac->ac_descs, BUS_DMA_NOWAIT | BUS_DMA_COHERENT);
 	if (error != 0)
 		goto fail;
 
-	error = bus_dmamap_load(sc->sc_dmat, sc->sc_map, sc->sc_descs, size,
+	error = bus_dmamap_load(ac->ac_dmat, ac->ac_map, ac->ac_descs, size,
 	    NULL, BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 	if (error != 0)
 		goto fail;
 
-	SIMPLEQ_INIT(&sc->sc_txbufs);
+	SIMPLEQ_INIT(&ac->ac_txbufs);
 	for (i = 0; i < ATHN_NTXBUFS; i++) {
-		bf = &sc->sc_txpool[i];
+		bf = &ac->ac_txpool[i];
 
-		error = bus_dmamap_create(sc->sc_dmat, ATHN_TXBUFSZ,
+		error = bus_dmamap_create(ac->ac_dmat, ATHN_TXBUFSZ,
 		    AR9003_MAX_SCATTER, ATHN_TXBUFSZ, 0, BUS_DMA_NOWAIT,
 		    &bf->bf_map);
 		if (error != 0) {
@@ -692,11 +690,11 @@ ar9003_tx_alloc(struct athn_softc *sc)
 			goto fail;
 		}
 
-		bf->bf_descs = &((struct ar_tx_desc *)sc->sc_descs)[i];
-		bf->bf_daddr = sc->sc_map->dm_segs[0].ds_addr +
+		bf->bf_descs = &((struct ar_tx_desc *)ac->ac_descs)[i];
+		bf->bf_daddr = ac->ac_map->dm_segs[0].ds_addr +
 		    i * sizeof(struct ar_tx_desc);
 
-		SIMPLEQ_INSERT_TAIL(&sc->sc_txbufs, bf, bf_list);
+		SIMPLEQ_INSERT_TAIL(&ac->ac_txbufs, bf, bf_list);
 	}
 	return 0;
  fail:
@@ -705,41 +703,41 @@ ar9003_tx_alloc(struct athn_softc *sc)
 }
 
 Static void
-ar9003_tx_free(struct athn_softc *sc)
+ar9003_tx_free(struct athn_common *ac)
 {
 	struct athn_tx_buf *bf;
 	int i;
 
 	for (i = 0; i < ATHN_NTXBUFS; i++) {
-		bf = &sc->sc_txpool[i];
+		bf = &ac->ac_txpool[i];
 
 		if (bf->bf_map != NULL)
-			bus_dmamap_destroy(sc->sc_dmat, bf->bf_map);
+			bus_dmamap_destroy(ac->ac_dmat, bf->bf_map);
 	}
 	/* Free Tx descriptors. */
-	if (sc->sc_map != NULL) {
-		if (sc->sc_descs != NULL) {
-			bus_dmamap_unload(sc->sc_dmat, sc->sc_map);
-			bus_dmamem_unmap(sc->sc_dmat, (void *)sc->sc_descs,
+	if (ac->ac_map != NULL) {
+		if (ac->ac_descs != NULL) {
+			bus_dmamap_unload(ac->ac_dmat, ac->ac_map);
+			bus_dmamem_unmap(ac->ac_dmat, (void *)ac->ac_descs,
 			    ATHN_NTXBUFS * sizeof(struct ar_tx_desc));
-			bus_dmamem_free(sc->sc_dmat, &sc->sc_seg, 1);
+			bus_dmamem_free(ac->ac_dmat, &ac->ac_seg, 1);
 		}
-		bus_dmamap_destroy(sc->sc_dmat, sc->sc_map);
+		bus_dmamap_destroy(ac->ac_dmat, ac->ac_map);
 	}
 	/* Free Tx status ring. */
-	if (sc->sc_txsmap != NULL) {
-		if (sc->sc_txsring != NULL) {
-			bus_dmamap_unload(sc->sc_dmat, sc->sc_txsmap);
-			bus_dmamem_unmap(sc->sc_dmat, (void *)sc->sc_txsring,
+	if (ac->ac_txsmap != NULL) {
+		if (ac->ac_txsring != NULL) {
+			bus_dmamap_unload(ac->ac_dmat, ac->ac_txsmap);
+			bus_dmamem_unmap(ac->ac_dmat, (void *)ac->ac_txsring,
 			     AR9003_NTXSTATUS * sizeof(struct ar_tx_status));
-			bus_dmamem_free(sc->sc_dmat, &sc->sc_txsseg, 1);
+			bus_dmamem_free(ac->ac_dmat, &ac->ac_txsseg, 1);
 		}
-		bus_dmamap_destroy(sc->sc_dmat, sc->sc_txsmap);
+		bus_dmamap_destroy(ac->ac_dmat, ac->ac_txsmap);
 	}
 }
 
 Static int
-ar9003_rx_alloc(struct athn_softc *sc, int qid, int count)
+ar9003_rx_alloc(struct athn_common *ac, int qid, int count)
 {
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
@@ -752,7 +750,7 @@ ar9003_rx_alloc(struct athn_softc *sc, int qid, int count)
 	for (i = 0; i < rxq->count; i++) {
 		bf = &rxq->bf[i];
 
-		error = bus_dmamap_create(sc->sc_dmat, ATHN_RXBUFSZ, 1,
+		error = bus_dmamap_create(ac->ac_dmat, ATHN_RXBUFSZ, 1,
 		    ATHN_RXBUFSZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW,
 		    &bf->bf_map);
 		if (error != 0) {
@@ -771,7 +769,7 @@ ar9003_rx_alloc(struct athn_softc *sc, int qid, int count)
 			goto fail;
 		}
 
-		error = bus_dmamap_load(sc->sc_dmat, bf->bf_map,
+		error = bus_dmamap_load(ac->ac_dmat, bf->bf_map,
 		    mtod(bf->bf_m, void *), ATHN_RXBUFSZ, NULL,
 		    BUS_DMA_NOWAIT);
 		if (error != 0) {
@@ -785,7 +783,7 @@ ar9003_rx_alloc(struct athn_softc *sc, int qid, int count)
 		bf->bf_desc = ds;
 		bf->bf_daddr = bf->bf_map->dm_segs[0].ds_addr;
 
-		bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
+		bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
 		    BUS_DMASYNC_PREREAD);
 	}
 	return 0;
@@ -795,7 +793,7 @@ ar9003_rx_alloc(struct athn_softc *sc, int qid, int count)
 }
 
 Static void
-ar9003_rx_free(struct athn_softc *sc, int qid)
+ar9003_rx_free(struct athn_common *ac, int qid)
 {
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
@@ -807,7 +805,7 @@ ar9003_rx_free(struct athn_softc *sc, int qid)
 		bf = &rxq->bf[i];
 
 		if (bf->bf_map != NULL)
-			bus_dmamap_destroy(sc->sc_dmat, bf->bf_map);
+			bus_dmamap_destroy(ac->ac_dmat, bf->bf_map);
 		if (bf->bf_m != NULL)
 			m_freem(bf->bf_m);
 	}
@@ -815,20 +813,20 @@ ar9003_rx_free(struct athn_softc *sc, int qid)
 }
 
 PUBLIC void
-ar9003_reset_txsring(struct athn_softc *sc)
+ar9003_reset_txsring(struct athn_common *ac)
 {
 
-	sc->sc_txscur = 0;
-	memset(sc->sc_txsring, 0, AR9003_NTXSTATUS * sizeof(struct ar_tx_status));
+	ac->ac_txscur = 0;
+	memset(ac->ac_txsring, 0, AR9003_NTXSTATUS * sizeof(struct ar_tx_status));
 	AR_WRITE(sc, AR_Q_STATUS_RING_START,
-	    sc->sc_txsmap->dm_segs[0].ds_addr);
+	    ac->ac_txsmap->dm_segs[0].ds_addr);
 	AR_WRITE(sc, AR_Q_STATUS_RING_END,
-	    sc->sc_txsmap->dm_segs[0].ds_addr + sc->sc_txsmap->dm_segs[0].ds_len);
+	    ac->ac_txsmap->dm_segs[0].ds_addr + ac->ac_txsmap->dm_segs[0].ds_len);
 	AR_WRITE_BARRIER(sc);
 }
 
 Static void
-ar9003_rx_enable(struct athn_softc *sc)
+ar9003_rx_enable(struct athn_common *ac)
 {
 	struct athn_rxq *rxq;
 	struct athn_rx_buf *bf;
@@ -868,11 +866,11 @@ ar9003_rx_enable(struct athn_softc *sc)
 }
 
 Static void
-ar9003_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
+ar9003_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_status *ds)
 {
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
-	struct ieee80211com *ic = sc->sc_ic;
+	struct ieee80211com *ic = &sc->sc_ic;
 	uint64_t tsf;
 	uint32_t tstamp;
 	uint8_t rate;
@@ -923,13 +921,13 @@ ar9003_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
 		case 0xc: tap->wr_rate = 108; break;
 		}
 	}
-	bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_rxtap_len, m, BPF_D_IN);
+	bpf_mtap2(ac->ac_drvbpf, tap, ac->ac_rxtap_len, m, BPF_D_IN);
 }
 
 Static int
-ar9003_rx_process(struct athn_softc *sc, int qid)
+ar9003_rx_process(struct athn_common *ac, int qid)
 {
-	struct ieee80211com *ic = sc->sc_ic;
+	struct ieee80211com *ic = &sc->sc_ic;
 	struct ifnet *ifp;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
@@ -945,7 +943,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 		aprint_error_dev(sc->sc_dev, "Rx queue is empty!\n");
 		return ENOENT;
 	}
-	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
+	bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
 	    BUS_DMASYNC_POSTREAD);
 
 	ds = mtod(bf->bf_m, struct ar_rx_status *);
@@ -1014,16 +1012,16 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	}
 
 	/* Unmap the old Rx buffer. */
-	bus_dmamap_unload(sc->sc_dmat, bf->bf_map);
+	bus_dmamap_unload(ac->ac_dmat, bf->bf_map);
 
 	/* Map the new Rx buffer. */
-	error = bus_dmamap_load(sc->sc_dmat, bf->bf_map, mtod(m1, void *),
+	error = bus_dmamap_load(ac->ac_dmat, bf->bf_map, mtod(m1, void *),
 	    ATHN_RXBUFSZ, NULL, BUS_DMA_NOWAIT | BUS_DMA_READ);
 	if (__predict_false(error != 0)) {
 		m_freem(m1);
 
 		/* Remap the old Rx buffer or panic. */
-		error = bus_dmamap_load(sc->sc_dmat, bf->bf_map,
+		error = bus_dmamap_load(ac->ac_dmat, bf->bf_map,
 		    mtod(bf->bf_m, void *), ATHN_RXBUFSZ, NULL,
 		    BUS_DMA_NOWAIT | BUS_DMA_READ);
 		KASSERT(error != 0);
@@ -1057,7 +1055,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 			m_adj(m, 2);
 		}
 	}
-	if (__predict_false(sc->sc_drvbpf != NULL))
+	if (__predict_false(ac->ac_drvbpf != NULL))
 		ar9003_rx_radiotap(sc, m, ds);
 	/* Trim 802.11 FCS after radiotap. */
 	m_adj(m, -IEEE80211_CRC_LEN);
@@ -1083,7 +1081,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 	memset(bf->bf_desc, 0, sizeof(*ds));
 
 	/* Re-use this descriptor and link it to tail. */
-	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
+	bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
 	    BUS_DMASYNC_PREREAD);
 
 	if (qid == ATHN_QID_LP)
@@ -1100,7 +1098,7 @@ ar9003_rx_process(struct athn_softc *sc, int qid)
 }
 
 Static void
-ar9003_rx_intr(struct athn_softc *sc, int qid)
+ar9003_rx_intr(struct athn_common *ac, int qid)
 {
 
 	while (ar9003_rx_process(sc, qid) == 0)
@@ -1108,7 +1106,7 @@ ar9003_rx_intr(struct athn_softc *sc, int qid)
 }
 
 Static int
-ar9003_tx_process(struct athn_softc *sc)
+ar9003_tx_process(struct athn_common *ac)
 {
 	struct ifnet *ifp = NULL;
 	struct ieee80211_ratectl_tx_status txs;
@@ -1118,11 +1116,11 @@ ar9003_tx_process(struct athn_softc *sc)
 	struct ar_tx_status *ds;
 	uint8_t qid;
 
-	ds = &((struct ar_tx_status *)sc->sc_txsring)[sc->sc_txscur];
+	ds = &((struct ar_tx_status *)ac->ac_txsring)[ac->ac_txscur];
 	if (!(ds->ds_status8 & AR_TXS8_DONE))
 		return EBUSY;
 
-	sc->sc_txscur = (sc->sc_txscur + 1) % AR9003_NTXSTATUS;
+	ac->ac_txscur = (ac->ac_txscur + 1) % AR9003_NTXSTATUS;
 
 	/* Check that it is a valid Tx status descriptor. */
 	if ((ds->ds_info & (AR_TXI_DESC_ID_M | AR_TXI_DESC_TX)) !=
@@ -1145,7 +1143,7 @@ ar9003_tx_process(struct athn_softc *sc)
 
 	SIMPLEQ_REMOVE_HEAD(&txq->head, bf_list);
 
-	sc->sc_tx_timer = 0;
+	ac->ac_tx_timer = 0;
 
 	if (ds->ds_status3 & AR_TXS3_EXCESSIVE_RETRIES && ifp)
 		if_statinc(ifp, if_oerrors);
@@ -1187,9 +1185,9 @@ ar9003_tx_process(struct athn_softc *sc)
 	memset(ds, 0, sizeof(*ds));
 
 	/* Unmap Tx buffer. */
-	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, bf->bf_map->dm_mapsize,
+	bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, bf->bf_map->dm_mapsize,
 	    BUS_DMASYNC_POSTWRITE);
-	bus_dmamap_unload(sc->sc_dmat, bf->bf_map);
+	bus_dmamap_unload(ac->ac_dmat, bf->bf_map);
 
 	m_freem(bf->bf_m);
 	bf->bf_m = NULL;
@@ -1197,7 +1195,7 @@ ar9003_tx_process(struct athn_softc *sc)
 	bf->bf_ni = NULL;
 
 	/* Link Tx buffer back to global free list. */
-	SIMPLEQ_INSERT_TAIL(&sc->sc_txbufs, bf, bf_list);
+	SIMPLEQ_INSERT_TAIL(&ac->ac_txbufs, bf, bf_list);
 
 	/* Queue buffers that are waiting if there is new room. */
 	if (--txq->queued < AR9003_TX_QDEPTH && txq->wait != NULL) {
@@ -1209,7 +1207,7 @@ ar9003_tx_process(struct athn_softc *sc)
 }
 
 Static void
-ar9003_tx_intr(struct athn_softc *sc)
+ar9003_tx_intr(struct athn_common *ac)
 {
 	int s;
 
@@ -1218,8 +1216,8 @@ ar9003_tx_intr(struct athn_softc *sc)
 	while (ar9003_tx_process(sc) == 0)
 		continue;
 
-	if (!SIMPLEQ_EMPTY(&sc->sc_txbufs)) {
-		sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
+	if (!SIMPLEQ_EMPTY(&ac->ac_txbufs)) {
+		ac->ac_flags &= ~ATHN_FLAG_TX_BUSY;
 			athn_start(sc);
 	}
 
@@ -1231,10 +1229,10 @@ ar9003_tx_intr(struct athn_softc *sc)
  * Process Software Beacon Alert interrupts.
  */
 Static int
-ar9003_swba_intr(struct athn_softc *sc)
+ar9003_swba_intr(struct athn_common *ac)
 {
-	struct ieee80211com *ic = sc->sc_ic;
-	struct athn_tx_buf *bf = sc->sc_bcnbuf;
+	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_tx_buf *bf = ac->ac_bcnbuf;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap;
 	struct ar_tx_desc *ds;
@@ -1276,14 +1274,14 @@ ar9003_swba_intr(struct athn_softc *sc)
 
 	/* Unmap and free old beacon if any. */
 	if (__predict_true(bf->bf_m != NULL)) {
-		bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0,
+		bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0,
 		    bf->bf_map->dm_mapsize, BUS_DMASYNC_POSTWRITE);
-		bus_dmamap_unload(sc->sc_dmat, bf->bf_map);
+		bus_dmamap_unload(ac->ac_dmat, bf->bf_map);
 		m_freem(bf->bf_m);
 		bf->bf_m = NULL;
 	}
 	/* DMA map new beacon. */
-	error = bus_dmamap_load_mbuf(sc->sc_dmat, bf->bf_map, m,
+	error = bus_dmamap_load_mbuf(ac->ac_dmat, bf->bf_map, m,
 	    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 	if (__predict_false(error != 0)) {
 		m_freem(m);
@@ -1318,7 +1316,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 	ds->ds_ctl14 = SM(AR_TXC14_XMIT_RATE0, hwrate);
 
 	/* Write Tx chains. */
-	ds->ds_ctl18 = SM(AR_TXC18_CHAIN_SEL0, sc->sc_txchainmask);
+	ds->ds_ctl18 = SM(AR_TXC18_CHAIN_SEL0, ac->ac_txchainmask);
 
 	ds->ds_segs[0].ds_data = bf->bf_map->dm_segs[0].ds_addr;
 	/* Segment length must be a multiple of 4. */
@@ -1331,7 +1329,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 	sum = (sum >> 16) + (sum & 0xffff);
 	ds->ds_ctl10 = SM(AR_TXC10_PTR_CHK_SUM, sum);
 
-	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, bf->bf_map->dm_mapsize,
+	bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, bf->bf_map->dm_mapsize,
 	    BUS_DMASYNC_PREWRITE);
 
 	/* Stop Tx DMA before putting the new beacon on the queue. */
@@ -1346,7 +1344,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 	   broadcast frames in the cab q */
 
 	/* for(;;) { */
-	/* 	if (SIMPLEQ_EMPTY(&sc->sc_txbufs)) */
+	/* 	if (SIMPLEQ_EMPTY(&ac->ac_txbufs)) */
 	/* 		break; */
 
 	/* 	IF_DEQUEUE(&ni->ni_savedq, m); */
@@ -1358,7 +1356,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 	/* 		wh->i_fc[1] |= IEEE80211_FC1_MORE_DATA; */
 	/* 	} */
 
-	/* 	if (sc->sc_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) { */
+	/* 	if (ac->ac_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) { */
 	/* 		ieee80211_free_node(ni); */
 	/* 		if_statinc(ifp, if_oerrors); */
 	/* 		break; */
@@ -1373,7 +1371,7 @@ ar9003_swba_intr(struct athn_softc *sc)
 #endif
 
 static int
-ar9003_get_intr_status(struct athn_softc *sc, uint32_t *intrp, uint32_t *syncp)
+ar9003_get_intr_status(struct athn_common *ac, uint32_t *intrp, uint32_t *syncp)
 {
 	uint32_t intr, sync;
 
@@ -1381,7 +1379,7 @@ ar9003_get_intr_status(struct athn_softc *sc, uint32_t *intrp, uint32_t *syncp)
 	intr = AR_READ(sc, AR_INTR_ASYNC_CAUSE);
 	if (!(intr & AR_INTR_MAC_IRQ) || intr == AR_INTR_SPURIOUS) {
 		intr = AR_READ(sc, AR_INTR_SYNC_CAUSE);
-		if (intr == AR_INTR_SPURIOUS || (intr & sc->sc_isync) == 0)
+		if (intr == AR_INTR_SPURIOUS || (intr & ac->ac_isync) == 0)
 			return 0;	/* Not for us. */
 	}
 
@@ -1390,7 +1388,7 @@ ar9003_get_intr_status(struct athn_softc *sc, uint32_t *intrp, uint32_t *syncp)
 		intr = AR_READ(sc, AR_ISR);
 	else
 		intr = 0;
-	sync = AR_READ(sc, AR_INTR_SYNC_CAUSE) & sc->sc_isync;
+	sync = AR_READ(sc, AR_INTR_SYNC_CAUSE) & ac->ac_isync;
 	if (intr == 0 && sync == 0)
 		return 0;	/* Not for us. */
 
@@ -1400,7 +1398,7 @@ ar9003_get_intr_status(struct athn_softc *sc, uint32_t *intrp, uint32_t *syncp)
 }
 
 Static int
-ar9003_intr_status(struct athn_softc *sc)
+ar9003_intr_status(struct athn_common *ac)
 {
 	uint32_t intr, sync;
 
@@ -1408,7 +1406,7 @@ ar9003_intr_status(struct athn_softc *sc)
 }
 
 Static int
-ar9003_intr(struct athn_softc *sc)
+ar9003_intr(struct athn_common *ac)
 {
 	uint32_t intr, sync;
 #ifndef IEEE80211_STA_ONLY
@@ -1473,8 +1471,8 @@ ar9003_intr(struct athn_softc *sc)
 			AR_WRITE(sc, AR_RC, 0);
 		}
 
-		if ((sc->sc_flags & ATHN_FLAG_RFSILENT) &&
-		    (sync & AR_INTR_SYNC_GPIO_PIN(sc->sc_rfsilent_pin))) {
+		if ((ac->ac_flags & ATHN_FLAG_RFSILENT) &&
+		    (sync & AR_INTR_SYNC_GPIO_PIN(ac->ac_rfsilent_pin))) {
 			pmf_event_inject(sc->sc_dev, PMFE_RADIO_OFF);
 			return 1;
 		}
@@ -1493,7 +1491,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	struct ieee80211_key *k = NULL;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap = ni->ni_vap;
-	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = ic->ic_softc;
 	struct athn_series series[4];
 	struct ar_tx_desc *ds;
 	struct athn_txq *txq;
@@ -1506,7 +1504,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	int i, error, totlen, hasqos, qid;
 
 	/* Grab a Tx buffer from our global free list. */
-	bf = SIMPLEQ_FIRST(&sc->sc_txbufs);
+	bf = SIMPLEQ_FIRST(&ac->ac_txbufs);
 	KASSERT(bf != NULL);
 
 	/* Map 802.11 frame type to hardware frame type. */
@@ -1593,7 +1591,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	else if (ic->ic_fixed_rate != -1) {
 		/* Use same fixed rate for all tries. */
 		ridx[0] = ridx[1] = ridx[2] = ridx[3] =
-		    sc->sc_fixed_ridx;
+		    ac->ac_fixed_ridx;
 	}
 #endif
 	else {
@@ -1605,7 +1603,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 		}
 	}
 
-	if (__predict_false(sc->sc_drvbpf != NULL)) {
+	if (__predict_false(ac->ac_drvbpf != NULL)) {
 		struct athn_tx_radiotap_header *tap = &sc->sc_txtap;
 
 		tap->wt_flags = 0;
@@ -1618,11 +1616,11 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 		    (ic->ic_flags & IEEE80211_F_SHPREAMBLE))
 			tap->wt_flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
 
-		bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m, BPF_D_OUT);
+		bpf_mtap2(ac->ac_drvbpf, tap, ac->ac_txtap_len, m, BPF_D_OUT);
 	}
 
 	/* DMA map mbuf. */
-	error = bus_dmamap_load_mbuf(sc->sc_dmat, bf->bf_map, m,
+	error = bus_dmamap_load_mbuf(ac->ac_dmat, bf->bf_map, m,
 	    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 	if (__predict_false(error != 0)) {
 		if (error != EFBIG) {
@@ -1653,7 +1651,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 		m_freem(m);
 		m = m1;
 
-		error = bus_dmamap_load_mbuf(sc->sc_dmat, bf->bf_map, m,
+		error = bus_dmamap_load_mbuf(ac->ac_dmat, bf->bf_map, m,
 		    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 		if (error != 0) {
 			aprint_error_dev(sc->sc_dev,
@@ -1771,7 +1769,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	/* If this is a PA training frame, select the Tx chain to use. */
 	// if (__predict_false(txflags & ATHN_TXFLAG_PAPRD)) {
 	// 	ds->ds_ctl12 |= SM(AR_TXC12_PAPRD_CHAIN_MASK,
-	// 	    1 << sc->sc_paprd_curchain);
+	// 	    1 << ac->ac_paprd_curchain);
 	// }
 
 	/* Write number of tries for each series. */
@@ -1800,7 +1798,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	    SM(AR_TXC16_PACKET_DUR2, series[2].dur) |
 	    SM(AR_TXC16_PACKET_DUR3, series[3].dur);
 
-	if ((sc->sc_flags & ATHN_FLAG_3TREDUCE_CHAIN) &&
+	if ((ac->ac_flags & ATHN_FLAG_3TREDUCE_CHAIN) &&
 	    ic->ic_curmode == IEEE80211_MODE_11A) {
 		/*
 		 * In order to not exceed PCIe power requirements, we only
@@ -1808,21 +1806,21 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 		 */
 		ds->ds_ctl18 =
 		    SM(AR_TXC18_CHAIN_SEL0,
-			(ridx[0] <= ATHN_RIDX_MCS15) ? 0x3 : sc->sc_txchainmask) |
+			(ridx[0] <= ATHN_RIDX_MCS15) ? 0x3 : ac->ac_txchainmask) |
 		    SM(AR_TXC18_CHAIN_SEL1,
-			(ridx[1] <= ATHN_RIDX_MCS15) ? 0x3 : sc->sc_txchainmask) |
+			(ridx[1] <= ATHN_RIDX_MCS15) ? 0x3 : ac->ac_txchainmask) |
 		    SM(AR_TXC18_CHAIN_SEL2,
-			(ridx[2] <= ATHN_RIDX_MCS15) ? 0x3 : sc->sc_txchainmask) |
+			(ridx[2] <= ATHN_RIDX_MCS15) ? 0x3 : ac->ac_txchainmask) |
 		    SM(AR_TXC18_CHAIN_SEL3,
-			(ridx[3] <= ATHN_RIDX_MCS15) ? 0x3 : sc->sc_txchainmask);
+			(ridx[3] <= ATHN_RIDX_MCS15) ? 0x3 : ac->ac_txchainmask);
 	}
 	else {
 		/* Use the same Tx chains for all tries. */
 		ds->ds_ctl18 =
-		    SM(AR_TXC18_CHAIN_SEL0, sc->sc_txchainmask) |
-		    SM(AR_TXC18_CHAIN_SEL1, sc->sc_txchainmask) |
-		    SM(AR_TXC18_CHAIN_SEL2, sc->sc_txchainmask) |
-		    SM(AR_TXC18_CHAIN_SEL3, sc->sc_txchainmask);
+		    SM(AR_TXC18_CHAIN_SEL0, ac->ac_txchainmask) |
+		    SM(AR_TXC18_CHAIN_SEL1, ac->ac_txchainmask) |
+		    SM(AR_TXC18_CHAIN_SEL2, ac->ac_txchainmask) |
+		    SM(AR_TXC18_CHAIN_SEL3, ac->ac_txchainmask);
 	}
 #ifdef notyet
 #ifndef IEEE80211_NO_HT
@@ -1884,7 +1882,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	sum = (sum >> 16) + (sum & 0xffff);
 	ds->ds_ctl10 = SM(AR_TXC10_PTR_CHK_SUM, sum);
 
-	bus_dmamap_sync(sc->sc_dmat, bf->bf_map, 0, bf->bf_map->dm_mapsize,
+	bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, bf->bf_map->dm_mapsize,
 	    BUS_DMASYNC_PREWRITE);
 
 	DPRINTFN(DBG_TX, sc,
@@ -1892,7 +1890,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	    qid, bf->bf_map->dm_nsegs, ds->ds_ctl11, ds->ds_ctl12,
 	    ds->ds_ctl14);
 
-	SIMPLEQ_REMOVE_HEAD(&sc->sc_txbufs, bf_list);
+	SIMPLEQ_REMOVE_HEAD(&ac->ac_txbufs, bf_list);
 	SIMPLEQ_INSERT_TAIL(&txq->head, bf, bf_list);
 
 	/* Queue buffer unless hardware FIFO is already full. */
@@ -1906,14 +1904,14 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 }
 
 Static void
-ar9003_set_rf_mode(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9003_set_rf_mode(struct athn_common *ac, struct ieee80211_channel *c)
 {
 	uint32_t reg;
 
 	reg = IEEE80211_IS_CHAN_2GHZ(c) ?
 	    AR_PHY_MODE_DYNAMIC : AR_PHY_MODE_OFDM;
 	if (IEEE80211_IS_CHAN_5GHZ(c) &&
-	    (sc->sc_flags & ATHN_FLAG_FAST_PLL_CLOCK)) {
+	    (ac->ac_flags & ATHN_FLAG_FAST_PLL_CLOCK)) {
 		reg |= AR_PHY_MODE_DYNAMIC | AR_PHY_MODE_DYN_CCK_DISABLE;
 	}
 	AR_WRITE(sc, AR_PHY_MODE, reg);
@@ -1921,12 +1919,12 @@ ar9003_set_rf_mode(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 static __inline uint32_t
-ar9003_synth_delay(struct athn_softc *sc)
+ar9003_synth_delay(struct athn_common *ac)
 {
 	uint32_t synth_delay;
 
 	synth_delay = MS(AR_READ(sc, AR_PHY_RX_DELAY), AR_PHY_RX_DELAY_DELAY);
-	if (sc->sc_ic->ic_curmode == IEEE80211_MODE_11B)
+	if (sc->sc_ic.ic_curmode == IEEE80211_MODE_11B)
 		synth_delay = (synth_delay * 4) / 22;
 	else
 		synth_delay = synth_delay / 10;	/* in 100ns steps */
@@ -1934,7 +1932,7 @@ ar9003_synth_delay(struct athn_softc *sc)
 }
 
 Static int
-ar9003_rf_bus_request(struct athn_softc *sc)
+ar9003_rf_bus_request(struct athn_common *ac)
 {
 	int ntries;
 
@@ -1950,7 +1948,7 @@ ar9003_rf_bus_request(struct athn_softc *sc)
 }
 
 Static void
-ar9003_rf_bus_release(struct athn_softc *sc)
+ar9003_rf_bus_release(struct athn_common *ac)
 {
 	/* Wait for the synthesizer to settle. */
 	DELAY(AR_BASE_PHY_ACTIVE_DELAY + ar9003_synth_delay(sc));
@@ -1961,7 +1959,7 @@ ar9003_rf_bus_release(struct athn_softc *sc)
 }
 
 Static void
-ar9003_set_phy(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9003_set_phy(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	uint32_t phy;
@@ -1991,7 +1989,7 @@ ar9003_set_phy(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9003_set_delta_slope(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9003_set_delta_slope(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	uint32_t coeff, exp, man, reg;
@@ -2019,7 +2017,7 @@ ar9003_set_delta_slope(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9003_enable_antenna_diversity(struct athn_softc *sc)
+ar9003_enable_antenna_diversity(struct athn_common *ac)
 {
 	AR_SETBITS(sc, AR_PHY_CCK_DETECT,
 	    AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV);
@@ -2027,7 +2025,7 @@ ar9003_enable_antenna_diversity(struct athn_softc *sc)
 }
 
 Static void
-ar9003_init_baseband(struct athn_softc *sc)
+ar9003_init_baseband(struct athn_common *ac)
 {
 	uint32_t synth_delay;
 
@@ -2039,23 +2037,23 @@ ar9003_init_baseband(struct athn_softc *sc)
 }
 
 Static void
-ar9003_disable_phy(struct athn_softc *sc)
+ar9003_disable_phy(struct athn_common *ac)
 {
 	AR_WRITE(sc, AR_PHY_ACTIVE, AR_PHY_ACTIVE_DIS);
 	AR_WRITE_BARRIER(sc);
 }
 
 Static void
-ar9003_init_chains(struct athn_softc *sc)
+ar9003_init_chains(struct athn_common *ac)
 {
-	if (sc->sc_rxchainmask == 0x5 || sc->sc_txchainmask == 0x5)
+	if (ac->ac_rxchainmask == 0x5 || ac->ac_txchainmask == 0x5)
 		AR_SETBITS(sc, AR_PHY_ANALOG_SWAP, AR_PHY_SWAP_ALT_CHAIN);
 
 	/* Setup chain masks. */
-	AR_WRITE(sc, AR_PHY_RX_CHAINMASK,  sc->sc_rxchainmask);
-	AR_WRITE(sc, AR_PHY_CAL_CHAINMASK, sc->sc_rxchainmask);
+	AR_WRITE(sc, AR_PHY_RX_CHAINMASK,  ac->ac_rxchainmask);
+	AR_WRITE(sc, AR_PHY_CAL_CHAINMASK, ac->ac_rxchainmask);
 
-	if (sc->sc_flags & ATHN_FLAG_3TREDUCE_CHAIN) {
+	if (ac->ac_flags & ATHN_FLAG_3TREDUCE_CHAIN) {
 		/*
 		 * All self-generated frames are sent using two Tx chains
 		 * on these chips to not exceed PCIe power requirements.
@@ -2063,30 +2061,30 @@ ar9003_init_chains(struct athn_softc *sc)
 		AR_WRITE(sc, AR_SELFGEN_MASK, 0x3);
 	}
 	else
-		AR_WRITE(sc, AR_SELFGEN_MASK, sc->sc_txchainmask);
+		AR_WRITE(sc, AR_SELFGEN_MASK, ac->ac_txchainmask);
 	AR_WRITE_BARRIER(sc);
 }
 
 Static void
-ar9003_set_rxchains(struct athn_softc *sc)
+ar9003_set_rxchains(struct athn_common *ac)
 {
-	if (sc->sc_rxchainmask == 0x3 || sc->sc_rxchainmask == 0x5) {
-		AR_WRITE(sc, AR_PHY_RX_CHAINMASK,  sc->sc_rxchainmask);
-		AR_WRITE(sc, AR_PHY_CAL_CHAINMASK, sc->sc_rxchainmask);
+	if (ac->ac_rxchainmask == 0x3 || ac->ac_rxchainmask == 0x5) {
+		AR_WRITE(sc, AR_PHY_RX_CHAINMASK,  ac->ac_rxchainmask);
+		AR_WRITE(sc, AR_PHY_CAL_CHAINMASK, ac->ac_rxchainmask);
 		AR_WRITE_BARRIER(sc);
 	}
 }
 
 #ifdef notused
 Static void
-ar9003_read_noisefloor(struct athn_softc *sc, int16_t *nf, int16_t *nf_ext)
+ar9003_read_noisefloor(struct athn_common *ac, int16_t *nf, int16_t *nf_ext)
 {
 /* Sign-extends 9-bit value (assumes upper bits are zeroes). */
 #define SIGN_EXT(v)	(((v) ^ 0x100) - 0x100)
 	uint32_t reg;
 	int i;
 
-	for (i = 0; i < sc->sc_nrxchains; i++) {
+	for (i = 0; i < ac->ac_nrxchains; i++) {
 		reg = AR_READ(sc, AR_PHY_CCA(i));
 		nf[i] = MS(reg, AR_PHY_MINCCA_PWR);
 		nf[i] = SIGN_EXT(nf[i]);
@@ -2101,12 +2099,12 @@ ar9003_read_noisefloor(struct athn_softc *sc, int16_t *nf, int16_t *nf_ext)
 
 #ifdef notused
 Static void
-ar9003_write_noisefloor(struct athn_softc *sc, int16_t *nf, int16_t *nf_ext)
+ar9003_write_noisefloor(struct athn_common *ac, int16_t *nf, int16_t *nf_ext)
 {
 	uint32_t reg;
 	int i;
 
-	for (i = 0; i < sc->sc_nrxchains; i++) {
+	for (i = 0; i < ac->ac_nrxchains; i++) {
 		reg = AR_READ(sc, AR_PHY_CCA(i));
 		reg = RW(reg, AR_PHY_MAXCCA_PWR, nf[i]);
 		AR_WRITE(sc, AR_PHY_CCA(i), reg);
@@ -2121,7 +2119,7 @@ ar9003_write_noisefloor(struct athn_softc *sc, int16_t *nf, int16_t *nf_ext)
 
 #ifdef notused
 Static void
-ar9003_get_noisefloor(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9003_get_noisefloor(struct athn_common *ac, struct ieee80211_channel *c)
 {
 	int16_t nf[AR_MAX_CHAINS], nf_ext[AR_MAX_CHAINS];
 	int16_t cca_min, cca_max;
@@ -2135,15 +2133,15 @@ ar9003_get_noisefloor(struct athn_softc *sc, struct ieee80211_channel *c)
 	ar9003_read_noisefloor(sc, nf, nf_ext);
 
 	if (IEEE80211_IS_CHAN_2GHZ(c)) {
-		cca_min = sc->sc_cca_min_2g;
-		cca_max = sc->sc_cca_max_2g;
+		cca_min = ac->ac_cca_min_2g;
+		cca_max = ac->ac_cca_max_2g;
 	}
 	else {
-		cca_min = sc->sc_cca_min_5g;
-		cca_max = sc->sc_cca_max_5g;
+		cca_min = ac->ac_cca_min_5g;
+		cca_max = ac->ac_cca_max_5g;
 	}
 	/* Update noisefloor history. */
-	for (i = 0; i < sc->sc_nrxchains; i++) {
+	for (i = 0; i < ac->ac_nrxchains; i++) {
 		if (nf[i] < cca_min)
 			nf[i] = cca_min;
 		else if (nf[i] > cca_max)
@@ -2153,25 +2151,25 @@ ar9003_get_noisefloor(struct athn_softc *sc, struct ieee80211_channel *c)
 		else if (nf_ext[i] > cca_max)
 			nf_ext[i] = cca_max;
 
-		sc->sc_nf_hist[sc->sc_nf_hist_cur].nf[i] = nf[i];
-		sc->sc_nf_hist[sc->sc_nf_hist_cur].nf_ext[i] = nf_ext[i];
+		ac->ac_nf_hist[ac->ac_nf_hist_cur].nf[i] = nf[i];
+		ac->ac_nf_hist[ac->ac_nf_hist_cur].nf_ext[i] = nf_ext[i];
 	}
-	if (++sc->sc_nf_hist_cur >= ATHN_NF_CAL_HIST_MAX)
-		sc->sc_nf_hist_cur = 0;
+	if (++ac->ac_nf_hist_cur >= ATHN_NF_CAL_HIST_MAX)
+		ac->ac_nf_hist_cur = 0;
 }
 #endif /* notused */
 
 #ifdef notused
 Static void
-ar9003_bb_load_noisefloor(struct athn_softc *sc)
+ar9003_bb_load_noisefloor(struct athn_common *ac)
 {
 	int16_t nf[AR_MAX_CHAINS], nf_ext[AR_MAX_CHAINS];
 	int i, ntries;
 
 	/* Write filtered noisefloor values. */
-	for (i = 0; i < sc->sc_nrxchains; i++) {
-		nf[i] = sc->sc_nf_priv[i] * 2;
-		nf_ext[i] = sc->sc_nf_ext_priv[i] * 2;
+	for (i = 0; i < ac->ac_nrxchains; i++) {
+		nf[i] = ac->ac_nf_priv[i] * 2;
+		nf_ext[i] = ac->ac_nf_ext_priv[i] * 2;
 	}
 	ar9003_write_noisefloor(sc, nf, nf_ext);
 
@@ -2199,7 +2197,7 @@ ar9003_bb_load_noisefloor(struct athn_softc *sc)
 
 #ifdef notused
 Static void
-ar9300_noisefloor_calib(struct athn_softc *sc)
+ar9300_noisefloor_calib(struct athn_common *ac)
 {
 
 	AR_SETBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_ENABLE_NF);
@@ -2209,22 +2207,22 @@ ar9300_noisefloor_calib(struct athn_softc *sc)
 #endif /* notused */
 
 Static void
-ar9003_do_noisefloor_calib(struct athn_softc *sc)
+ar9003_do_noisefloor_calib(struct athn_common *ac)
 {
 
 	AR_SETBITS(sc, AR_PHY_AGC_CONTROL, AR_PHY_AGC_CONTROL_NF);
 }
 
 PUBLIC int
-ar9003_init_calib(struct athn_softc *sc)
+ar9003_init_calib(struct athn_common *ac)
 {
 	uint8_t txchainmask, rxchainmask;
 	uint32_t reg;
 	int ntries;
 
 	/* Save chains masks. */
-	txchainmask = sc->sc_txchainmask;
-	rxchainmask = sc->sc_rxchainmask;
+	txchainmask = ac->ac_txchainmask;
+	rxchainmask = ac->ac_rxchainmask;
 	/* Configure hardware before calibration. */
 	if (AR_READ(sc, AR_ENT_OTP) & AR_ENT_OTP_CHAIN2_DISABLE)
 		txchainmask = rxchainmask = 0x3;
@@ -2253,19 +2251,19 @@ ar9003_init_calib(struct athn_softc *sc)
 		return ETIMEDOUT;
 
 	/* Restore chains masks. */
-	sc->sc_txchainmask = txchainmask;
-	sc->sc_rxchainmask = rxchainmask;
+	ac->ac_txchainmask = txchainmask;
+	ac->ac_rxchainmask = rxchainmask;
 	ar9003_init_chains(sc);
 
 	return 0;
 }
 
 Static void
-ar9003_do_calib(struct athn_softc *sc)
+ar9003_do_calib(struct athn_common *ac)
 {
 	uint32_t reg;
 
-	if (sc->sc_cur_calib_mask & ATHN_CAL_IQ) {
+	if (ac->ac_cur_calib_mask & ATHN_CAL_IQ) {
 		reg = AR_READ(sc, AR_PHY_TIMING4);
 		reg = RW(reg, AR_PHY_TIMING4_IQCAL_LOG_COUNT_MAX, 10);
 		AR_WRITE(sc, AR_PHY_TIMING4, reg);
@@ -2273,7 +2271,7 @@ ar9003_do_calib(struct athn_softc *sc)
 		AR_SETBITS(sc, AR_PHY_TIMING4, AR_PHY_TIMING4_DO_CAL);
 		AR_WRITE_BARRIER(sc);
 	}
-	else if (sc->sc_cur_calib_mask & ATHN_CAL_TEMP) {
+	else if (ac->ac_cur_calib_mask & ATHN_CAL_TEMP) {
 		AR_SETBITS(sc, AR_PHY_65NM_CH0_THERM,
 		    AR_PHY_65NM_CH0_THERM_LOCAL);
 		AR_SETBITS(sc, AR_PHY_65NM_CH0_THERM,
@@ -2283,10 +2281,10 @@ ar9003_do_calib(struct athn_softc *sc)
 }
 
 Static void
-ar9003_next_calib(struct athn_softc *sc)
+ar9003_next_calib(struct athn_common *ac)
 {
 	/* Check if we have any calibration in progress. */
-	if (sc->sc_cur_calib_mask != 0) {
+	if (ac->ac_cur_calib_mask != 0) {
 		if (!(AR_READ(sc, AR_PHY_TIMING4) & AR_PHY_TIMING4_DO_CAL)) {
 			/* Calibration completed for current sample. */
 			ar9003_calib_iq(sc);
@@ -2295,7 +2293,7 @@ ar9003_next_calib(struct athn_softc *sc)
 }
 
 Static void
-ar9003_calib_iq(struct athn_softc *sc)
+ar9003_calib_iq(struct athn_common *ac)
 {
 	struct athn_iq_cal *cal;
 	uint32_t reg, i_coff_denom, q_coff_denom;
@@ -2303,7 +2301,7 @@ ar9003_calib_iq(struct athn_softc *sc)
 	int i, iq_corr_neg;
 
 	for (i = 0; i < AR_MAX_CHAINS; i++) {
-		cal = &sc->sc_calib.iq[i];
+		cal = &ac->ac_calib.iq[i];
 
 		/* Read IQ calibration measures (clear on read). */
 		cal->pwr_meas_i = AR_READ(sc, AR_PHY_IQ_ADC_MEAS_0_B(i));
@@ -2312,8 +2310,8 @@ ar9003_calib_iq(struct athn_softc *sc)
 		    (int32_t)AR_READ(sc, AR_PHY_IQ_ADC_MEAS_2_B(i));
 	}
 
-	for (i = 0; i < sc->sc_nrxchains; i++) {
-		cal = &sc->sc_calib.iq[i];
+	for (i = 0; i < ac->ac_nrxchains; i++) {
+		cal = &ac->ac_calib.iq[i];
 
 		if (cal->pwr_meas_q == 0)
 			continue;
@@ -2356,13 +2354,13 @@ ar9003_calib_iq(struct athn_softc *sc)
 	AR_WRITE_BARRIER(sc);
 
 	/* IQ calibration done. */
-	sc->sc_cur_calib_mask &= ~ATHN_CAL_IQ;
-	memset(&sc->sc_calib, 0, sizeof(sc->sc_calib));
+	ac->ac_cur_calib_mask &= ~ATHN_CAL_IQ;
+	memset(&ac->ac_calib, 0, sizeof(ac->ac_calib));
 }
 
 #define DELPT	32
 Static int
-ar9003_get_iq_corr(struct athn_softc *sc, int32_t res[6], int32_t coeff[2])
+ar9003_get_iq_corr(struct athn_common *ac, int32_t res[6], int32_t coeff[2])
 {
 /* Sign-extends 12-bit value (assumes upper bits are zeroes). */
 #define SIGN_EXT(v)	(((v) ^ 0x800) - 0x800)
@@ -2482,7 +2480,7 @@ ar9003_get_iq_corr(struct athn_softc *sc, int32_t res[6], int32_t coeff[2])
 }
 
 Static int
-ar9003_calib_tx_iq(struct athn_softc *sc)
+ar9003_calib_tx_iq(struct athn_common *ac)
 {
 	uint32_t reg;
 	int32_t res[6], coeff[2];
@@ -2504,7 +2502,7 @@ ar9003_calib_tx_iq(struct athn_softc *sc)
 	if (ntries == 10000)
 		return ETIMEDOUT;
 
-	for (i = 0; i < sc->sc_ntxchains; i++) {
+	for (i = 0; i < ac->ac_ntxchains; i++) {
 		/* Read Tx IQ calibration status for this chain. */
 		reg = AR_READ(sc, AR_PHY_TX_IQCAL_STATUS_B(i));
 		if (reg & AR_PHY_TX_IQCAL_STATUS_FAILED)
@@ -2568,13 +2566,13 @@ ar9003_calib_tx_iq(struct athn_softc *sc)
  */
 #ifdef notused
 Static void
-ar9003_paprd_calib(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9003_paprd_calib(struct athn_common *ac, struct ieee80211_channel *c)
 {
 	static const int scaling[] = {
 		261376, 248079, 233759, 220464,
 		208194, 196949, 185706, 175487
 	};
-	struct athn_ops *ops = &sc->sc_ops;
+	struct athn_ops *ops = &ac->ac_ops;
 	uint32_t reg, ht20mask, ht40mask;
 	int i;
 
@@ -2661,19 +2659,19 @@ ar9003_paprd_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 
 	/* Save Tx gain table. */
 	for (i = 0; i < AR9003_TX_GAIN_TABLE_SIZE; i++)
-		sc->sc_txgain[i] = AR_READ(sc, AR_PHY_TXGAIN_TABLE(i));
+		ac->ac_txgain[i] = AR_READ(sc, AR_PHY_TXGAIN_TABLE(i));
 
 	/* Set Tx power of training signal (use setting for MCS0). */
-	sc->sc_trainpow = MS(AR_READ(sc, AR_PHY_PWRTX_RATE5),
+	ac->ac_trainpow = MS(AR_READ(sc, AR_PHY_PWRTX_RATE5),
 	    AR_PHY_PWRTX_RATE5_POWERTXHT20_0) - 4;
 
 	/*
 	 * Start PA predistortion calibration state machine.
 	 */
 	/* Find first available Tx chain. */
-	sc->sc_paprd_curchain = 0;
-	while (!(sc->sc_txchainmask & (1 << sc->sc_paprd_curchain)))
-		sc->sc_paprd_curchain++;
+	ac->ac_paprd_curchain = 0;
+	while (!(ac->ac_txchainmask & (1 << ac->ac_paprd_curchain)))
+		ac->ac_paprd_curchain++;
 
 	/* Make sure training done bit is clear. */
 	AR_CLRBITS(sc, AR_PHY_PAPRD_TRAINER_STAT1,
@@ -2688,7 +2686,7 @@ ar9003_paprd_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 /* XXX not used? */
 #ifdef notused
 Static int
-ar9003_get_desired_txgain(struct athn_softc *sc, int chain, int pow)
+ar9003_get_desired_txgain(struct athn_common *ac, int chain, int pow)
 {
 	int32_t scale, atemp, avolt, tempcal, voltcal, temp, volt;
 	int32_t tempcorr, voltcorr;
@@ -2725,7 +2723,7 @@ ar9003_get_desired_txgain(struct athn_softc *sc, int chain, int pow)
 /* XXX not used? */
 #ifdef notused
 Static void
-ar9003_force_txgain(struct athn_softc *sc, uint32_t txgain)
+ar9003_force_txgain(struct athn_common *ac, uint32_t txgain)
 {
 	uint32_t reg;
 
@@ -2759,7 +2757,7 @@ ar9003_force_txgain(struct athn_softc *sc, uint32_t txgain)
 /* XXX not used? */
 #ifdef notused
 Static void
-ar9003_set_training_gain(struct athn_softc *sc, int chain)
+ar9003_set_training_gain(struct athn_common *ac, int chain)
 {
 	size_t i;
 	int gain;
@@ -2768,22 +2766,22 @@ ar9003_set_training_gain(struct athn_softc *sc, int chain)
 	 * Get desired gain for training signal power (take into account
 	 * current temperature/voltage).
 	 */
-	gain = ar9003_get_desired_txgain(sc, chain, sc->sc_trainpow);
+	gain = ar9003_get_desired_txgain(sc, chain, ac->ac_trainpow);
 	/* Find entry in table. */
 	for (i = 0; i < AR9003_TX_GAIN_TABLE_SIZE - 1; i++)
-		if ((int)MS(sc->sc_txgain[i], AR_PHY_TXGAIN_INDEX) >= gain)
+		if ((int)MS(ac->ac_txgain[i], AR_PHY_TXGAIN_INDEX) >= gain)
 			break;
-	ar9003_force_txgain(sc, sc->sc_txgain[i]);
+	ar9003_force_txgain(sc, ac->ac_txgain[i]);
 }
 #endif /* notused */
 
 /* XXX It doesn't seem like this is used? */
 #ifdef notused
 Static int
-ar9003_paprd_tx_tone(struct athn_softc *sc)
+ar9003_paprd_tx_tone(struct athn_common *ac)
 {
 #define TONE_LEN	1800
-	struct ieee80211com *ic = sc->sc_ic;
+	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
 	struct mbuf *m;
@@ -2804,7 +2802,7 @@ ar9003_paprd_tx_tone(struct athn_softc *sc)
 	m->m_pkthdr.len = m->m_len = TONE_LEN;
 
 	/* Set gain of training signal. */
-	ar9003_set_training_gain(sc, sc->sc_paprd_curchain);
+	ar9003_set_training_gain(sc, ac->ac_paprd_curchain);
 
 	/* Transmit training signal. */
 	ni = ieee80211_ref_node(ic->ic_bss);
@@ -2834,11 +2832,11 @@ get_scale(int val)
  * on feedback from training signal.
  */
 Static int
-ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
+ar9003_compute_predistortion(struct athn_common *ac, const uint32_t *lo,
     const uint32_t *hi)
 {
 #define NBINS	23
-	int chain = sc->sc_paprd_curchain;
+	int chain = ac->ac_paprd_curchain;
 	int x[NBINS + 1], y[NBINS + 1], t[NBINS + 1];
 	int b1[NBINS + 1], b2[NBINS + 1], xtilde[NBINS + 1];
 	int nsamples, txsum, rxsum, rosum, maxidx;
@@ -2887,7 +2885,7 @@ ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
 	if (G == 0)
 		return 1;	/* Prevent division by 0. */
 
-	sc->sc_gain1[chain] = G;	/* Save low signal gain. */
+	ac->ac_gain1[chain] = G;	/* Save low signal gain. */
 
 	/* Find interception point. */
 	icept = (G * (x[0] - x[3]) + SCALE) / SCALE + y[3];
@@ -2998,14 +2996,14 @@ ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
 		y3 = y3 / order3xrem;
 
 		in = y5 + y3 + (SCALE * tmp) / G;
-		if (i >= 2 && in < sc->sc_pa_in[chain][i - 1]) {
-			in = sc->sc_pa_in[chain][i - 1] +
-			    (sc->sc_pa_in[chain][i - 1] -
-			     sc->sc_pa_in[chain][i - 2]);
+		if (i >= 2 && in < ac->ac_pa_in[chain][i - 1]) {
+			in = ac->ac_pa_in[chain][i - 1] +
+			    (ac->ac_pa_in[chain][i - 1] -
+			     ac->ac_pa_in[chain][i - 2]);
 		}
 		if (in > 1400)
 			in = 1400;
-		sc->sc_pa_in[chain][i] = in;
+		ac->ac_pa_in[chain][i] = in;
 	}
 
 	/* Compute average theta of first 5 bins (linear region). */
@@ -3042,7 +3040,7 @@ ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
 	order3xrem = 1 << (order % 3);
 
 	for (i = 0; i <= 4; i++)
-		sc->sc_angle[chain][i] = 0;	/* Linear at that range. */
+		ac->ac_angle[chain][i] = 0;	/* Linear at that range. */
 	for (i = 5; i < AR9003_PAPRD_MEM_TAB_SIZE; i++) {
 		tmp = i * 32;
 
@@ -3071,10 +3069,10 @@ ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
 			angle = -150;
 		else if (angle > 150)
 			angle = 150;
-		sc->sc_angle[chain][i] = angle;
+		ac->ac_angle[chain][i] = angle;
 	}
 	/* Angle for entry 4 is derived from angle for entry 5. */
-	sc->sc_angle[chain][4] = (sc->sc_angle[chain][5] + 2) / 2;
+	ac->ac_angle[chain][4] = (ac->ac_angle[chain][5] + 2) / 2;
 
 	return 0;
 #undef SCALE
@@ -3086,7 +3084,7 @@ ar9003_compute_predistortion(struct athn_softc *sc, const uint32_t *lo,
 /* XXX not used? */
 #ifdef notused
 Static void
-ar9003_enable_predistorter(struct athn_softc *sc, int chain)
+ar9003_enable_predistorter(struct athn_common *ac, int chain)
 {
 	uint32_t reg;
 	int i;
@@ -3094,17 +3092,17 @@ ar9003_enable_predistorter(struct athn_softc *sc, int chain)
 	/* Write digital predistorter lookup table. */
 	for (i = 0; i < AR9003_PAPRD_MEM_TAB_SIZE; i++) {
 		AR_WRITE(sc, AR_PHY_PAPRD_MEM_TAB_B(chain, i),
-		    SM(AR_PHY_PAPRD_PA_IN, sc->sc_pa_in[chain][i]) |
-		    SM(AR_PHY_PAPRD_ANGLE, sc->sc_angle[chain][i]));
+		    SM(AR_PHY_PAPRD_PA_IN, ac->ac_pa_in[chain][i]) |
+		    SM(AR_PHY_PAPRD_ANGLE, ac->ac_angle[chain][i]));
 	}
 
 	reg = AR_READ(sc, AR_PHY_PA_GAIN123_B(chain));
-	reg = RW(reg, AR_PHY_PA_GAIN123_PA_GAIN1, sc->sc_gain1[chain]);
+	reg = RW(reg, AR_PHY_PA_GAIN123_PA_GAIN1, ac->ac_gain1[chain]);
 	AR_WRITE(sc, AR_PHY_PA_GAIN123_B(chain), reg);
 
 	/* Indicate Tx power used for calibration (training signal). */
 	reg = AR_READ(sc, AR_PHY_PAPRD_CTRL1_B(chain));
-	reg = RW(reg, AR_PHY_PAPRD_CTRL1_POWER_AT_AM2AM_CAL, sc->sc_trainpow);
+	reg = RW(reg, AR_PHY_PAPRD_CTRL1_POWER_AT_AM2AM_CAL, ac->ac_trainpow);
 	AR_WRITE(sc, AR_PHY_PAPRD_CTRL1_B(chain), reg);
 
 	/* Enable digital predistorter for this chain. */
@@ -3117,13 +3115,13 @@ ar9003_enable_predistorter(struct athn_softc *sc, int chain)
 /* XXX not used? */
 #ifdef notused
 Static void
-ar9003_paprd_enable(struct athn_softc *sc)
+ar9003_paprd_enable(struct athn_common *ac)
 {
 	int i;
 
 	/* Enable digital predistorters for all Tx chains. */
 	for (i = 0; i < AR9003_MAX_CHAINS; i++)
-		if (sc->sc_txchainmask & (1 << i))
+		if (ac->ac_txchainmask & (1 << i))
 			ar9003_enable_predistorter(sc, i);
 }
 #endif /* notused */
@@ -3134,7 +3132,7 @@ ar9003_paprd_enable(struct athn_softc *sc)
  * This function is called when our training signal has been sent.
  */
 Static void
-ar9003_paprd_tx_tone_done(struct athn_softc *sc)
+ar9003_paprd_tx_tone_done(struct athn_common *ac)
 {
 	uint32_t lo[48], hi[48];
 	size_t i;
@@ -3160,10 +3158,10 @@ ar9003_paprd_tx_tone_done(struct athn_softc *sc)
 		return;
 
 	/* Get next available Tx chain. */
-	while (++sc->sc_paprd_curchain < AR9003_MAX_CHAINS)
-		if (sc->sc_txchainmask & (1 << sc->sc_paprd_curchain))
+	while (++ac->ac_paprd_curchain < AR9003_MAX_CHAINS)
+		if (ac->ac_txchainmask & (1 << ac->ac_paprd_curchain))
 			break;
-	if (sc->sc_paprd_curchain == AR9003_MAX_CHAINS) {
+	if (ac->ac_paprd_curchain == AR9003_MAX_CHAINS) {
 		/* All Tx chains measured; enable digital predistortion. */
 		ar9003_paprd_enable(sc);
 	}
@@ -3173,7 +3171,7 @@ ar9003_paprd_tx_tone_done(struct athn_softc *sc)
 #endif /* notused */
 
 PUBLIC void
-ar9003_write_txpower(struct athn_softc *sc, int16_t power[ATHN_POWER_COUNT])
+ar9003_write_txpower(struct athn_common *ac, int16_t power[ATHN_POWER_COUNT])
 {
 
 	/* Make sure forced gain is disabled. */
@@ -3244,10 +3242,10 @@ ar9003_write_txpower(struct athn_softc *sc, int16_t power[ATHN_POWER_COUNT])
 }
 
 Static void
-ar9003_reset_rx_gain(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9003_reset_rx_gain(struct athn_common *ac, struct ieee80211_channel *c)
 {
 #define X(x)	((uint32_t)(x) << 2)
-	const struct athn_gain *prog = sc->sc_rx_gain;
+	const struct athn_gain *prog = ac->ac_rx_gain;
 	const uint32_t *pvals;
 	int i;
 
@@ -3262,10 +3260,10 @@ ar9003_reset_rx_gain(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 Static void
-ar9003_reset_tx_gain(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9003_reset_tx_gain(struct athn_common *ac, struct ieee80211_channel *c)
 {
 #define X(x)	((uint32_t)(x) << 2)
-	const struct athn_gain *prog = sc->sc_tx_gain;
+	const struct athn_gain *prog = ac->ac_tx_gain;
 	const uint32_t *pvals;
 	int i;
 
@@ -3280,12 +3278,12 @@ ar9003_reset_tx_gain(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 Static void
-ar9003_hw_init(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9003_hw_init(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 #define X(x)	((uint32_t)(x) << 2)
-	struct athn_ops *ops = &sc->sc_ops;
-	const struct athn_ini *ini = sc->sc_ini;
+	struct athn_ops *ops = &ac->ac_ops;
+	const struct athn_ini *ini = ac->ac_ini;
 	const uint32_t *pvals;
 	uint32_t reg;
 	int i;
@@ -3331,13 +3329,13 @@ ar9003_hw_init(struct athn_softc *sc, struct ieee80211_channel *c,
 			DELAY(1);
 	}
 
-	if (sc->sc_rx_gain != NULL)
+	if (ac->ac_rx_gain != NULL)
 		ar9003_reset_rx_gain(sc, c);
-	if (sc->sc_tx_gain != NULL)
+	if (ac->ac_tx_gain != NULL)
 		ar9003_reset_tx_gain(sc, c);
 
 	if (IEEE80211_IS_CHAN_5GHZ(c) &&
-	    (sc->sc_flags & ATHN_FLAG_FAST_PLL_CLOCK)) {
+	    (ac->ac_flags & ATHN_FLAG_FAST_PLL_CLOCK)) {
 		/* Update modal values for fast PLL clock. */
 #ifndef IEEE80211_NO_HT
 		if (extc != NULL)
@@ -3376,7 +3374,7 @@ ar9003_hw_init(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 PUBLIC void
-ar9003_get_lg_tpow(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9003_get_lg_tpow(struct athn_common *ac, struct ieee80211_channel *c,
     uint8_t ctl, const uint8_t *fbins,
     const struct ar_cal_target_power_leg *tgt, int nchans, uint8_t tpow[4])
 {
@@ -3408,7 +3406,7 @@ ar9003_get_lg_tpow(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 PUBLIC void
-ar9003_get_ht_tpow(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9003_get_ht_tpow(struct athn_common *ac, struct ieee80211_channel *c,
     uint8_t ctl, const uint8_t *fbins,
     const struct ar_cal_target_power_ht *tgt, int nchans, uint8_t tpow[14])
 {
@@ -3443,7 +3441,7 @@ ar9003_get_ht_tpow(struct athn_softc *sc, struct ieee80211_channel *c,
  * Adaptive noise immunity.
  */
 Static void
-ar9003_set_noise_immunity_level(struct athn_softc *sc, int level)
+ar9003_set_noise_immunity_level(struct athn_common *ac, int level)
 {
 	int high = level == 4;
 	uint32_t reg;
@@ -3464,7 +3462,7 @@ ar9003_set_noise_immunity_level(struct athn_softc *sc, int level)
 }
 
 Static void
-ar9003_enable_ofdm_weak_signal(struct athn_softc *sc)
+ar9003_enable_ofdm_weak_signal(struct athn_common *ac)
 {
 	uint32_t reg;
 
@@ -3493,7 +3491,7 @@ ar9003_enable_ofdm_weak_signal(struct athn_softc *sc)
 }
 
 Static void
-ar9003_disable_ofdm_weak_signal(struct athn_softc *sc)
+ar9003_disable_ofdm_weak_signal(struct athn_common *ac)
 {
 	uint32_t reg;
 
@@ -3522,7 +3520,7 @@ ar9003_disable_ofdm_weak_signal(struct athn_softc *sc)
 }
 
 Static void
-ar9003_set_cck_weak_signal(struct athn_softc *sc, int high)
+ar9003_set_cck_weak_signal(struct athn_common *ac, int high)
 {
 	uint32_t reg;
 
@@ -3533,7 +3531,7 @@ ar9003_set_cck_weak_signal(struct athn_softc *sc, int high)
 }
 
 Static void
-ar9003_set_firstep_level(struct athn_softc *sc, int level)
+ar9003_set_firstep_level(struct athn_common *ac, int level)
 {
 	uint32_t reg;
 
@@ -3544,7 +3542,7 @@ ar9003_set_firstep_level(struct athn_softc *sc, int level)
 }
 
 Static void
-ar9003_set_spur_immunity_level(struct athn_softc *sc, int level)
+ar9003_set_spur_immunity_level(struct athn_common *ac, int level)
 {
 	uint32_t reg;
 

@@ -60,8 +60,6 @@ __KERNEL_RCSID(0, "$NetBSD: arn5416.c,v 1.3 2022/09/25 18:43:32 thorpej Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
-#include <dev/usb/usbwifi.h>
-
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -73,70 +71,70 @@ __KERNEL_RCSID(0, "$NetBSD: arn5416.c,v 1.3 2022/09/25 18:43:32 thorpej Exp $");
 
 #define Static static
 
-Static void	ar5416_force_bias(struct athn_softc *,
+Static void	ar5416_force_bias(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar5416_get_pdadcs(struct athn_softc *,
+Static void	ar5416_get_pdadcs(struct athn_common *,
 		    struct ieee80211_channel *, int, int, uint8_t, uint8_t *,
 		    uint8_t *);
-Static void	ar5416_init_from_rom(struct athn_softc *,
+Static void	ar5416_init_from_rom(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static uint8_t	ar5416_reverse_bits(uint8_t, int);
-Static void	ar5416_rw_bank6tpc(struct athn_softc *,
+Static void	ar5416_rw_bank6tpc(struct athn_common *,
 		    struct ieee80211_channel *, uint32_t *);
 Static void	ar5416_rw_rfbits(uint32_t *, int, int, uint32_t, int);
-Static void	ar5416_set_power_calib(struct athn_softc *,
+Static void	ar5416_set_power_calib(struct athn_common *,
 		    struct ieee80211_channel *);
-Static int	ar5416_set_synth(struct athn_softc *,
+Static int	ar5416_set_synth(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar5416_setup(struct athn_softc *);
-Static void	ar5416_spur_mitigate(struct athn_softc *,
+Static void	ar5416_setup(struct athn_common *);
+Static void	ar5416_spur_mitigate(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9160_rw_addac(struct athn_softc *,
+Static void	ar9160_rw_addac(struct athn_common *,
 		    struct ieee80211_channel *, uint32_t *);
 
 PUBLIC int
-ar5416_attach(struct athn_softc *sc)
+ar5416_attach(struct athn_common *ac)
 {
-	sc->sc_eep_base = AR5416_EEP_START_LOC;
-	sc->sc_eep_size = sizeof(struct ar5416_eeprom);
-	sc->sc_def_nf = AR5416_PHY_CCA_MAX_GOOD_VALUE;
-	sc->sc_ngpiopins = 14;
-	sc->sc_led_pin = 1;
-	sc->sc_workaround = AR5416_WA_DEFAULT;
-	sc->sc_ops.setup = ar5416_setup;
-	sc->sc_ops.swap_rom = ar5416_swap_rom;
-	sc->sc_ops.init_from_rom = ar5416_init_from_rom;
-	sc->sc_ops.set_txpower = ar5416_set_txpower;
-	sc->sc_ops.set_synth = ar5416_set_synth;
-	sc->sc_ops.spur_mitigate = ar5416_spur_mitigate;
-	sc->sc_ops.get_spur_chans = ar5416_get_spur_chans;
+	ac->ac_eep_base = AR5416_EEP_START_LOC;
+	ac->ac_eep_size = sizeof(struct ar5416_eeprom);
+	ac->ac_def_nf = AR5416_PHY_CCA_MAX_GOOD_VALUE;
+	ac->ac_ngpiopins = 14;
+	ac->ac_led_pin = 1;
+	ac->ac_workaround = AR5416_WA_DEFAULT;
+	ac->ac_ops.setup = ar5416_setup;
+	ac->ac_ops.swap_rom = ar5416_swap_rom;
+	ac->ac_ops.init_from_rom = ar5416_init_from_rom;
+	ac->ac_ops.set_txpower = ar5416_set_txpower;
+	ac->ac_ops.set_synth = ar5416_set_synth;
+	ac->ac_ops.spur_mitigate = ar5416_spur_mitigate;
+	ac->ac_ops.get_spur_chans = ar5416_get_spur_chans;
 	if (AR_SREV_9160_10_OR_LATER(sc))
-		sc->sc_ini = &ar9160_ini;
+		ac->ac_ini = &ar9160_ini;
 	else
-		sc->sc_ini = &ar5416_ini;
-	sc->sc_serdes = &ar5416_serdes;
+		ac->ac_ini = &ar5416_ini;
+	ac->ac_serdes = &ar5416_serdes;
 
 	return ar5008_attach(sc);
 }
 
 Static void
-ar5416_setup(struct athn_softc *sc)
+ar5416_setup(struct athn_common *ac)
 {
 	/* Select ADDAC programming. */
 	if (AR_SREV_9160_11(sc))
-		sc->sc_addac = &ar9160_1_1_addac;
+		ac->ac_addac = &ar9160_1_1_addac;
 	else if (AR_SREV_9160_10_OR_LATER(sc))
-		sc->sc_addac = &ar9160_1_0_addac;
+		ac->ac_addac = &ar9160_1_0_addac;
 	else if (AR_SREV_5416_22_OR_LATER(sc))
-		sc->sc_addac = &ar5416_2_2_addac;
+		ac->ac_addac = &ar5416_2_2_addac;
 	else
-		sc->sc_addac = &ar5416_2_1_addac;
+		ac->ac_addac = &ar5416_2_1_addac;
 }
 
 PUBLIC void
-ar5416_swap_rom(struct athn_softc *sc)
+ar5416_swap_rom(struct athn_common *ac)
 {
-	struct ar5416_eeprom *eep = sc->sc_eep;
+	struct ar5416_eeprom *eep = ac->ac_eep;
 	struct ar5416_modal_eep_header *modal;
 	int i, j;
 
@@ -156,15 +154,15 @@ ar5416_swap_rom(struct athn_softc *sc)
 }
 
 PUBLIC const struct ar_spur_chan *
-ar5416_get_spur_chans(struct athn_softc *sc, int is2ghz)
+ar5416_get_spur_chans(struct athn_common *ac, int is2ghz)
 {
-	const struct ar5416_eeprom *eep = sc->sc_eep;
+	const struct ar5416_eeprom *eep = ac->ac_eep;
 
 	return eep->modalHeader[is2ghz].spurChans;
 }
 
 Static int
-ar5416_set_synth(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_set_synth(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	uint32_t phy, reg;
@@ -224,11 +222,11 @@ ar5416_set_synth(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	static const uint32_t chainoffset[] = { 0x0000, 0x2000, 0x1000 };
-	const struct ar5416_eeprom *eep = sc->sc_eep;
+	const struct ar5416_eeprom *eep = ac->ac_eep;
 	const struct ar5416_modal_eep_header *modal;
 	uint32_t reg, offset;
 	uint8_t txRxAtten;
@@ -240,7 +238,7 @@ ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 
 	for (i = 0; i < AR5416_MAX_CHAINS; i++) {
 		if (AR_SREV_5416_20_OR_LATER(sc) &&
-		    (sc->sc_rxchainmask == 0x5 || sc->sc_txchainmask == 0x5))
+		    (ac->ac_rxchainmask == 0x5 || ac->ac_txchainmask == 0x5))
 			offset = chainoffset[i];
 		else
 			offset = i * 0x1000;
@@ -258,7 +256,7 @@ ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 		if (i > 0 && !AR_SREV_5416_20_OR_LATER(sc))
 			continue;
 
-		if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_3) {
+		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3) {
 			reg = AR_READ(sc, AR_PHY_GAIN_2GHZ + offset);
 			reg = RW(reg, AR_PHY_GAIN_2GHZ_BSW_MARGIN,
 			    modal->bswMargin[i]);
@@ -266,7 +264,7 @@ ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 			    modal->bswAtten[i]);
 			AR_WRITE(sc, AR_PHY_GAIN_2GHZ + offset, reg);
 		}
-		if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_3)
+		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3)
 			txRxAtten = modal->txRxAttenCh[i];
 		else	/* Workaround for ROM versions < 14.3. */
 			txRxAtten = IEEE80211_IS_CHAN_2GHZ(c) ? 23 : 44;
@@ -306,7 +304,7 @@ ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 	reg = RW(reg, AR_PHY_EXT_CCA_THRESH62, modal->thresh62);
 	AR_WRITE(sc, AR_PHY_EXT_CCA(0), reg);
 
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2) {
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2) {
 		reg = AR_READ(sc, AR_PHY_RF_CTL2);
 		reg = RW(reg, AR_PHY_TX_END_DATA_START,
 		    modal->txFrameToDataStart);
@@ -314,7 +312,7 @@ ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 		AR_WRITE(sc, AR_PHY_RF_CTL2, reg);
 	}
 #ifndef IEEE80211_NO_HT
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_3 && extc != NULL) {
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3 && extc != NULL) {
 		/* Overwrite switch settling with HT-40 value. */
 		reg = AR_READ(sc, AR_PHY_SETTLING);
 		reg = RW(reg, AR_PHY_SETTLING_SWITCH, modal->swSettleHt40);
@@ -324,7 +322,7 @@ ar5416_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 PUBLIC int
-ar5416_init_calib(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_init_calib(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	int ntries;
@@ -355,11 +353,11 @@ ar5416_init_calib(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar5416_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_get_pdadcs(struct athn_common *ac, struct ieee80211_channel *c,
     int chain, int nxpdgains, uint8_t overlap, uint8_t *boundaries,
     uint8_t *pdadcs)
 {
-	const struct ar5416_eeprom *eep = sc->sc_eep;
+	const struct ar5416_eeprom *eep = ac->ac_eep;
 	const struct ar5416_cal_data_per_freq *pierdata;
 	const uint8_t *pierfreq;
 	struct athn_pier lopier, hipier;
@@ -395,7 +393,7 @@ ar5416_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
 	if (!AR_SREV_9280_20_OR_LATER(sc))
 		return;
 
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_21)
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_21)
 		pwroff = eep->baseEepHeader.pwrTableOffset;
 	else
 		pwroff = AR_PWR_TABLE_OFFSET_DB;
@@ -417,10 +415,10 @@ ar5416_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar5416_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
+ar5416_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 {
 	static const uint32_t chainoffset[] = { 0x0000, 0x2000, 0x1000 };
-	const struct ar5416_eeprom *eep = sc->sc_eep;
+	const struct ar5416_eeprom *eep = ac->ac_eep;
 	const struct ar5416_modal_eep_header *modal;
 	uint8_t boundaries[AR_PD_GAINS_IN_MASK];
 	uint8_t pdadcs[AR_NUM_PDADC_VALUES];
@@ -431,16 +429,16 @@ ar5416_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 
 	modal = &eep->modalHeader[IEEE80211_IS_CHAN_2GHZ(c)];
 
-	if (sc->sc_eep_rev < AR_EEP_MINOR_VER_2) {
+	if (ac->ac_eep_rev < AR_EEP_MINOR_VER_2) {
 		overlap = MS(AR_READ(sc, AR_PHY_TPCRG5),
 		    AR_PHY_TPCRG5_PD_GAIN_OVERLAP);
 	}
 	else
 		overlap = modal->pdGainOverlap;
 
-	if ((sc->sc_flags & ATHN_FLAG_OLPC) && IEEE80211_IS_CHAN_2GHZ(c)) {
+	if ((ac->ac_flags & ATHN_FLAG_OLPC) && IEEE80211_IS_CHAN_2GHZ(c)) {
 		/* XXX not here. */
-		sc->sc_pdadc =
+		ac->ac_pdadc =
 		    ((const struct ar_cal_data_per_freq_olpc *)
 		     eep->calPierData2G[0])->vpdPdg[0][0];
 	}
@@ -461,16 +459,16 @@ ar5416_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 	AR_WRITE(sc, AR_PHY_TPCRG1, reg);
 
 	for (i = 0; i < AR5416_MAX_CHAINS; i++) {
-		if (!(sc->sc_txchainmask & (1 << i)))
+		if (!(ac->ac_txchainmask & (1 << i)))
 			continue;
 
 		if (AR_SREV_5416_20_OR_LATER(sc) &&
-		    (sc->sc_rxchainmask == 0x5 || sc->sc_txchainmask == 0x5))
+		    (ac->ac_rxchainmask == 0x5 || ac->ac_txchainmask == 0x5))
 			offset = chainoffset[i];
 		else
 			offset = i * 0x1000;
 
-		if (sc->sc_flags & ATHN_FLAG_OLPC) {
+		if (ac->ac_flags & ATHN_FLAG_OLPC) {
 			ar9280_olpc_get_pdadcs(sc, c, i, boundaries,
 			    pdadcs, &txgain);
 
@@ -518,10 +516,10 @@ ar5416_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 PUBLIC void
-ar5416_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar5416_eeprom *eep = sc->sc_eep;
+	const struct ar5416_eeprom *eep = ac->ac_eep;
 	const struct ar5416_modal_eep_header *modal;
 	uint8_t tpow_cck[4], tpow_ofdm[4];
 #ifndef IEEE80211_NO_HT
@@ -546,9 +544,9 @@ ar5416_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 	 * Reduce scaled power by number of active chains to get per-chain
 	 * transmit power level.
 	 */
-	if (sc->sc_ntxchains == 2)
+	if (ac->ac_ntxchains == 2)
 		pwr -= AR_PWR_DECREASE_FOR_2_CHAIN;
-	else if (sc->sc_ntxchains == 3)
+	else if (ac->ac_ntxchains == 3)
 		pwr -= AR_PWR_DECREASE_FOR_3_CHAIN;
 	if (pwr < 0)
 		pwr = 0;
@@ -612,7 +610,7 @@ ar5416_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 	}
 
 	/* Compute CCK/OFDM delta. */
-	cckinc = (sc->sc_flags & ATHN_FLAG_OLPC) ? -2 : 0;
+	cckinc = (ac->ac_flags & ATHN_FLAG_OLPC) ? -2 : 0;
 
 	memset(power, 0, sizeof(power));
 	/* Shuffle target powers accross transmit rates. */
@@ -639,7 +637,7 @@ ar5416_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 		power[ATHN_POWER_HT20(i)] = tpow_ht20[i];
 	if (extc != NULL) {
 		/* Correct PAR difference between HT40 and HT20/Legacy. */
-		if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2)
+		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2)
 			ht40inc = modal->ht40PowerIncForPdadc;
 		else
 			ht40inc = AR_HT40_POWER_INC_FOR_PDADC;
@@ -654,7 +652,7 @@ ar5416_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 #endif
 
 	if (AR_SREV_9280_10_OR_LATER(sc)) {
-		if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_21)
+		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_21)
 			pwroff = eep->baseEepHeader.pwrTableOffset;
 		else
 			pwroff = AR_PWR_TABLE_OFFSET_DB;
@@ -679,13 +677,13 @@ ar5416_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar5416_spur_mitigate(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	const struct ar_spur_chan *spurchans;
 	int i, spur, bin, spur_delta_phase, spur_freq_sd;
 
-	spurchans = sc->sc_ops.get_spur_chans(sc, IEEE80211_IS_CHAN_2GHZ(c));
+	spurchans = ac->ac_ops.get_spur_chans(sc, IEEE80211_IS_CHAN_2GHZ(c));
 	for (i = 0; i < AR_EEPROM_MODAL_SPURS; i++) {
 		spur = spurchans[i].spurChan;
 		if (spur == AR_NO_SPUR)
@@ -738,7 +736,7 @@ ar5416_reverse_bits(uint8_t v, int nbits)
 }
 
 PUBLIC uint8_t
-ar5416_get_rf_rev(struct athn_softc *sc)
+ar5416_get_rf_rev(struct athn_common *ac)
 {
 	uint8_t rev, reg;
 	int i;
@@ -783,10 +781,10 @@ ar5416_rw_rfbits(uint32_t *buf, int col, int off, uint32_t val, int nbits)
  * Overwrite db and ob based on ROM settings.
  */
 Static void
-ar5416_rw_bank6tpc(struct athn_softc *sc, struct ieee80211_channel *c,
+ar5416_rw_bank6tpc(struct athn_common *ac, struct ieee80211_channel *c,
     uint32_t *rwbank6tpc)
 {
-	const struct ar5416_eeprom *eep = sc->sc_eep;
+	const struct ar5416_eeprom *eep = ac->ac_eep;
 	const struct ar5416_modal_eep_header *modal;
 
 	if (IEEE80211_IS_CHAN_5GHZ(c)) {
@@ -809,7 +807,7 @@ ar5416_rw_bank6tpc(struct athn_softc *sc, struct ieee80211_channel *c,
  * Program analog RF.
  */
 PUBLIC void
-ar5416_rf_reset(struct athn_softc *sc, struct ieee80211_channel *c)
+ar5416_rf_reset(struct athn_common *ac, struct ieee80211_channel *c)
 {
 	const uint32_t *bank6tpc;
 	int i;
@@ -837,8 +835,8 @@ ar5416_rf_reset(struct athn_softc *sc, struct ieee80211_channel *c)
 		bank6tpc = ar9160_bank6tpc_vals;
 	else
 		bank6tpc = ar5416_bank6tpc_vals;
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2) {
-		uint32_t *rwbank6tpc = sc->sc_rwbuf;
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2) {
+		uint32_t *rwbank6tpc = ac->ac_rwbuf;
 
 		/* Copy values from .rodata to writable buffer. */
 		memcpy(rwbank6tpc, bank6tpc, 32 * sizeof(uint32_t));
@@ -860,7 +858,7 @@ ar5416_rf_reset(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 PUBLIC void
-ar5416_reset_bb_gain(struct athn_softc *sc, struct ieee80211_channel *c)
+ar5416_reset_bb_gain(struct athn_common *ac, struct ieee80211_channel *c)
 {
 	const uint32_t *pvals;
 	int i;
@@ -878,9 +876,9 @@ ar5416_reset_bb_gain(struct athn_softc *sc, struct ieee80211_channel *c)
  * rf_pwd_icsyndiv.
  */
 Static void
-ar5416_force_bias(struct athn_softc *sc, struct ieee80211_channel *c)
+ar5416_force_bias(struct athn_common *ac, struct ieee80211_channel *c)
 {
-	uint32_t *rwbank6 = sc->sc_rwbuf;
+	uint32_t *rwbank6 = ac->ac_rwbuf;
 	uint8_t bias;
 	int i;
 
@@ -910,10 +908,10 @@ ar5416_force_bias(struct athn_softc *sc, struct ieee80211_channel *c)
  * Overwrite XPA bias level based on ROM setting.
  */
 Static void
-ar9160_rw_addac(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9160_rw_addac(struct athn_common *ac, struct ieee80211_channel *c,
     uint32_t *addac)
 {
-	struct ar5416_eeprom *eep = sc->sc_eep;
+	struct ar5416_eeprom *eep = ac->ac_eep;
 	struct ar5416_modal_eep_header *modal;
 	uint8_t fbin, bias;
 	int i;
@@ -945,14 +943,14 @@ ar9160_rw_addac(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 PUBLIC void
-ar5416_reset_addac(struct athn_softc *sc, struct ieee80211_channel *c)
+ar5416_reset_addac(struct athn_common *ac, struct ieee80211_channel *c)
 {
-	const struct athn_addac *addac = sc->sc_addac;
+	const struct athn_addac *addac = ac->ac_addac;
 	const uint32_t *pvals;
 	int i;
 
-	if (AR_SREV_9160(sc) && sc->sc_eep_rev >= AR_EEP_MINOR_VER_7) {
-		uint32_t *rwaddac = sc->sc_rwbuf;
+	if (AR_SREV_9160(sc) && ac->ac_eep_rev >= AR_EEP_MINOR_VER_7) {
+		uint32_t *rwaddac = ac->ac_rwbuf;
 
 		/* Copy values from .rodata to writable buffer. */
 		memcpy(rwaddac, addac->vals, addac->nvals * sizeof(uint32_t));

@@ -77,11 +77,11 @@ __KERNEL_RCSID(0, "$NetBSD: if_athn_usb.c,v 1.38 2020/03/14 02:35:33 christos Ex
 #include <dev/ic/arn9285.h>
 #include <dev/usb/if_athn_usb.h>
 
-#define ATHN_USB_SOFTC(sc)	((struct athn_usb_softc *)(sc))
+#define ATHN_USB_SOFTC(ac)	((struct athn_usb_softc *)(ac))
 #define ATHN_USB_NODE(ni)	((struct athn_usb_node *)(ni))
 
-#define athn_usb_wmi_cmd(sc, cmd_id) \
-	athn_usb_wmi_xcmd(sc, cmd_id, NULL, 0, NULL)
+#define athn_usb_wmi_cmd(ac, cmd_id) \
+	athn_usb_wmi_xcmd(ac, cmd_id, NULL, 0, NULL)
 
 //Static int	athn_usb_activate(device_t, enum devact);
 Static int	athn_usb_detach(device_t, int);
@@ -128,7 +128,7 @@ Static void	athn_usb_newassoc_cb(struct athn_usb_softc *, void *);
 Static void	athn_usb_node_cleanup(struct ieee80211_node *);
 Static void	athn_usb_node_cleanup_cb(struct athn_usb_softc *, void *);
 Static int	athn_usb_configure_pipes(struct athn_usb_softc *);
-Static uint32_t	athn_usb_read(struct athn_softc *, uint32_t);
+Static uint32_t	athn_usb_read(struct athn_common *, uint32_t);
 Static int	athn_usb_remove_hw_node(struct athn_usb_softc *, uint8_t *);
 Static void	athn_usb_rx_enable(struct athn_softc *);
 Static void	athn_usb_rx_frame(struct athn_usb_softc *, struct mbuf *);
@@ -158,8 +158,8 @@ Static int	athn_usb_wmi_xcmd(struct athn_usb_softc *, uint16_t, void *,
 		    int, void *);
 Static void	athn_usb_wmieof(struct usbd_xfer *, void *,
 		    usbd_status);
-Static void	athn_usb_write(struct athn_softc *, uint32_t, uint32_t);
-Static void	athn_usb_write_barrier(struct athn_softc *);
+Static void	athn_usb_write(struct athn_common *, uint32_t, uint32_t);
+Static void	athn_usb_write_barrier(struct athn_usb_softc *);
 
 /************************************************************************
  * unused/notyet declarations
@@ -248,16 +248,16 @@ Static void
 athn_usb_attach(device_t parent, device_t self, void *aux)
 {
 	struct athn_usb_softc *usc;
-	struct athn_softc *sc;
+	struct athn_common *ac;
 	struct usb_attach_arg *uaa;
 	int error;
 
 	usc = device_private(self);
-	sc = &usc->usc_sc;
+	ac = &usc->usc_ac;
 	uaa = aux;
-	sc->sc_dev = self;
-	sc->sc_ic = usbwifi_ic(&usc->usc_uw);
-	usc->usc_uw.uw_sc = usc;
+	ac->ac_dev = self;
+	ac->ac_ic = usbwifi_ic(&usc->usc_uw);
+	usc->usc_uw.uw_ac = usc;
 	usc->usc_uw.uw_dev = self;
 	usc->usc_uw.uw_udev = uaa->uaa_device;
 	usc->usc_uw.uw_ops = &athn_usb_ops;
@@ -270,21 +270,21 @@ athn_usb_attach(device_t parent, device_t self, void *aux)
 	aprint_naive("\n");
 	aprint_normal("\n");
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	usc->usc_init_state = ATHN_INIT_NONE;
 	usc->usc_athn_attached = 0;
 	usc->usc_flags = athn_usb_lookup(uaa->uaa_vendor, uaa->uaa_product)->flags;
-	sc->sc_flags |= ATHN_FLAG_USB;
+	ac->ac_flags |= ATHN_FLAG_USB;
 #ifdef notyet
 	/* Check if it is a combo WiFi+Bluetooth (WB193) device. */
 	if (strncmp(product, "wb193", 5) == 0)
-		sc->sc_flags |= ATHN_FLAG_BTCOEX3WIRE;
+		ac->ac_flags |= ATHN_FLAG_BTCOEX3WIRE;
 #endif
 
-	sc->sc_ops.read = athn_usb_read;
-	sc->sc_ops.write = athn_usb_write;
-	sc->sc_ops.write_barrier = athn_usb_write_barrier;
+	ac->ac_ops.read = athn_usb_read;
+	ac->ac_ops.write = athn_usb_write;
+	ac->ac_ops.write_barrier = athn_usb_write_barrier;
 
 	//mutex_init(&usc->usc_lock, MUTEX_DEFAULT, IPL_NONE);
 
@@ -303,7 +303,7 @@ athn_usb_attach(device_t parent, device_t self, void *aux)
 	usb_init_task(&usc->usc_task, athn_usb_task, usc, 0);
 
 	if (usbd_set_config_no(usc->usc_uw.uw_udev, 1, 0) != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "could not set configuration no\n");
 		goto fail;
 	}
@@ -311,7 +311,7 @@ athn_usb_attach(device_t parent, device_t self, void *aux)
 	/* Get the first interface handle. */
 	error = usbd_device2interface_handle(usc->usc_uw.uw_udev, 0, &usc->usc_uw.uw_iface);
 	if (error != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "could not get interface handle\n");
 		goto fail;
 	}
@@ -329,7 +329,7 @@ athn_usb_attach(device_t parent, device_t self, void *aux)
 
 	config_mountroot(self, athn_usb_attachhook);
 
-	//usbd_add_drv_event(USB_EVENT_DRIVER_ATTACH, usc->usc_uw.uw_udev, sc->sc_dev);
+	//usbd_add_drv_event(USB_EVENT_DRIVER_ATTACH, usc->usc_uw.uw_udev, ac->ac_dev);
 	if (!pmf_device_register(self, NULL, NULL))
 		aprint_error_dev(self, "couldn't establish power handler\n");
 
@@ -393,8 +393,8 @@ Static void
 athn_usb_attachhook(device_t arg)
 {
 	struct athn_usb_softc *usc = device_private(arg);
-	struct athn_softc *sc = &usc->usc_sc;
-	struct athn_ops *ops = &sc->sc_ops;
+	struct athn_common *ac = &usc->usc_ac;
+	struct athn_ops *ops = &ac->ac_ops;
 	struct ieee80211com *ic = usbwifi_ic(&usc->usc_uw);
 	size_t i;
 	int error;
@@ -407,7 +407,7 @@ athn_usb_attachhook(device_t arg)
 	/* Load firmware. */
 	error = athn_usb_load_firmware(usc);
 	if (error != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "could not load firmware (%d)\n", error);
 		return;
 	}
@@ -421,21 +421,21 @@ athn_usb_attachhook(device_t arg)
 
 	/* We're now ready to attach the bus agnostic driver. */
 	ic->ic_updateslot = athn_usb_updateslot;
-	sc->sc_max_aid = AR_USB_MAX_STA;  /* Firmware is limited to 8 STA */
-	//sc->sc_media_change = athn_usb_media_change;
+	ac->ac_max_aid = AR_USB_MAX_STA;  /* Firmware is limited to 8 STA */
+	//ac->ac_media_change = athn_usb_media_change;
 
 	/* Override some operations for USB. */
 	//ic->ic_parent = athn_usb_parent;
 	//ic->ic_transmit = athn_usb_transmit;
 	//ic->ic_raw_xmit = athn_usb_raw_xmit;
 
-	error = athn_attach(sc);
+	error = athn_attach_common(ac);
 	if (error != 0) {
 		return;
 	}
 	usc->usc_athn_attached = 1;
 
-	usbwifi_ic_attach(&usc->usc_uw, sc->sc_ntxchains, sc->sc_nrxchains,
+	usbwifi_ic_attach(&usc->usc_uw, ac->ac_ntxchains, ac->ac_nrxchains,
 	    usc->usc_ntxpipes, usc->usc_nrxpipes,
 	    IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST);
 
@@ -458,18 +458,18 @@ athn_usb_attachhook(device_t arg)
 	ops->rx_enable = athn_usb_rx_enable;
 
 	/* Reset HW key cache entries. */
-	for (i = 0; i < sc->sc_kc_entries; i++)
-		athn_reset_key(sc, i);
+	for (i = 0; i < ac->ac_kc_entries; i++)
+		athn_reset_key(ac, i);
 
-	ops->enable_antenna_diversity(sc);
+	ops->enable_antenna_diversity(ac);
 
 #ifdef ATHN_BT_COEXISTENCE
 	/* Configure bluetooth coexistence for combo chips. */
-	if (sc->sc_flags & ATHN_FLAG_BTCOEX)
-		athn_btcoex_init(sc);
+	if (ac->ac_flags & ATHN_FLAG_BTCOEX)
+		athn_btcoex_init(ac);
 #endif
 	/* Configure LED. */
-	athn_led_init(sc);
+	athn_led_init(ac);
 
 	usbwifi_attach_finalize(&usc->usc_uw);
 }
@@ -478,7 +478,7 @@ Static int
 athn_usb_detach(device_t self, int flags)
 {
 	struct athn_usb_softc *usc = device_private(self);
-	struct athn_softc *sc = &usc->usc_sc;
+	struct athn_common *ac = &usc->usc_ac;
 	int error;
 
 	DPRINTFN(DBG_FN, usc, "\n");
@@ -521,7 +521,7 @@ athn_usb_detach(device_t self, int flags)
 
 	if (usc->usc_athn_attached) {
 		usc->usc_athn_attached = 0;
-		athn_detach(sc);
+		athn_detach_common(ac);
 	}
 
 	/* Free Tx/Rx buffers. */
@@ -543,7 +543,7 @@ athn_usb_detach(device_t self, int flags)
 	cv_destroy(&usc->usc_wmi_cv);
 	//mutex_destroy(&usc->usc_lock);
 
-	//usbd_add_drv_event(USB_EVENT_DRIVER_DETACH, usc->usc_uw.uw_udev, sc->sc_dev);
+	//usbd_add_drv_event(USB_EVENT_DRIVER_DETACH, usc->usc_uw.uw_udev, ac->ac_dev);
 	usbwifi_detach(usc->usc_dev, 0);
 	return 0;
 }
@@ -553,7 +553,7 @@ Static int
 athn_usb_activate(device_t self, enum devact act)
 {
 	struct athn_usb_softc *usc = device_private(self);
-	struct athn_softc *sc = &usc->usc_sc;
+	struct athn_common *ac = &usc->usc_ac;
 
 	DPRINTFN(DBG_FN, usc, "\n");
 
@@ -701,7 +701,7 @@ athn_usb_alloc_tx_cmd(struct athn_usb_softc *usc)
 
 	DPRINTFN(DBG_FN, usc, "\n");
 
-	data->sc = usc;	/* Backpointer for callbacks. */
+	data->ac = usc;	/* Backpointer for callbacks. */
 
 	int err = usbd_create_xfer(usc->usc_tx_intr_pipe, ATHN_USB_TXCMDSZ,
 	    0, 0, &data->xfer);
@@ -735,7 +735,7 @@ athn_usb_alloc_tx_msg(struct athn_usb_softc *usc)
 
 	DPRINTFN(DBG_FN, usc, "\n");
 
-	data->sc = usc;	/* Backpointer for callbacks. */
+	data->ac = usc;	/* Backpointer for callbacks. */
 
 	int err = usbd_create_xfer(usc->usc_tx_intr_pipe, ATHN_USB_TXCMDSZ,
 	    0, 0, &data->xfer);
@@ -831,7 +831,7 @@ athn_usb_wait_async(struct athn_usb_softc *usc)
 Static int
 athn_usb_load_firmware(struct athn_usb_softc *usc)
 {
-	struct athn_softc *sc = &usc->usc_sc;
+	struct athn_common *ac = &usc->usc_ac;
 	firmware_handle_t fwh;
 	usb_device_descriptor_t *dd;
 	usb_device_request_t req;
@@ -841,7 +841,7 @@ athn_usb_load_firmware(struct athn_usb_softc *usc)
 	uint32_t addr;
 	int mlen, error;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Determine which firmware image to load. */
 	if (usc->usc_flags & ATHN_USB_FLAG_AR7010) {
@@ -855,7 +855,7 @@ athn_usb_load_firmware(struct athn_usb_softc *usc)
 
 	/* Read firmware image from the filesystem. */
 	if ((error = firmware_open("if_athn", name, &fwh)) != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "failed to open firmware file %s (%d)\n", name, error);
 		return error;
 	}
@@ -937,7 +937,7 @@ athn_usb_load_firmware(struct athn_usb_softc *usc)
 	cv_broadcast(&usc->usc_htc_cv);
 	mutex_exit(&usc->usc_msg_mtx);
 
-	DPRINTFN(DBG_FN, sc, "return %d\n", error);
+	DPRINTFN(DBG_FN, ac, "return %d\n", error);
 
 	return error;
 }
@@ -1218,20 +1218,20 @@ athn_usb_wmi_xcmd(struct athn_usb_softc *usc, uint16_t cmd_id, void *ibuf,
 
 #ifdef unused
 Static int
-athn_usb_read_rom(struct athn_softc *sc)
+athn_usb_read_rom(struct athn_common *ac)
 {
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ac->ac_softc;
 	uint32_t addrs[8], vals[8], addr;
 	uint16_t *eep;
 	size_t i, j;
 	int error = 0;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Read EEPROM by blocks of 16 bytes. */
-	eep = sc->sc_eep;
-	addr = AR_EEPROM_OFFSET(sc->sc_eep_base);
-	for (i = 0; i < sc->sc_eep_size / 16; i++) {
+	eep = ac->ac_eep;
+	addr = AR_EEPROM_OFFSET(ac->ac_eep_base);
+	for (i = 0; i < ac->ac_eep_size / 16; i++) {
 		for (j = 0; j < 8; j++, addr += 4)
 			addrs[j] = htobe32(addr);
 		error = athn_usb_wmi_xcmd(usc, AR_WMI_CMD_REG_READ,
@@ -1246,57 +1246,55 @@ athn_usb_read_rom(struct athn_softc *sc)
 #endif /* unused */
 
 Static uint32_t
-athn_usb_read(struct athn_softc *sc, uint32_t addr)
+athn_usb_read(struct athn_common *ac, uint32_t addr)
 {
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ac->ac_softc;
 	uint32_t val;
 	int error;
 
 	if (usbwifi_isdying(&usc->usc_uw))
 		return 0;
 
- 	DPRINTFN(DBG_FN, sc, "addr %#x\n", htobe32(addr));
+ 	DPRINTFN(DBG_FN, ac, "addr %#x\n", htobe32(addr));
 
 	/* Flush pending writes for strict consistency. */
-	athn_usb_write_barrier(sc);
+	athn_usb_write_barrier(usc);
 
 	addr = htobe32(addr);
 	error = athn_usb_wmi_xcmd(usc, AR_WMI_CMD_REG_READ,
 	    &addr, sizeof(addr), &val);
 	if (error != 0) {
-		DPRINTFN(DBG_FN, sc, "error %d\n", addr);
+		DPRINTFN(DBG_FN, ac, "error %d\n", addr);
 		return 0xdeadbeef;
 	}
- 	DPRINTFN(DBG_FN, sc, "addr %#x return %#x\n", addr, be32toh(val));
+ 	DPRINTFN(DBG_FN, ac, "addr %#x return %#x\n", addr, be32toh(val));
 
 	return be32toh(val);
 }
 
 Static void
-athn_usb_write(struct athn_softc *sc, uint32_t addr, uint32_t val)
+athn_usb_write(struct athn_common *ac, uint32_t addr, uint32_t val)
 {
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ac->ac_softc;
 
 	if (usbwifi_isdying(&usc->usc_uw))
 		return;
 
- 	DPRINTFN(DBG_FN, sc, "addr %#x val %#x\n", addr, val);
+ 	DPRINTFN(DBG_FN, ac, "addr %#x val %#x\n", addr, val);
 
 	usc->usc_wbuf[usc->usc_wcount].addr = htobe32(addr);
 	usc->usc_wbuf[usc->usc_wcount].val  = htobe32(val);
 	if (++usc->usc_wcount == AR_MAX_WRITE_COUNT)
-		athn_usb_write_barrier(sc);
+		athn_usb_write_barrier(usc);
 }
 
 Static void
-athn_usb_write_barrier(struct athn_softc *sc)
+athn_usb_write_barrier(struct athn_usb_softc *usc)
 {
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
-
 	if (usbwifi_isdying(&usc->usc_uw))
 		goto done;
 
- 	DPRINTFN(DBG_FN, sc, "usc_wcount %d\n", usc->usc_wcount);
+ 	DPRINTFN(DBG_FN, ac, "usc_wcount %d\n", usc->usc_wcount);
 
 	if (usc->usc_wcount == 0)
 		return;
@@ -1312,13 +1310,13 @@ Static int
 athn_usb_media_change(struct ifnet *ifp)
 {
 	struct athn_softc *sc = ifp->if_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ac);
 	int error;
 
 	if (usbwifi_isdying(&usc->usc_uw))
 		return EIO;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	error = ieee80211_media_change(ifp);
 	if (error == ENETRESET && IS_UP_AND_RUNNING(ifp)) {
@@ -1334,11 +1332,11 @@ Static int
 athn_usb_newstate(struct ieee80211com *ic, enum ieee80211_state nstate,
     int arg)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ic->ic_softc);
+	struct athn_common *ac = &usc->usc_ac;
 	struct athn_usb_cmd_newstate cmd;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Do it in a process context. */
 	cmd.state = nstate;
@@ -1351,15 +1349,15 @@ Static void
 athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 {
 	struct athn_usb_cmd_newstate *cmd = arg;
-	struct athn_softc *sc = &usc->usc_sc;
+	struct athn_common *ac = &usc->usc_ac;
 	struct ieee80211com *ic = usbwifi_ic(&usc->usc_uw);
 	enum ieee80211_state ostate, nstate;
 	uint32_t reg, intr_mask;
 	int s;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
-	callout_stop(&sc->sc_calib_to);
+	callout_stop(&ac->ac_calib_to);
 
 	s = splnet();
 
@@ -1379,52 +1377,52 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 
 	switch (nstate) {
 	case IEEE80211_S_INIT:
-		athn_set_led(sc, 0);
+		athn_set_led(ac, 0);
 		break;
 	case IEEE80211_S_SCAN:
 		/* Make the LED blink while scanning. */
-		athn_set_led(sc, !sc->sc_led_state);
-		(void)athn_usb_switch_chan(sc, ic->ic_curchan, NULL);
+		athn_set_led(ac, !ac->ac_led_state);
+		(void)athn_usb_switch_chan(ac, ic->ic_curchan, NULL);
 		if (!usbwifi_isdying(&usc->usc_uw))
-			callout_schedule(&sc->sc_scan_to, hz / 5);
+			callout_schedule(&ac->ac_scan_to, hz / 5);
 		break;
 	case IEEE80211_S_AUTH:
-		athn_set_led(sc, 0);
-		athn_usb_switch_chan(sc, ic->ic_curchan, NULL);
+		athn_set_led(ac, 0);
+		athn_usb_switch_chan(ac, ic->ic_curchan, NULL);
 		break;
 	case IEEE80211_S_ASSOC:
 		break;
 	case IEEE80211_S_RUN:
-		athn_set_led(sc, 1);
+		athn_set_led(ac, 1);
 
 		if (ic->ic_opmode == IEEE80211_M_MONITOR)
 			break;
 
 		/* Create node entry for our BSS. */
-		DPRINTFN(DBG_NODES, sc, "create node for AID=%#x\n",
+		DPRINTFN(DBG_NODES, ac, "create node for AID=%#x\n",
 		    ic->ic_bss->ni_associd);
 		athn_usb_create_node(usc, TAILQ_FIRST(&(ic->ic_vaps))->iv_bss);	/* XXX: handle error? */
 
-		athn_set_bss(sc, TAILQ_FIRST(&(ic->ic_vaps))->iv_bss);
+		athn_set_bss(ac, TAILQ_FIRST(&(ic->ic_vaps))->iv_bss);
 		athn_usb_wmi_cmd(usc, AR_WMI_CMD_DISABLE_INTR);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
-			athn_set_hostap_timers(sc);
+			athn_set_hostap_timers(ac);
 			/* Enable software beacon alert interrupts. */
 			intr_mask = htobe32(AR_IMR_SWBA);
 		} else
 #endif
 		{
-			athn_set_sta_timers(sc);
+			athn_set_sta_timers(ac);
 			/* Enable beacon miss interrupts. */
 			intr_mask = htobe32(AR_IMR_BMISS);
 
 			/* Stop receiving beacons from other BSS. */
-			reg = AR_READ(sc, AR_RX_FILTER);
+			reg = AR_READ(ac, AR_RX_FILTER);
 			reg = (reg & ~AR_RX_FILTER_BEACON) |
 			    AR_RX_FILTER_MYBEACON;
-			AR_WRITE(sc, AR_RX_FILTER, reg);
-			AR_WRITE_BARRIER(sc);
+			AR_WRITE(ac, AR_RX_FILTER, reg);
+			AR_WRITE_BARRIER(ac);
 		}
 		athn_usb_wmi_xcmd(usc, AR_WMI_CMD_ENABLE_INTR,
 		    &intr_mask, sizeof(intr_mask), NULL);
@@ -1436,7 +1434,7 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 		break;
 	}
 	if (!usbwifi_isdying(&usc->usc_uw))
-		(void)sc->sc_newstate(ic, nstate, cmd->arg);
+		(void)ac->ac_newstate(ic, nstate, cmd->arg);
 	splx(s);
 }
 #endif
@@ -1445,10 +1443,10 @@ Static void
 athn_usb_newassoc(struct ieee80211_node *ni, int isnew)
 {
 	struct ieee80211com *ic = ni->ni_ic;
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ic->ic_softc;
+	struct athn_common *ac = &usc->usc_ac;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	if (ic->ic_opmode != IEEE80211_M_HOSTAP || !isnew)
 		return;
@@ -1482,12 +1480,12 @@ Static int
 athn_usb_ampdu_tx_start(struct ieee80211com *ic, struct ieee80211_node *ni,
     uint8_t tid)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ic->ic_softc;
+	struct athn_common *ac = &usc->usc_ac;
 	struct athn_node *an = ATHN_NODE(ni);
 	struct athn_usb_aggr_cmd cmd;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Do it in a process context. */
 	cmd.sta_index = an->sta_index;
@@ -1516,12 +1514,12 @@ Static void
 athn_usb_ampdu_tx_stop(struct ieee80211com *ic, struct ieee80211_node *ni,
     uint8_t tid)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ic->ic_softc;
+	struct athn_common *ac = &usc->usc_ac;
 	struct athn_node *an = ATHN_NODE(ni);
 	struct athn_usb_aggr_cmd cmd;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Do it in a process context. */
 	cmd.sta_index = an->sta_index;
@@ -1649,25 +1647,25 @@ athn_usb_create_node(struct athn_usb_softc *usc, struct ieee80211_node *ni)
 }
 
 Static void
-athn_usb_rx_enable(struct athn_softc *sc)
+athn_usb_rx_enable(struct athn_common *ac)
 {
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
-	AR_WRITE(sc, AR_CR, AR_CR_RXE);
-	AR_WRITE_BARRIER(sc);
+	AR_WRITE(ac, AR_CR, AR_CR_RXE);
+	AR_WRITE_BARRIER(ac);
 }
 
 #if 0
 Static int
-athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
+athn_usb_switch_chan(struct athn_common *ac, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan)
 {
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ac);
 	uint16_t mode;
 	int error;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Disable interrupts. */
 	error = athn_usb_wmi_cmd(usc, AR_WMI_CMD_DISABLE_INTR);
@@ -1683,19 +1681,19 @@ athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 		goto reset;
 
 	/* If band or bandwidth changes, we need to do a full reset. */
-	if (curchan->ic_flags != sc->sc_curchan->ic_flags ||
-	    ((extchan != NULL) ^ (sc->sc_curchanext != NULL))) {
-		DPRINTFN(DBG_RF, sc, "channel band switch\n");
+	if (curchan->ic_flags != ac->ac_curchan->ic_flags ||
+	    ((extchan != NULL) ^ (ac->ac_curchanext != NULL))) {
+		DPRINTFN(DBG_RF, ac, "channel band switch\n");
 		goto reset;
 	}
 
-	error = athn_set_chan(sc, curchan, extchan);
-	if (AR_SREV_9271(sc) && error == 0)
-		ar9271_load_ani(sc);
+	error = athn_set_chan(ac, curchan, extchan);
+	if (AR_SREV_9271(ac) && error == 0)
+		ar9271_load_ani(ac);
 	if (error != 0) {
  reset:		/* Error found, try a full reset. */
-		DPRINTFN(DBG_RF, sc, "needs a full reset\n");
-		error = athn_hw_reset(sc, curchan, extchan, 0);
+		DPRINTFN(DBG_RF, ac, "needs a full reset\n");
+		error = athn_hw_reset(ac, curchan, extchan, 0);
 		if (error != 0)	/* Hopeless case. */
 			return error;
 	}
@@ -1703,7 +1701,7 @@ athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	error = athn_usb_wmi_cmd(usc, AR_WMI_CMD_START_RECV);
 	if (error != 0)
 		return error;
-	athn_rx_start(sc);
+	athn_rx_start(ac);
 
 	mode = htobe16(IEEE80211_IS_CHAN_2GHZ(curchan) ?
 	    AR_HTC_MODE_11NG : AR_HTC_MODE_11NA);
@@ -1722,10 +1720,10 @@ athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 Static void
 athn_usb_updateedca(struct ieee80211com *ic)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ic->ic_softc);
+	struct athn_common *ac = &usc->usc_ac;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Do it in a process context. */
 	athn_usb_do_async(usc, athn_usb_updateedca_cb, NULL, 0);
@@ -1747,10 +1745,10 @@ athn_usb_updateedca_cb(struct athn_usb_softc *usc, void *arg)
 Static void
 athn_usb_updateslot(struct ieee80211com *ic)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
+	struct athn_common *ac = ic->ic_softc;
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ac);
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/*
 	 * NB: athn_updateslog() needs to be done in a process context
@@ -1782,12 +1780,12 @@ Static int
 athn_usb_set_key(struct ieee80211com *ic, struct ieee80211_node *ni,
     struct ieee80211_key *k)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
-	struct ifnet *ifp = &usc->usc_sc.sc_if;
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ic->ic_softc);
+	struct athn_common *ac = &usc->usc_ac;
+	struct ifnet *ifp = &usc->usc_ac.sc_if;
 	struct athn_usb_cmd_key cmd;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Defer setting of WEP keys until interface is brought up. */
 	if (!IS_UP_AND_RUNNING(ifp))
@@ -1820,12 +1818,12 @@ Static void
 athn_usb_delete_key(struct ieee80211com *ic, struct ieee80211_node *ni,
     struct ieee80211_key *k)
 {
-	struct athn_softc *sc = ic->ic_softc;
-	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
-	struct ifnet *ifp = &usc->usc_sc.sc_if;
+	struct athn_usb_softc *usc = ATHN_USB_SOFTC(ic->ic_softc);
+	struct athn_common *ac = &usc->usc_ac;
+	//struct ifnet *ifp = &usc->usc_ac.sc_if;
 	struct athn_usb_cmd_key cmd;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	if (!(ifp->if_flags & IFF_RUNNING) ||
 	    ic->ic_state != IEEE80211_S_RUN)
@@ -1861,7 +1859,7 @@ athn_usb_bcneof(struct usbd_xfer *xfer, void * priv,
     usbd_status status)
 {
 	struct athn_usb_tx_data *data = priv;
-	struct athn_usb_softc *usc = data->sc;
+	struct athn_usb_softc *usc = data->ac;
 
 	DPRINTFN(DBG_FN, usc, "\n");
 
@@ -1889,7 +1887,7 @@ athn_usb_swba(struct athn_usb_softc *usc)
 	if (usbwifi_isdying(&usc->usc_uw))
 		return;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	if (vap->iv_dtim_count == 0)
 		vap->iv_dtim_count = vap->iv_dtim_period - 1;
@@ -2094,14 +2092,14 @@ athn_usb_intr(struct usbwifi *uw, usbd_status status, uint32_t len)
 
 #if 0
 Static void
-athn_usb_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
+athn_usb_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_status *rs)
 {
-	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
+	struct athn_rx_radiotap_header *tap = &ac->ac_rxtap;
 	struct ieee80211com *ic = usbwifi_ic(&usc->usc_uw);
 	uint8_t rate;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	tap->wr_flags = IEEE80211_RADIOTAP_F_FCS;
 	tap->wr_tsft = htole64(be64toh(rs->rs_tstamp));
@@ -2139,7 +2137,7 @@ athn_usb_rx_radiotap(struct athn_softc *sc, struct mbuf *m,
 		default:  tap->wr_rate =   0; break;
 		}
 	}
-	bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_rxtap_len, m, BPF_D_IN);
+	bpf_mtap2(ac->ac_drvbpf, tap, ac->ac_rxtap_len, m, BPF_D_IN);
 }
 #endif
 
@@ -2154,13 +2152,13 @@ athn_usb_rx_frame(struct athn_usb_softc *usc, struct mbuf *m)
 	uint16_t datalen;
 	int s;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	if (__predict_false(m->m_len < (int)sizeof(*htc)))
 		goto skip;
 	htc = mtod(m, struct ar_htc_frame_hdr *);
 	if (__predict_false(htc->endpoint_id == 0)) {
-		DPRINTFN(DBG_RX, sc, "bad endpoint %d\n", htc->endpoint_id);
+		DPRINTFN(DBG_RX, ac, "bad endpoint %d\n", htc->endpoint_id);
 		goto skip;
 	}
 	if (htc->flags & AR_HTC_FLAG_TRAILER) {
@@ -2201,8 +2199,8 @@ athn_usb_rx_frame(struct athn_usb_softc *usc, struct mbuf *m)
 		}
 	}
 #if 0
-	if (__predict_false(sc->sc_drvbpf != NULL))
-		athn_usb_rx_radiotap(sc, m, rs);
+	if (__predict_false(ac->ac_drvbpf != NULL))
+		athn_usb_rx_radiotap(ac, m, rs);
 #endif
 
 	/* Trim 802.11 FCS after radiotap. */
@@ -2320,8 +2318,8 @@ athn_usb_txeof(struct usbd_xfer *xfer, void * priv,
     usbd_status status)
 {
 	struct athn_usb_tx_data *data = priv;
-	struct athn_usb_softc *usc = data->sc;
-	struct athn_softc *sc = &usc->usc_sc;
+	struct athn_usb_softc *usc = data->ac;
+	struct athn_common *ac = &usc->usc_ac;
 	int s;
 
 	if (usbwifi_isdying(&usc->usc_uw))
@@ -2336,7 +2334,7 @@ athn_usb_txeof(struct usbd_xfer *xfer, void * priv,
 	mutex_exit(&usc->usc_tx_mtx);
 
 	if (__predict_false(status != USBD_NORMAL_COMPLETION)) {
-		DPRINTFN(DBG_TX, sc, "TX status=%d\n", status);
+		DPRINTFN(DBG_TX, ac, "TX status=%d\n", status);
 		if (status == USBD_STALLED)
 			usbd_clear_endpoint_stall_async(usc->usc_tx_data_pipe);
 		//if_statinc(ifp, if_oerrors);
@@ -2346,11 +2344,11 @@ athn_usb_txeof(struct usbd_xfer *xfer, void * priv,
 		/* XXX Why return? */
 		return;
 	}
-	sc->sc_tx_timer = 0;
+	ac->ac_tx_timer = 0;
 
 	/* We just released a Tx buffer, notify Tx. */
-	if (sc->sc_flags & ATHN_FLAG_TX_BUSY) {
-		sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
+	if (ac->ac_flags & ATHN_FLAG_TX_BUSY) {
+		ac->ac_flags &= ~ATHN_FLAG_TX_BUSY;
 		athn_usb_start(usc);
 	}
 	splx(s);
@@ -2376,7 +2374,7 @@ athn_usb_tx_prepare(struct usbwifi *uw, struct usbwifi_chain *chain,
 	uint8_t sta_index, tid;
 	int xferlen;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	wh = mtod(m, struct ieee80211_frame *);
 	if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
@@ -2403,8 +2401,8 @@ athn_usb_tx_prepare(struct usbwifi *uw, struct usbwifi_chain *chain,
 
 #if 0
 	/* XXX Change radiotap Tx header for USB (no txrate). */
-	if (__predict_false(sc->sc_drvbpf != NULL)) {
-		struct athn_tx_radiotap_header *tap = &sc->sc_txtap;
+	if (__predict_false(ac->ac_drvbpf != NULL)) {
+		struct athn_tx_radiotap_header *tap = &ac->ac_txtap;
 
 		tap->wt_flags = 0;
 		tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
@@ -2412,7 +2410,7 @@ athn_usb_tx_prepare(struct usbwifi *uw, struct usbwifi_chain *chain,
 		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 			tap->wt_flags |= IEEE80211_RADIOTAP_F_WEP;
 
-		bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m, BPF_D_OUT);
+		bpf_mtap2(ac->ac_drvbpf, tap, ac->ac_txtap_len, m, BPF_D_OUT);
 	}
 #endif
 	sta_index = an->sta_index;
@@ -2469,7 +2467,7 @@ athn_usb_tx_prepare(struct usbwifi *uw, struct usbwifi_chain *chain,
 Static void
 athn_usb_start(struct athn_usb_softc *usc)
 {
-	struct athn_softc *sc = ATHN_SOFTC(usc);
+	//struct athn_softc *sc = ATHN_SOFTC(usc);
 	struct athn_usb_tx_data *data;
 	struct ieee80211vap *vap = NULL;
 	struct ieee80211_frame *wh;
@@ -2479,9 +2477,9 @@ athn_usb_start(struct athn_usb_softc *usc)
 	if (usbwifi_isdying(&usc->usc_uw))
 		return;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
-	if (sc->sc_flags & ATHN_FLAG_TX_BUSY)
+	if (ac->ac_flags & ATHN_FLAG_TX_BUSY)
 		return;
 
 	data = NULL;
@@ -2494,12 +2492,12 @@ athn_usb_start(struct athn_usb_softc *usc)
 		mutex_exit(&usc->usc_tx_mtx);
 
 		if (data == NULL) {
-			sc->sc_flags |= ATHN_FLAG_TX_BUSY;
+			ac->ac_flags |= ATHN_FLAG_TX_BUSY;
 			return;
 		}
 
 		/* Encapsulate and send data frames. */
-		IFQ_DEQUEUE(&sc->sc_sendq, m);
+		IFQ_DEQUEUE(&ac->ac_sendq, m);
 		if (m == NULL)
 			break;
 
@@ -2523,7 +2521,7 @@ athn_usb_start(struct athn_usb_softc *usc)
 
 		/* bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT); */
 
-		if (athn_usb_tx(sc, m, ni, data) != 0) {
+		if (athn_usb_tx(ac, m, ni, data) != 0) {
 			m_freem(m);
 			ieee80211_free_node(ni);
 			if_statinc(vap->iv_ifp, if_oerrors);
@@ -2532,8 +2530,8 @@ athn_usb_start(struct athn_usb_softc *usc)
 		data = NULL;
 		m_freem(m);
 		ieee80211_free_node(ni);
-		sc->sc_tx_timer = 5;
-		callout_schedule(&sc->sc_watchdog_to, hz);
+		ac->ac_tx_timer = 5;
+		callout_schedule(&ac->ac_watchdog_to, hz);
 	}
 
 	/* Return the Tx buffer to the free list */
@@ -2549,13 +2547,13 @@ athn_usb_watchdog(struct ifnet *ifp)
 {
 	struct athn_softc *sc = ifp->if_softc;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	ifp->if_timer = 0;
 
-	if (sc->sc_tx_timer > 0) {
-		if (--sc->sc_tx_timer == 0) {
-			aprint_error_dev(sc->sc_dev, "device timeout\n");
+	if (ac->ac_tx_timer > 0) {
+		if (--ac->ac_tx_timer == 0) {
+			aprint_error_dev(ac->ac_dev, "device timeout\n");
 			/* athn_usb_init(ifp); XXX needs a process context! */
 			if_statinc(ifp, if_oerrors);
 			return;
@@ -2582,8 +2580,8 @@ Static int
 athn_usb_init_locked(struct usbwifi *uw)
 {
 	struct athn_usb_softc *usc = usbwifi_softc(uw);
-	struct athn_softc *sc = ATHN_SOFTC(usc);
-	struct athn_ops *ops = &sc->sc_ops;
+	struct athn_common *ac = &usc->usc_ac;
+	struct athn_ops *ops = &ac->ac_ops;
 	struct ieee80211com *ic = usbwifi_ic(uw);
 	struct ieee80211_channel *curchan, *extchan;
 	struct ar_htc_target_vif hvif;
@@ -2595,7 +2593,7 @@ athn_usb_init_locked(struct usbwifi *uw)
 	if (usbwifi_isdying(uw))
 		return USBD_CANCELLED;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	/* Init host async commands ring. */
 	mutex_spin_enter(&usc->usc_task_mtx);
@@ -2608,7 +2606,7 @@ athn_usb_init_locked(struct usbwifi *uw)
 	/* In case a new MAC address has been configured. */
 	//IEEE80211_ADDR_COPY(ic->ic_macaddr, CLLADDR(ifp->if_sadl));
 
-	error = athn_set_power_awake(sc);
+	error = athn_set_power_awake(ac);
 	if (error != 0)
 		goto fail;
 
@@ -2616,11 +2614,11 @@ athn_usb_init_locked(struct usbwifi *uw)
 	if (error != 0)
 		goto fail;
 
-	error = athn_hw_reset(sc, curchan, extchan, 1);
+	error = athn_hw_reset(ac, curchan, extchan, 1);
 	if (error != 0)
 		goto fail;
 
-	ops->set_txpower(sc, curchan, extchan);
+	ops->set_txpower(ac, curchan, extchan);
 
 	mode = htobe16(IEEE80211_IS_CHAN_2GHZ(curchan) ?
 	    AR_HTC_MODE_11NG : AR_HTC_MODE_11NA);
@@ -2637,7 +2635,7 @@ athn_usb_init_locked(struct usbwifi *uw)
 	if (error != 0)
 		goto fail;
 
-	//athn_rx_start(sc);
+	//athn_rx_start(ac);
 
 	/* Create main interface on target. */
 	memset(&hvif, 0, sizeof(hvif));
@@ -2665,7 +2663,7 @@ athn_usb_init_locked(struct usbwifi *uw)
 		break;
 	}
 	/* hvif.rtsthreshold = htobe16(ic->ic_rtsthreshold); */
-	DPRINTFN(DBG_INIT, sc, "creating VAP\n");
+	DPRINTFN(DBG_INIT, ac, "creating VAP\n");
 	error = athn_usb_wmi_xcmd(usc, AR_WMI_CMD_VAP_CREATE,
 	    &hvif, sizeof(hvif), NULL);
 	if (error != 0)
@@ -2679,7 +2677,7 @@ athn_usb_init_locked(struct usbwifi *uw)
 	sta.vif_index = hvif.index;
 	sta.maxampdu = 0xffff;
 
-	DPRINTFN(DBG_INIT | DBG_NODES, sc, "creating default node %u\n",
+	DPRINTFN(DBG_INIT | DBG_NODES, ac, "creating default node %u\n",
 	    sta.sta_index);
 	error = athn_usb_create_hw_node(usc, &sta);
 	if (error != 0)
@@ -2692,9 +2690,9 @@ athn_usb_init_locked(struct usbwifi *uw)
 	hic.ampdu_limit = htobe32(0x0000ffff);
 	hic.ampdu_subframes = 20;
 	hic.protmode = 1;	/* XXX */
-	hic.lg_txchainmask = sc->sc_txchainmask;
-	hic.ht_txchainmask = sc->sc_txchainmask;
-	DPRINTFN(DBG_INIT, sc, "updating target configuration\n");
+	hic.lg_txchainmask = ac->ac_txchainmask;
+	hic.ht_txchainmask = ac->ac_txchainmask;
+	DPRINTFN(DBG_INIT, ac, "updating target configuration\n");
 	error = athn_usb_wmi_xcmd(usc, AR_WMI_CMD_TARGET_IC_UPDATE,
 	    &hic, sizeof(hic), NULL);
 	if (error != 0)
@@ -2728,7 +2726,7 @@ athn_usb_init_locked(struct usbwifi *uw)
 	if (ic->ic_opmode == IEEE80211_M_HOSTAP)
 		ic->ic_max_aid = AR_USB_MAX_STA;  /* Firmware is limited to 8 STA */
 	else
-		ic->ic_max_aid = sc->sc_max_aid;
+		ic->ic_max_aid = ac->ac_max_aid;
 
 	if (ic->ic_opmode == IEEE80211_M_MONITOR)
 		ieee80211_new_state(ic, IEEE80211_S_RUN, -1);
@@ -2754,26 +2752,26 @@ Static void
 athn_usb_stop_locked(struct usbwifi *uw)
 {
 	struct athn_usb_softc *usc = usbwifi_softc(uw);
-	struct athn_softc *sc = ATHN_SOFTC(usc);
+	struct athn_common *ac = &usc->usc_ac;
 	struct ieee80211com *ic = usbwifi_ic(uw);
 	struct ar_htc_target_vif hvif;
 	struct mbuf *m;
 	uint8_t sta_index;
 	int s;
 
-	DPRINTFN(DBG_FN, sc, "\n");
+	DPRINTFN(DBG_FN, ac, "\n");
 
 	s = splusb();
 	//ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
 	athn_usb_wait_async(usc);
 	splx(s);
 
-	sc->sc_tx_timer = 0;
+	ac->ac_tx_timer = 0;
 	//ifp->if_timer = 0;
 	//ifp->if_flags &= ~(IFF_RUNNING | IFF_OACTIVE);
 
-	callout_stop(&sc->sc_scan_to);
-	callout_stop(&sc->sc_calib_to);
+	callout_stop(&ac->ac_scan_to);
+	callout_stop(&ac->ac_calib_to);
 
 	/* Abort Tx/Rx. */
 	//usbd_abort_pipe(usc->usc_tx_data_pipe);
@@ -2801,12 +2799,12 @@ athn_usb_stop_locked(struct usbwifi *uw)
 	(void)athn_usb_wmi_cmd(usc, AR_WMI_CMD_DRAIN_TXQ_ALL);
 	(void)athn_usb_wmi_cmd(usc, AR_WMI_CMD_STOP_RECV);
 
-	athn_reset(sc, 0);
-	athn_init_pll(sc, NULL);
-	athn_set_power_awake(sc);
-	athn_reset(sc, 1);
-	athn_init_pll(sc, NULL);
-	athn_set_power_sleep(sc);
+	athn_reset(ac, 0);
+	athn_init_pll(ac, NULL);
+	athn_set_power_awake(ac);
+	athn_reset(ac, 1);
+	athn_init_pll(ac, NULL);
+	athn_set_power_sleep(ac);
 }
 
 MODULE(MODULE_CLASS_DRIVER, if_athn_usb, NULL);

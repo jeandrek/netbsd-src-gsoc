@@ -438,9 +438,8 @@ struct athn_usb_node {
 };
 
 struct athn_usb_softc {
-	struct athn_softc		usc_sc;
-#define usc_dev		usc_sc.sc_dev
-#define usc_uw		usc_sc.sc_uw
+	struct usbwifi			usc_uw;
+	struct athn_common		usc_ac;
 
 	enum {
 		ATHN_INIT_NONE,

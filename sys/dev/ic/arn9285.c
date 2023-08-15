@@ -64,8 +64,6 @@ __KERNEL_RCSID(0, "$NetBSD: arn9285.c,v 1.5 2022/09/25 18:43:32 thorpej Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
-#include <dev/usb/usbwifi.h>
-
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 #include <dev/ic/arn9285.h>
@@ -80,54 +78,54 @@ __KERNEL_RCSID(0, "$NetBSD: arn9285.c,v 1.5 2022/09/25 18:43:32 thorpej Exp $");
 
 #define Static static
 
-Static int	ar9285_cl_cal(struct athn_softc *, struct ieee80211_channel *,
+Static int	ar9285_cl_cal(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-Static void	ar9285_get_pdadcs(struct athn_softc *,
+Static void	ar9285_get_pdadcs(struct athn_common *,
 		    struct ieee80211_channel *, int, uint8_t, uint8_t *,
 		    uint8_t *);
 Static const struct ar_spur_chan *
-		ar9285_get_spur_chans(struct athn_softc *, int);
-Static void	ar9285_init_from_rom(struct athn_softc *,
+		ar9285_get_spur_chans(struct athn_common *, int);
+Static void	ar9285_init_from_rom(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9285_set_power_calib(struct athn_softc *,
+Static void	ar9285_set_power_calib(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar9285_set_txpower(struct athn_softc *,
+Static void	ar9285_set_txpower(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9285_setup(struct athn_softc *);
-Static void	ar9285_swap_rom(struct athn_softc *);
+Static void	ar9285_setup(struct athn_common *);
+Static void	ar9285_swap_rom(struct athn_common *);
 
 PUBLIC int
-ar9285_attach(struct athn_softc *sc)
+ar9285_attach(struct athn_common *ac)
 {
 
-	sc->sc_eep_base = AR9285_EEP_START_LOC;
-	sc->sc_eep_size = sizeof(struct ar9285_eeprom);
-	sc->sc_def_nf = AR9285_PHY_CCA_MAX_GOOD_VALUE;
-	sc->sc_ngpiopins = (sc->sc_flags & ATHN_FLAG_USB) ? 16 : 12;
-	sc->sc_led_pin = (sc->sc_flags & ATHN_FLAG_USB) ? 15 : 1;
-	sc->sc_workaround = AR9285_WA_DEFAULT;
-	sc->sc_ops.setup = ar9285_setup;
-	sc->sc_ops.swap_rom = ar9285_swap_rom;
-	sc->sc_ops.init_from_rom = ar9285_init_from_rom;
-	sc->sc_ops.set_txpower = ar9285_set_txpower;
-	sc->sc_ops.set_synth = ar9280_set_synth;
-	sc->sc_ops.spur_mitigate = ar9280_spur_mitigate;
-	sc->sc_ops.get_spur_chans = ar9285_get_spur_chans;
+	ac->ac_eep_base = AR9285_EEP_START_LOC;
+	ac->ac_eep_size = sizeof(struct ar9285_eeprom);
+	ac->ac_def_nf = AR9285_PHY_CCA_MAX_GOOD_VALUE;
+	ac->ac_ngpiopins = (ac->ac_flags & ATHN_FLAG_USB) ? 16 : 12;
+	ac->ac_led_pin = (ac->ac_flags & ATHN_FLAG_USB) ? 15 : 1;
+	ac->ac_workaround = AR9285_WA_DEFAULT;
+	ac->ac_ops.setup = ar9285_setup;
+	ac->ac_ops.swap_rom = ar9285_swap_rom;
+	ac->ac_ops.init_from_rom = ar9285_init_from_rom;
+	ac->ac_ops.set_txpower = ar9285_set_txpower;
+	ac->ac_ops.set_synth = ar9280_set_synth;
+	ac->ac_ops.spur_mitigate = ar9280_spur_mitigate;
+	ac->ac_ops.get_spur_chans = ar9285_get_spur_chans;
 #if NATHN_USB > 0
 	if (AR_SREV_9271(sc))
-		sc->sc_ini = &ar9271_ini;
+		ac->ac_ini = &ar9271_ini;
 	else
 #endif
-		sc->sc_ini = &ar9285_1_2_ini;
-	sc->sc_serdes = &ar9280_2_0_serdes;
+		ac->ac_ini = &ar9285_1_2_ini;
+	ac->ac_serdes = &ar9280_2_0_serdes;
 
 	return ar5008_attach(sc);
 }
 
 Static void
-ar9285_setup(struct athn_softc *sc)
+ar9285_setup(struct athn_common *ac)
 {
-	const struct ar9285_eeprom *eep = sc->sc_eep;
+	const struct ar9285_eeprom *eep = ac->ac_eep;
 	uint8_t type;
 
 	/* Select initialization values based on ROM. */
@@ -136,30 +134,30 @@ ar9285_setup(struct athn_softc *sc)
 #if NATHN_USB > 0
 	if (AR_SREV_9271(sc)) {
 		if (type == AR_EEP_TXGAIN_HIGH_POWER)
-			sc->sc_tx_gain = &ar9271_tx_gain_high_power;
+			ac->ac_tx_gain = &ar9271_tx_gain_high_power;
 		else
-			sc->sc_tx_gain = &ar9271_tx_gain;
+			ac->ac_tx_gain = &ar9271_tx_gain;
 	}
 	else
 #endif	/* NATHN_USB */
 	if ((AR_READ(sc, AR_AN_SYNTH9) & 0x7) == 0x1) {	/* XE rev. */
 		if (type == AR_EEP_TXGAIN_HIGH_POWER)
-			sc->sc_tx_gain = &ar9285_2_0_tx_gain_high_power;
+			ac->ac_tx_gain = &ar9285_2_0_tx_gain_high_power;
 		else
-			sc->sc_tx_gain = &ar9285_2_0_tx_gain;
+			ac->ac_tx_gain = &ar9285_2_0_tx_gain;
 	}
 	else {
 		if (type == AR_EEP_TXGAIN_HIGH_POWER)
-			sc->sc_tx_gain = &ar9285_1_2_tx_gain_high_power;
+			ac->ac_tx_gain = &ar9285_1_2_tx_gain_high_power;
 		else
-			sc->sc_tx_gain = &ar9285_1_2_tx_gain;
+			ac->ac_tx_gain = &ar9285_1_2_tx_gain;
 	}
 }
 
 Static void
-ar9285_swap_rom(struct athn_softc *sc)
+ar9285_swap_rom(struct athn_common *ac)
 {
-	struct ar9285_eeprom *eep = sc->sc_eep;
+	struct ar9285_eeprom *eep = ac->ac_eep;
 	int i;
 
 	eep->modalHeader.antCtrlCommon =
@@ -174,19 +172,19 @@ ar9285_swap_rom(struct athn_softc *sc)
 }
 
 Static const struct ar_spur_chan *
-ar9285_get_spur_chans(struct athn_softc *sc, int is2ghz)
+ar9285_get_spur_chans(struct athn_common *ac, int is2ghz)
 {
-	const struct ar9285_eeprom *eep = sc->sc_eep;
+	const struct ar9285_eeprom *eep = ac->ac_eep;
 
 	KASSERT(is2ghz);
 	return eep->modalHeader.spurChans;
 }
 
 Static void
-ar9285_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9285_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9285_eeprom *eep = sc->sc_eep;
+	const struct ar9285_eeprom *eep = ac->ac_eep;
 	const struct ar9285_modal_eep_header *modal = &eep->modalHeader;
 	uint32_t reg, offset = 0x1000;
 	uint8_t ob[5], db1[5], db2[5];
@@ -200,7 +198,7 @@ ar9285_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 	reg = RW(reg, AR_PHY_TIMING_CTRL4_IQCORR_Q_Q_COFF, modal->iqCalQ);
 	AR_WRITE(sc, AR_PHY_TIMING_CTRL4_0, reg);
 
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_3) {
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3) {
 		reg = AR_READ(sc, AR_PHY_GAIN_2GHZ);
 		reg = RW(reg, AR_PHY_GAIN_2GHZ_XATTEN1_MARGIN,
 		    modal->bswMargin);
@@ -224,7 +222,7 @@ ar9285_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 		    modal->xatten2Db);
 		AR_WRITE(sc, AR_PHY_GAIN_2GHZ + offset, reg);
 	}
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_3)
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3)
 		txRxAtten = modal->txRxAtten;
 	else	/* Workaround for ROM versions < 14.3. */
 		txRxAtten = 23;
@@ -382,7 +380,7 @@ ar9285_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 	reg = RW(reg, AR_PHY_EXT_CCA0_THRESH62, modal->thresh62);
 	AR_WRITE(sc, AR_PHY_EXT_CCA0, reg);
 
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2) {
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2) {
 		reg = AR_READ(sc, AR_PHY_RF_CTL2);
 		reg = RW(reg, AR_PHY_TX_END_PA_ON,
 		    modal->txFrameToPaOn);
@@ -391,7 +389,7 @@ ar9285_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 		AR_WRITE(sc, AR_PHY_RF_CTL2, reg);
 	}
 #ifndef IEEE80211_NO_HT
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_3 && extc != NULL) {
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_3 && extc != NULL) {
 		reg = AR_READ(sc, AR_PHY_SETTLING);
 		reg = RW(reg, AR_PHY_SETTLING_SWITCH, modal->swSettleHt40);
 		AR_WRITE(sc, AR_PHY_SETTLING, reg);
@@ -401,7 +399,7 @@ ar9285_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 PUBLIC void
-ar9285_pa_calib(struct athn_softc *sc)
+ar9285_pa_calib(struct athn_common *ac)
 {
 	/* List of registers that need to be saved/restored. */
 	static const uint16_t regs[] = {
@@ -418,7 +416,7 @@ ar9285_pa_calib(struct athn_softc *sc)
 
 	/* No PA calibration needed for high power solutions. */
 	if (AR_SREV_9285(sc) &&
-	    ((struct ar9285_base_eep_header *)sc->sc_eep)->txGainType ==
+	    ((struct ar9285_base_eep_header *)ac->ac_eep)->txGainType ==
 	     AR_EEP_TXGAIN_HIGH_POWER)	/* XXX AR9287? */
 		return;
 
@@ -504,7 +502,7 @@ ar9285_pa_calib(struct athn_softc *sc)
 }
 
 PUBLIC void
-ar9271_pa_calib(struct athn_softc *sc)
+ar9271_pa_calib(struct athn_common *ac)
 {
 #if NATHN_USB > 0
 	/* List of registers that need to be saved/restored. */
@@ -589,7 +587,7 @@ ar9271_pa_calib(struct athn_softc *sc)
  * Carrier Leakage Calibration.
  */
 int
-ar9285_cl_cal(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9285_cl_cal(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	int ntries;
@@ -636,7 +634,7 @@ ar9285_cl_cal(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 PUBLIC void
-ar9271_load_ani(struct athn_softc *sc)
+ar9271_load_ani(struct athn_common *ac)
 {
 
 #if NATHN_USB > 0
@@ -654,7 +652,7 @@ ar9271_load_ani(struct athn_softc *sc)
 }
 
 int
-ar9285_init_calib(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9285_init_calib(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	uint32_t reg, mask, clcgain, rf2g5_svg;
@@ -708,10 +706,10 @@ ar9285_init_calib(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9285_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9285_get_pdadcs(struct athn_common *ac, struct ieee80211_channel *c,
     int nxpdgains, uint8_t overlap, uint8_t *boundaries, uint8_t *pdadcs)
 {
-	const struct ar9285_eeprom *eep = sc->sc_eep;
+	const struct ar9285_eeprom *eep = ac->ac_eep;
 	const struct ar9285_cal_data_per_freq *pierdata;
 	const uint8_t *pierfreq;
 	struct athn_pier lopier, hipier;
@@ -739,9 +737,9 @@ ar9285_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9285_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9285_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 {
-	const struct ar9285_eeprom *eep = sc->sc_eep;
+	const struct ar9285_eeprom *eep = ac->ac_eep;
 	uint8_t boundaries[AR_PD_GAINS_IN_MASK];
 	uint8_t pdadcs[AR_NUM_PDADC_VALUES];
 	uint8_t xpdgains[AR9285_NUM_PD_GAINS];
@@ -749,7 +747,7 @@ ar9285_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 	uint32_t reg;
 	int i, nxpdgains;
 
-	if (sc->sc_eep_rev < AR_EEP_MINOR_VER_2) {
+	if (ac->ac_eep_rev < AR_EEP_MINOR_VER_2) {
 		overlap = MS(AR_READ(sc, AR_PHY_TPCRG5),
 		    AR_PHY_TPCRG5_PD_GAIN_OVERLAP);
 	}
@@ -793,10 +791,10 @@ ar9285_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 Static void
-ar9285_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9285_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9285_eeprom *eep = sc->sc_eep;
+	const struct ar9285_eeprom *eep = ac->ac_eep;
 #ifdef notyet
 	const struct ar9285_modal_eep_header *modal = &eep->modalHeader;
 #endif
@@ -871,7 +869,7 @@ ar9285_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 		power[ATHN_POWER_HT20(i)] = tpow_ht20[i];
 	if (extc != NULL) {
 		/* Correct PAR difference between HT40 and HT20/Legacy. */
-		if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2)
+		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2)
 			ht40inc = modal->ht40PowerIncForPdadc;
 		else
 			ht40inc = AR_HT40_POWER_INC_FOR_PDADC;

@@ -57,8 +57,6 @@ __KERNEL_RCSID(0, "$NetBSD: arn9380.c,v 1.4 2022/09/25 18:43:32 thorpej Exp $");
 #include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_regdomain.h>
 
-#include <dev/usb/usbwifi.h>
-
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -70,144 +68,144 @@ __KERNEL_RCSID(0, "$NetBSD: arn9380.c,v 1.4 2022/09/25 18:43:32 thorpej Exp $");
 
 #define Static static
 
-Static void	ar9380_get_correction(struct athn_softc *,
+Static void	ar9380_get_correction(struct athn_common *,
 		    struct ieee80211_channel *, int, int *, int *);
-Static void	ar9380_get_paprd_masks(struct athn_softc *,
+Static void	ar9380_get_paprd_masks(struct athn_common *,
 		    struct ieee80211_channel *, uint32_t *, uint32_t *);
 Static const uint8_t *
-		ar9380_get_rom_template(struct athn_softc *, uint8_t);
-Static void	ar9380_init_from_rom(struct athn_softc *,
+		ar9380_get_rom_template(struct athn_common *, uint8_t);
+Static void	ar9380_init_from_rom(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9380_set_correction(struct athn_softc *,
+Static void	ar9380_set_correction(struct athn_common *,
 		    struct ieee80211_channel *);
-Static int	ar9380_set_synth(struct athn_softc *,
+Static int	ar9380_set_synth(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9380_set_txpower(struct athn_softc *,
+Static void	ar9380_set_txpower(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9380_setup(struct athn_softc *);
-Static void	ar9380_spur_mitigate(struct athn_softc *,
+Static void	ar9380_setup(struct athn_common *);
+Static void	ar9380_spur_mitigate(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9380_spur_mitigate_cck(struct athn_softc *,
+Static void	ar9380_spur_mitigate_cck(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9380_spur_mitigate_ofdm(struct athn_softc *,
+Static void	ar9380_spur_mitigate_ofdm(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9380_swap_rom(struct athn_softc *);
+Static void	ar9380_swap_rom(struct athn_common *);
 
-Static void	ar9485_init_swreg(struct athn_softc *);
+Static void	ar9485_init_swreg(struct athn_common *);
 #define		ar9485_pmu_read		AR_READ
-Static int	ar9485_pmu_write(struct athn_softc *, uint32_t, uint32_t);
+Static int	ar9485_pmu_write(struct athn_common *, uint32_t, uint32_t);
 
 #ifdef notused
-Static void	ar9380_init_swreg(struct athn_softc *);
+Static void	ar9380_init_swreg(struct athn_common *);
 #endif /* notused */
 
 PUBLIC int
-ar9380_attach(struct athn_softc *sc)
+ar9380_attach(struct athn_common *ac)
 {
 
-	sc->sc_ngpiopins = 17;
-	sc->sc_ops.setup = ar9380_setup;
-	sc->sc_ops.get_rom_template = ar9380_get_rom_template;
-	sc->sc_ops.swap_rom = ar9380_swap_rom;
-	sc->sc_ops.init_from_rom = ar9380_init_from_rom;
-	sc->sc_ops.set_txpower = ar9380_set_txpower;
-	sc->sc_ops.set_synth = ar9380_set_synth;
-	sc->sc_ops.spur_mitigate = ar9380_spur_mitigate;
-	sc->sc_ops.get_paprd_masks = ar9380_get_paprd_masks;
-	sc->sc_cca_min_2g = AR9380_PHY_CCA_MIN_GOOD_VAL_2GHZ;
-	sc->sc_cca_max_2g = AR9380_PHY_CCA_MAX_GOOD_VAL_2GHZ;
-	sc->sc_cca_min_5g = AR9380_PHY_CCA_MIN_GOOD_VAL_5GHZ;
-	sc->sc_cca_max_5g = AR9380_PHY_CCA_MAX_GOOD_VAL_5GHZ;
+	ac->ac_ngpiopins = 17;
+	ac->ac_ops.setup = ar9380_setup;
+	ac->ac_ops.get_rom_template = ar9380_get_rom_template;
+	ac->ac_ops.swap_rom = ar9380_swap_rom;
+	ac->ac_ops.init_from_rom = ar9380_init_from_rom;
+	ac->ac_ops.set_txpower = ar9380_set_txpower;
+	ac->ac_ops.set_synth = ar9380_set_synth;
+	ac->ac_ops.spur_mitigate = ar9380_spur_mitigate;
+	ac->ac_ops.get_paprd_masks = ar9380_get_paprd_masks;
+	ac->ac_cca_min_2g = AR9380_PHY_CCA_MIN_GOOD_VAL_2GHZ;
+	ac->ac_cca_max_2g = AR9380_PHY_CCA_MAX_GOOD_VAL_2GHZ;
+	ac->ac_cca_min_5g = AR9380_PHY_CCA_MIN_GOOD_VAL_5GHZ;
+	ac->ac_cca_max_5g = AR9380_PHY_CCA_MAX_GOOD_VAL_5GHZ;
 	if (AR_SREV_9485(sc)) {
-		sc->sc_ini = &ar9485_1_1_ini;
-		sc->sc_serdes = &ar9485_1_1_serdes;
+		ac->ac_ini = &ar9485_1_1_ini;
+		ac->ac_serdes = &ar9485_1_1_serdes;
 	}
 	else {
-		sc->sc_ini = &ar9380_2_2_ini;
-		sc->sc_serdes = &ar9380_2_2_serdes;
+		ac->ac_ini = &ar9380_2_2_ini;
+		ac->ac_serdes = &ar9380_2_2_serdes;
 	}
 
 	return ar9003_attach(sc);
 }
 
 Static void
-ar9380_setup(struct athn_softc *sc)
+ar9380_setup(struct athn_common *ac)
 {
-	struct ieee80211com *ic = sc->sc_ic;
-	struct ar9380_eeprom *eep = sc->sc_eep;
+	struct ieee80211com *ic = &sc->sc_ic;
+	struct ar9380_eeprom *eep = ac->ac_eep;
 	struct ar9380_base_eep_hdr *base = &eep->baseEepHeader;
 	uint8_t type;
 
 	if (base->opFlags & AR_OPFLAGS_11A)
-		sc->sc_flags |= ATHN_FLAG_11A;
+		ac->ac_flags |= ATHN_FLAG_11A;
 	if (base->opFlags & AR_OPFLAGS_11G)
-		sc->sc_flags |= ATHN_FLAG_11G;
+		ac->ac_flags |= ATHN_FLAG_11G;
 	if (base->opFlags & AR_OPFLAGS_11N)
-		sc->sc_flags |= ATHN_FLAG_11N;
+		ac->ac_flags |= ATHN_FLAG_11N;
 
 	IEEE80211_ADDR_COPY(TAILQ_FIRST(&ic->ic_vaps)->iv_myaddr, eep->macAddr);
-	sc->sc_led_pin = base->wlanLedGpio;
+	ac->ac_led_pin = base->wlanLedGpio;
 
 	/* Check if we have a hardware radio switch. */
 	if (base->rfSilent & AR_EEP_RFSILENT_ENABLED) {
-		sc->sc_flags |= ATHN_FLAG_RFSILENT;
+		ac->ac_flags |= ATHN_FLAG_RFSILENT;
 		/* Get GPIO pin used by hardware radio switch. */
-		sc->sc_rfsilent_pin = MS(base->rfSilent,
+		ac->ac_rfsilent_pin = MS(base->rfSilent,
 		    AR_EEP_RFSILENT_GPIO_SEL);
 		/* Get polarity of hardware radio switch. */
 		if (base->rfSilent & AR_EEP_RFSILENT_POLARITY)
-			sc->sc_flags |= ATHN_FLAG_RFSILENT_REVERSED;
+			ac->ac_flags |= ATHN_FLAG_RFSILENT_REVERSED;
 	}
 
 	/* Set the number of HW key cache entries. */
-	sc->sc_kc_entries = AR_KEYTABLE_SIZE;
+	ac->ac_kc_entries = AR_KEYTABLE_SIZE;
 
-	sc->sc_txchainmask = MS(base->txrxMask, AR_EEP_TX_MASK);
-	sc->sc_rxchainmask = MS(base->txrxMask, AR_EEP_RX_MASK);
+	ac->ac_txchainmask = MS(base->txrxMask, AR_EEP_TX_MASK);
+	ac->ac_rxchainmask = MS(base->txrxMask, AR_EEP_RX_MASK);
 
 	/* Fast PLL clock is always supported. */
-	sc->sc_flags |= ATHN_FLAG_FAST_PLL_CLOCK;
+	ac->ac_flags |= ATHN_FLAG_FAST_PLL_CLOCK;
 
 	/* Enable PA predistortion if supported. */
 	if (base->featureEnable & AR_EEP_PAPRD)
-		sc->sc_flags |= ATHN_FLAG_PAPRD;
+		ac->ac_flags |= ATHN_FLAG_PAPRD;
 	/*
 	 * Some 3-stream chips may exceed the PCIe power requirements,
 	 * requiring to reduce the number of Tx chains in some cases.
 	 */
 	if ((base->miscConfiguration & AR_EEP_CHAIN_MASK_REDUCE) &&
-	    sc->sc_txchainmask == 0x7)
-		sc->sc_flags |= ATHN_FLAG_3TREDUCE_CHAIN;
+	    ac->ac_txchainmask == 0x7)
+		ac->ac_flags |= ATHN_FLAG_3TREDUCE_CHAIN;
 
 	/* Select initialization values based on ROM. */
 	type = MS(eep->baseEepHeader.txrxgain, AR_EEP_RX_GAIN);
 	if (!AR_SREV_9485(sc)) {
 		if (type == AR_EEP_RX_GAIN_WO_XLNA)
-			sc->sc_rx_gain = &ar9380_2_2_rx_gain_wo_xlna;
+			ac->ac_rx_gain = &ar9380_2_2_rx_gain_wo_xlna;
 		else
-			sc->sc_rx_gain = &ar9380_2_2_rx_gain;
+			ac->ac_rx_gain = &ar9380_2_2_rx_gain;
 	}
 	else
-		sc->sc_rx_gain = &ar9485_1_1_rx_gain;
+		ac->ac_rx_gain = &ar9485_1_1_rx_gain;
 
 	/* Select initialization values based on ROM. */
 	type = MS(eep->baseEepHeader.txrxgain, AR_EEP_TX_GAIN);
 	if (!AR_SREV_9485(sc)) {
 		if (type == AR_EEP_TX_GAIN_HIGH_OB_DB)
-			sc->sc_tx_gain = &ar9380_2_2_tx_gain_high_ob_db;
+			ac->ac_tx_gain = &ar9380_2_2_tx_gain_high_ob_db;
 		else if (type == AR_EEP_TX_GAIN_LOW_OB_DB)
-			sc->sc_tx_gain = &ar9380_2_2_tx_gain_low_ob_db;
+			ac->ac_tx_gain = &ar9380_2_2_tx_gain_low_ob_db;
 		else if (type == AR_EEP_TX_GAIN_HIGH_POWER)
-			sc->sc_tx_gain = &ar9380_2_2_tx_gain_high_power;
+			ac->ac_tx_gain = &ar9380_2_2_tx_gain_high_power;
 		else
-			sc->sc_tx_gain = &ar9380_2_2_tx_gain;
+			ac->ac_tx_gain = &ar9380_2_2_tx_gain;
 	}
 	else
-		sc->sc_tx_gain = &ar9485_1_1_tx_gain;
+		ac->ac_tx_gain = &ar9485_1_1_tx_gain;
 }
 
 Static const uint8_t *
-ar9380_get_rom_template(struct athn_softc *sc, uint8_t ref)
+ar9380_get_rom_template(struct athn_common *ac, uint8_t ref)
 {
 	size_t i;
 
@@ -219,10 +217,10 @@ ar9380_get_rom_template(struct athn_softc *sc, uint8_t ref)
 }
 
 Static void
-ar9380_swap_rom(struct athn_softc *sc)
+ar9380_swap_rom(struct athn_common *ac)
 {
 #if BYTE_ORDER == BIG_ENDIAN
-	struct ar9380_eeprom *eep = sc->sc_eep;
+	struct ar9380_eeprom *eep = ac->ac_eep;
 	struct ar9380_base_eep_hdr *base = &eep->baseEepHeader;
 	struct ar9380_modal_eep_header *modal;
 	int i;
@@ -250,10 +248,10 @@ ar9380_swap_rom(struct athn_softc *sc)
 }
 
 Static void
-ar9380_get_paprd_masks(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_get_paprd_masks(struct athn_common *ac, struct ieee80211_channel *c,
     uint32_t *ht20mask, uint32_t *ht40mask)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	const struct ar9380_modal_eep_header *modal;
 
 	if (IEEE80211_IS_CHAN_2GHZ(c))
@@ -265,7 +263,7 @@ ar9380_get_paprd_masks(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static int
-ar9380_set_synth(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_set_synth(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	uint32_t freq = c->ic_freq;
@@ -301,10 +299,10 @@ ar9380_set_synth(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9380_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	const struct ar9380_modal_eep_header *modal;
 	uint8_t db, margin, ant_div_ctrl;
 	uint32_t reg;
@@ -457,9 +455,9 @@ ar9380_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 
 #ifdef notused
 Static void
-ar9380_init_swreg(struct athn_softc *sc)
+ar9380_init_swreg(struct athn_common *ac)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 
 	if (eep->baseEepHeader.featureEnable & AR_EEP_INTERNAL_REGULATOR) {
 		/* Internal regulator is ON. */
@@ -476,7 +474,7 @@ ar9380_init_swreg(struct athn_softc *sc)
 #endif /* notused */
 
 Static int
-ar9485_pmu_write(struct athn_softc *sc, uint32_t addr, uint32_t val)
+ar9485_pmu_write(struct athn_common *ac, uint32_t addr, uint32_t val)
 {
 	int ntries;
 
@@ -493,9 +491,9 @@ ar9485_pmu_write(struct athn_softc *sc, uint32_t addr, uint32_t val)
 }
 
 Static void
-ar9485_init_swreg(struct athn_softc *sc)
+ar9485_init_swreg(struct athn_common *ac)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	uint32_t reg;
 
 	ar9485_pmu_write(sc, AR_PHY_PMU2,
@@ -521,7 +519,7 @@ ar9485_init_swreg(struct athn_softc *sc)
  * NB: It is safe to call this function for 5GHz channels.
  */
 Static void
-ar9380_spur_mitigate_cck(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_spur_mitigate_cck(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 	static const int16_t freqs[] = { 2420, 2440, 2464, 2480 };
@@ -562,10 +560,10 @@ ar9380_spur_mitigate_cck(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9380_spur_mitigate_ofdm(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_spur_mitigate_ofdm(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	const uint8_t *spurchans;
 	uint32_t reg;
 	int idx, spur_delta_phase, spur_off, range, i;
@@ -708,7 +706,7 @@ ar9380_spur_mitigate_ofdm(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9380_spur_mitigate(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
 
@@ -718,10 +716,10 @@ ar9380_spur_mitigate(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9380_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	uint8_t tpow_cck[4], tpow_ofdm[4];
 	uint8_t tpow_ht20[14], tpow_ht40[14];
 	int16_t power[ATHN_POWER_COUNT];
@@ -832,10 +830,10 @@ ar9380_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9380_get_correction(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9380_get_correction(struct athn_common *ac, struct ieee80211_channel *c,
     int chain, int *corr, int *temp)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	const struct ar9380_cal_data_per_freq_op_loop *pierdata;
 	const uint8_t *pierfreq;
 	uint8_t fbin;
@@ -864,9 +862,9 @@ ar9380_get_correction(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9380_set_correction(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9380_set_correction(struct athn_common *ac, struct ieee80211_channel *c)
 {
-	const struct ar9380_eeprom *eep = sc->sc_eep;
+	const struct ar9380_eeprom *eep = ac->ac_eep;
 	const struct ar9380_modal_eep_header *modal;
 	uint32_t reg;
 	int8_t slope;

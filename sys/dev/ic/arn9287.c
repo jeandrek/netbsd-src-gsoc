@@ -60,8 +60,6 @@ __KERNEL_RCSID(0, "$NetBSD: arn9287.c,v 1.4 2022/09/25 18:43:32 thorpej Exp $");
 #include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
-#include <dev/usb/usbwifi.h>
-
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -75,66 +73,66 @@ __KERNEL_RCSID(0, "$NetBSD: arn9287.c,v 1.4 2022/09/25 18:43:32 thorpej Exp $");
 
 #define Static static
 
-Static void	ar9287_get_pdadcs(struct athn_softc *,
+Static void	ar9287_get_pdadcs(struct athn_common *,
 		    struct ieee80211_channel *, int, int, uint8_t, uint8_t *,
 		    uint8_t *);
 Static const struct ar_spur_chan *
-		ar9287_get_spur_chans(struct athn_softc *, int);
-Static void	ar9287_init_from_rom(struct athn_softc *,
+		ar9287_get_spur_chans(struct athn_common *, int);
+Static void	ar9287_init_from_rom(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9287_olpc_get_pdgain(struct athn_softc *,
+Static void	ar9287_olpc_get_pdgain(struct athn_common *,
 		    struct ieee80211_channel *, int, int8_t *);
-Static void	ar9287_olpc_init(struct athn_softc *);
-Static void	ar9287_olpc_temp_compensation(struct athn_softc *);
-Static void	ar9287_set_power_calib(struct athn_softc *,
+Static void	ar9287_olpc_init(struct athn_common *);
+Static void	ar9287_olpc_temp_compensation(struct athn_common *);
+Static void	ar9287_set_power_calib(struct athn_common *,
 		    struct ieee80211_channel *);
-Static void	ar9287_set_txpower(struct athn_softc *,
+Static void	ar9287_set_txpower(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static void	ar9287_setup(struct athn_softc *);
-Static void	ar9287_swap_rom(struct athn_softc *);
+Static void	ar9287_setup(struct athn_common *);
+Static void	ar9287_swap_rom(struct athn_common *);
 
 PUBLIC int
-ar9287_attach(struct athn_softc *sc)
+ar9287_attach(struct athn_common *ac)
 {
 
-	sc->sc_eep_base = AR9287_EEP_START_LOC;
-	sc->sc_eep_size = sizeof(struct ar9287_eeprom);
-	sc->sc_def_nf = AR9287_PHY_CCA_MAX_GOOD_VALUE;
-	sc->sc_ngpiopins = (sc->sc_flags & ATHN_FLAG_USB) ? 16 : 11;
-	sc->sc_led_pin = 8;
-	sc->sc_workaround = AR9285_WA_DEFAULT;
-	sc->sc_ops.setup = ar9287_setup;
-	sc->sc_ops.swap_rom = ar9287_swap_rom;
-	sc->sc_ops.init_from_rom = ar9287_init_from_rom;
-	sc->sc_ops.set_txpower = ar9287_set_txpower;
-	sc->sc_ops.set_synth = ar9280_set_synth;
-	sc->sc_ops.spur_mitigate = ar9280_spur_mitigate;
-	sc->sc_ops.get_spur_chans = ar9287_get_spur_chans;
-	sc->sc_ops.olpc_init = ar9287_olpc_init;
-	sc->sc_ops.olpc_temp_compensation = ar9287_olpc_temp_compensation;
-	sc->sc_ini = &ar9287_1_1_ini;
-	sc->sc_serdes = &ar9280_2_0_serdes;
+	ac->ac_eep_base = AR9287_EEP_START_LOC;
+	ac->ac_eep_size = sizeof(struct ar9287_eeprom);
+	ac->ac_def_nf = AR9287_PHY_CCA_MAX_GOOD_VALUE;
+	ac->ac_ngpiopins = (ac->ac_flags & ATHN_FLAG_USB) ? 16 : 11;
+	ac->ac_led_pin = 8;
+	ac->ac_workaround = AR9285_WA_DEFAULT;
+	ac->ac_ops.setup = ar9287_setup;
+	ac->ac_ops.swap_rom = ar9287_swap_rom;
+	ac->ac_ops.init_from_rom = ar9287_init_from_rom;
+	ac->ac_ops.set_txpower = ar9287_set_txpower;
+	ac->ac_ops.set_synth = ar9280_set_synth;
+	ac->ac_ops.spur_mitigate = ar9280_spur_mitigate;
+	ac->ac_ops.get_spur_chans = ar9287_get_spur_chans;
+	ac->ac_ops.olpc_init = ar9287_olpc_init;
+	ac->ac_ops.olpc_temp_compensation = ar9287_olpc_temp_compensation;
+	ac->ac_ini = &ar9287_1_1_ini;
+	ac->ac_serdes = &ar9280_2_0_serdes;
 
 	return ar5008_attach(sc);
 }
 
 Static void
-ar9287_setup(struct athn_softc *sc)
+ar9287_setup(struct athn_common *ac)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 
 	/* Determine if open loop power control should be used. */
 	if (eep->baseEepHeader.openLoopPwrCntl)
-		sc->sc_flags |= ATHN_FLAG_OLPC;
+		ac->ac_flags |= ATHN_FLAG_OLPC;
 
-	sc->sc_rx_gain = &ar9287_1_1_rx_gain;
-	sc->sc_tx_gain = &ar9287_1_1_tx_gain;
+	ac->ac_rx_gain = &ar9287_1_1_rx_gain;
+	ac->ac_tx_gain = &ar9287_1_1_tx_gain;
 }
 
 Static void
-ar9287_swap_rom(struct athn_softc *sc)
+ar9287_swap_rom(struct athn_common *ac)
 {
-	struct ar9287_eeprom *eep = sc->sc_eep;
+	struct ar9287_eeprom *eep = ac->ac_eep;
 	int i;
 
 	eep->modalHeader.antCtrlCommon =
@@ -151,19 +149,19 @@ ar9287_swap_rom(struct athn_softc *sc)
 }
 
 Static const struct ar_spur_chan *
-ar9287_get_spur_chans(struct athn_softc *sc, int is2ghz)
+ar9287_get_spur_chans(struct athn_common *ac, int is2ghz)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 
 	KASSERT(is2ghz);
 	return eep->modalHeader.spurChans;
 }
 
 Static void
-ar9287_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9287_init_from_rom(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 	const struct ar9287_modal_eep_header *modal = &eep->modalHeader;
 	uint32_t reg, offset;
 	int i;
@@ -264,11 +262,11 @@ ar9287_init_from_rom(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9287_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9287_get_pdadcs(struct athn_common *ac, struct ieee80211_channel *c,
     int chain, int nxpdgains, uint8_t overlap, uint8_t *boundaries,
     uint8_t *pdadcs)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 	const struct ar9287_cal_data_per_freq *pierdata;
 	const uint8_t *pierfreq;
 	struct athn_pier lopier, hipier;
@@ -308,10 +306,10 @@ ar9287_get_pdadcs(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9287_olpc_get_pdgain(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9287_olpc_get_pdgain(struct athn_common *ac, struct ieee80211_channel *c,
     int chain, int8_t *pwr)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 	const struct ar_cal_data_per_freq_olpc *pierdata;
 	const uint8_t *pierfreq;
 	uint8_t fbin;
@@ -335,9 +333,9 @@ ar9287_olpc_get_pdgain(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9287_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
+ar9287_set_power_calib(struct athn_common *ac, struct ieee80211_channel *c)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 	uint8_t boundaries[AR_PD_GAINS_IN_MASK];
 	uint8_t pdadcs[AR_NUM_PDADC_VALUES];
 	uint8_t xpdgains[AR9287_NUM_PD_GAINS];
@@ -346,16 +344,16 @@ ar9287_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 	uint32_t reg, offset;
 	int i, j, nxpdgains;
 
-	if (sc->sc_eep_rev < AR_EEP_MINOR_VER_2) {
+	if (ac->ac_eep_rev < AR_EEP_MINOR_VER_2) {
 		overlap = MS(AR_READ(sc, AR_PHY_TPCRG5),
 		    AR_PHY_TPCRG5_PD_GAIN_OVERLAP);
 	}
 	else
 		overlap = eep->modalHeader.pdGainOverlap;
 
-	if (sc->sc_flags & ATHN_FLAG_OLPC) {
+	if (ac->ac_flags & ATHN_FLAG_OLPC) {
 		/* XXX not here. */
-		sc->sc_pdadc =
+		ac->ac_pdadc =
 		    ((const struct ar_cal_data_per_freq_olpc *)
 		     eep->calPierData2G[0])->vpdPdg[0][0];
 	}
@@ -376,12 +374,12 @@ ar9287_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 	AR_WRITE_BARRIER(sc);
 
 	for (i = 0; i < AR9287_MAX_CHAINS; i++)	{
-		if (!(sc->sc_txchainmask & (1 << i)))
+		if (!(ac->ac_txchainmask & (1 << i)))
 			continue;
 
 		offset = i * 0x1000;
 
-		if (sc->sc_flags & ATHN_FLAG_OLPC) {
+		if (ac->ac_flags & ATHN_FLAG_OLPC) {
 			ar9287_olpc_get_pdgain(sc, c, i, &txpower);
 
 			reg = AR_READ(sc, AR_PHY_TX_PWRCTRL6_0);
@@ -432,10 +430,10 @@ ar9287_set_power_calib(struct athn_softc *sc, struct ieee80211_channel *c)
 }
 
 Static void
-ar9287_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
+ar9287_set_txpower(struct athn_common *ac, struct ieee80211_channel *c,
     struct ieee80211_channel *extc)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 #ifdef notyet
 	const struct ar9287_modal_eep_header *modal = &eep->modalHeader;
 #endif
@@ -460,7 +458,7 @@ ar9287_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 	 * Reduce scaled power by number of active chains to get per-chain
 	 * transmit power level.
 	 */
-	if (sc->sc_ntxchains == 2)
+	if (ac->ac_ntxchains == 2)
 		pwr -= AR_PWR_DECREASE_FOR_2_CHAIN;
 	if (pwr < 0)
 		pwr = 0;
@@ -519,7 +517,7 @@ ar9287_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 		power[ATHN_POWER_HT20(i)] = tpow_ht20[i];
 	if (extc != NULL) {
 		/* Correct PAR difference between HT40 and HT20/Legacy. */
-		if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2)
+		if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2)
 			ht40inc = modal->ht40PowerIncForPdadc;
 		else
 			ht40inc = AR_HT40_POWER_INC_FOR_PDADC;
@@ -543,7 +541,7 @@ ar9287_set_txpower(struct athn_softc *sc, struct ieee80211_channel *c,
 }
 
 Static void
-ar9287_olpc_init(struct athn_softc *sc)
+ar9287_olpc_init(struct athn_common *ac)
 {
 	uint32_t reg;
 
@@ -558,9 +556,9 @@ ar9287_olpc_init(struct athn_softc *sc)
 }
 
 Static void
-ar9287_olpc_temp_compensation(struct athn_softc *sc)
+ar9287_olpc_temp_compensation(struct athn_common *ac)
 {
-	const struct ar9287_eeprom *eep = sc->sc_eep;
+	const struct ar9287_eeprom *eep = ac->ac_eep;
 	int8_t pdadc, slope, tcomp;
 	uint32_t reg;
 
@@ -568,16 +566,16 @@ ar9287_olpc_temp_compensation(struct athn_softc *sc)
 	pdadc = MS(reg, AR_PHY_TX_PWRCTRL_PD_AVG_OUT);
 	DPRINTFN(DBG_RF, sc, "PD Avg Out=%d\n", pdadc);
 
-	if (sc->sc_pdadc == 0 || pdadc == 0)
+	if (ac->ac_pdadc == 0 || pdadc == 0)
 		return;	/* No frames transmitted yet. */
 
 	/* Compute Tx gain temperature compensation. */
-	if (sc->sc_eep_rev >= AR_EEP_MINOR_VER_2)
+	if (ac->ac_eep_rev >= AR_EEP_MINOR_VER_2)
 		slope = eep->baseEepHeader.tempSensSlope;
 	else
 		slope = 0;
 	if (slope != 0)	/* Prevents division by zero. */
-		tcomp = ((pdadc - sc->sc_pdadc) * 4) / slope;
+		tcomp = ((pdadc - ac->ac_pdadc) * 4) / slope;
 	else
 		tcomp = 0;
 	DPRINTFN(DBG_RF, sc, "OLPC temp compensation=%d\n", tcomp);
@@ -594,7 +592,7 @@ ar9287_olpc_temp_compensation(struct athn_softc *sc)
 }
 
 PUBLIC void
-ar9287_1_3_enable_async_fifo(struct athn_softc *sc)
+ar9287_1_3_enable_async_fifo(struct athn_common *ac)
 {
 
 	/* Enable ASYNC FIFO. */
@@ -609,7 +607,7 @@ ar9287_1_3_enable_async_fifo(struct athn_softc *sc)
 }
 
 PUBLIC void
-ar9287_1_3_setup_async_fifo(struct athn_softc *sc)
+ar9287_1_3_setup_async_fifo(struct athn_common *ac)
 {
 	uint32_t reg;
 

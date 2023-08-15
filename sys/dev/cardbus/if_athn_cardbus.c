@@ -49,8 +49,6 @@ __KERNEL_RCSID(0, "$NetBSD: if_athn_cardbus.c,v 1.3 2022/09/25 17:33:19 thorpej 
 #include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_regdomain.h>
 
-#include <dev/usb/usbwifi.h>
-
 #include <dev/ic/athnreg.h>
 #include <dev/ic/athnvar.h>
 
@@ -134,7 +132,7 @@ athn_cardbus_attach(device_t parent, device_t self, void *aux)
 {
 	struct athn_cardbus_softc *csc = device_private(self);
 	struct athn_softc *sc = &csc->csc_sc;
-	struct ieee80211com *ic = &sc->sc_real_ic;
+	struct ieee80211com *ic = &sc->sc_ic;
 	struct cardbus_attach_args *ca = aux;
 	cardbus_devfunc_t ct = ca->ca_ct;
 	bus_addr_t base;

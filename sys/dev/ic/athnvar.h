@@ -383,113 +383,108 @@ struct athn_softc;
 
 struct athn_ops {
 	/* Bus callbacks. */
-	uint32_t	(*read)(struct athn_softc *, uint32_t);
-	void		(*write)(struct athn_softc *, uint32_t, uint32_t);
-	void		(*write_barrier)(struct athn_softc *);
+	uint32_t	(*read)(struct athn_common *, uint32_t);
+	void		(*write)(struct athn_common *, uint32_t, uint32_t);
+	void		(*write_barrier)(struct athn_common *);
 
-	void	(*setup)(struct athn_softc *);
-	void	(*set_txpower)(struct athn_softc *, struct ieee80211_channel *,
+	void	(*setup)(struct athn_common *);
+	void	(*set_txpower)(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-	void	(*spur_mitigate)(struct athn_softc *,
+	void	(*spur_mitigate)(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 	const struct ar_spur_chan *
-		(*get_spur_chans)(struct athn_softc *, int);
-	void	(*init_from_rom)(struct athn_softc *,
+		(*get_spur_chans)(struct athn_common *, int);
+	void	(*init_from_rom)(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-	int	(*set_synth)(struct athn_softc *, struct ieee80211_channel *,
+	int	(*set_synth)(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-	int	(*read_rom_data)(struct athn_softc *, uint32_t, void *, int);
+	int	(*read_rom_data)(struct athn_common *, uint32_t, void *, int);
 	const uint8_t *
-		(*get_rom_template)(struct athn_softc *, uint8_t);
-	void	(*swap_rom)(struct athn_softc *);
-	void	(*olpc_init)(struct athn_softc *);
-	void	(*olpc_temp_compensation)(struct athn_softc *);
+		(*get_rom_template)(struct athn_common *, uint8_t);
+	void	(*swap_rom)(struct athn_common *);
+	void	(*olpc_init)(struct athn_common *);
+	void	(*olpc_temp_compensation)(struct athn_common *);
 
 	/* GPIO callbacks. */
-	int	(*gpio_read)(struct athn_softc *, int);
-	void	(*gpio_write)(struct athn_softc *, int, int);
-	void	(*gpio_config_input)(struct athn_softc *, int);
-	void	(*gpio_config_output)(struct athn_softc *, int, int);
-	void	(*rfsilent_init)(struct athn_softc *);
+	int	(*gpio_read)(struct athn_common *, int);
+	void	(*gpio_write)(struct athn_common *, int, int);
+	void	(*gpio_config_input)(struct athn_common *, int);
+	void	(*gpio_config_output)(struct athn_common *, int, int);
+	void	(*rfsilent_init)(struct athn_common *);
 
 	/* DMA callbacks. */
-	int	(*dma_alloc)(struct athn_softc *);
-	void	(*dma_free)(struct athn_softc *);
-	void	(*rx_enable)(struct athn_softc *);
-	int	(*intr_status)(struct athn_softc *);
-	int	(*intr)(struct athn_softc *);
+	int	(*dma_alloc)(struct athn_common *);
+	void	(*dma_free)(struct athn_common *);
+	void	(*rx_enable)(struct athn_common *);
+	int	(*intr_status)(struct athn_common *);
+	int	(*intr)(struct athn_common *);
 	int	(*tx)(struct ieee80211_node *, struct mbuf *,
 		    const struct ieee80211_bpf_params *);
 
 	/* PHY callbacks. */
-	void	(*set_rf_mode)(struct athn_softc *,
+	void	(*set_rf_mode)(struct athn_common *,
 		    struct ieee80211_channel *);
-	int	(*rf_bus_request)(struct athn_softc *);
-	void	(*rf_bus_release)(struct athn_softc *);
-	void	(*set_phy)(struct athn_softc *, struct ieee80211_channel *,
+	int	(*rf_bus_request)(struct athn_common *);
+	void	(*rf_bus_release)(struct athn_common *);
+	void	(*set_phy)(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-	void	(*set_delta_slope)(struct athn_softc *,
+	void	(*set_delta_slope)(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-	void	(*enable_antenna_diversity)(struct athn_softc *);
-	void	(*init_baseband)(struct athn_softc *);
-	void	(*disable_phy)(struct athn_softc *);
-	void	(*set_rxchains)(struct athn_softc *);
-	void	(*noisefloor_calib)(struct athn_softc *);
-	void	(*do_calib)(struct athn_softc *);
-	void	(*next_calib)(struct athn_softc *);
-	void	(*hw_init)(struct athn_softc *, struct ieee80211_channel *,
+	void	(*enable_antenna_diversity)(struct athn_common *);
+	void	(*init_baseband)(struct athn_common *);
+	void	(*disable_phy)(struct athn_common *);
+	void	(*set_rxchains)(struct athn_common *);
+	void	(*noisefloor_calib)(struct athn_common *);
+	void	(*do_calib)(struct athn_common *);
+	void	(*next_calib)(struct athn_common *);
+	void	(*hw_init)(struct athn_common *, struct ieee80211_channel *,
 		    struct ieee80211_channel *);
-	void	(*get_paprd_masks)(struct athn_softc *sc,
+	void	(*get_paprd_masks)(struct athn_common *sc,
 		    struct ieee80211_channel *, uint32_t *, uint32_t *);
 
 	/* ANI callbacks. */
-	void	(*set_noise_immunity_level)(struct athn_softc *, int);
-	void	(*enable_ofdm_weak_signal)(struct athn_softc *);
-	void	(*disable_ofdm_weak_signal)(struct athn_softc *);
-	void	(*set_cck_weak_signal)(struct athn_softc *, int);
-	void	(*set_firstep_level)(struct athn_softc *, int);
-	void	(*set_spur_immunity_level)(struct athn_softc *, int);
+	void	(*set_noise_immunity_level)(struct athn_common *, int);
+	void	(*enable_ofdm_weak_signal)(struct athn_common *);
+	void	(*disable_ofdm_weak_signal)(struct athn_common *);
+	void	(*set_cck_weak_signal)(struct athn_common *, int);
+	void	(*set_firstep_level)(struct athn_common *, int);
+	void	(*set_spur_immunity_level)(struct athn_common *, int);
 };
 
 struct athn_softc {
-	union {
-		/*
-		 * Probably a better alternative:  Only ic here, uw at the
-		 * beginning of athn_usb_softc.  Then always use usc->usc_sc
-		 * instead of casting with ATHN_SOFTC.
-		 *
-		 * Probably the best alternative:  Don't use athn_softc for USB.
-		 * Make a smaller struct with common data, or exclusively for
-		 * the methods in athn_ops.  sc_ic as before.
-		 */
-		struct ieee80211com		sc_real_ic;
-		struct usbwifi			sc_uw;
-	};
 	device_t			sc_dev;
 	device_suspensor_t		sc_suspensor;
 	pmf_qual_t			sc_qual;
-	struct ieee80211com		*sc_ic;
+	struct ieee80211com		sc_ic;
 	struct ethercom			sc_ec;
 #define sc_if	sc_ec.ec_if
 	struct ifaltq			sc_sendq;
 	void				*sc_soft_ih;
+	struct athn_rxq			sc_rxq[2];
+	struct athn_txq			sc_txq[31];
+	struct athn_common		sc_ac;
+};
 
+struct athn_common {
+	device_t			ac_dev;
+	struct ieee80211com		*ac_ic;
+	void				*ac_softc;
 #if 0
-	int				(*sc_enable)(struct athn_softc *);
-	void				(*sc_disable)(struct athn_softc *);
-	void				(*sc_power)(struct athn_softc *, int);
+	int				(*ac_enable)(struct athn_softc *);
+	void				(*ac_disable)(struct athn_softc *);
+	void				(*ac_power)(struct athn_softc *, int);
 #endif
-	void				(*sc_disable_aspm)(struct athn_softc *);
-	void				(*sc_enable_extsynch)(
+	void				(*ac_disable_aspm)(struct athn_softc *);
+	void				(*ac_enable_extsynch)(
 					    struct athn_softc *);
 
-	bus_dma_tag_t			sc_dmat;
+	bus_dma_tag_t			ac_dmat;
 
-	callout_t			sc_scan_to;
-	callout_t			sc_calib_to;
-	callout_t			sc_watchdog_to;
+	callout_t			ac_scan_to;
+	callout_t			ac_calib_to;
+	callout_t			ac_watchdog_to;
 
-	u_int				sc_flags;
+	u_int				ac_flags;
 #define ATHN_FLAG_PCIE			(1 << 0)
 #define ATHN_FLAG_USB			(1 << 1)
 #define ATHN_FLAG_OLPC			(1 << 2)
@@ -509,154 +504,153 @@ struct athn_softc {
 #define ATHN_FLAG_3TREDUCE_CHAIN	(1 << 14)
 #define ATHN_FLAG_TX_BUSY		(1 << 15)
 
-	uint8_t				sc_ngpiopins;
-	int				sc_led_pin;
-	int				sc_rfsilent_pin;
-	int				sc_led_state;
-	uint32_t			sc_isync;
-	uint32_t			sc_imask;
+	uint8_t				ac_ngpiopins;
+	int				ac_led_pin;
+	int				ac_rfsilent_pin;
+	int				ac_led_state;
+	uint32_t			ac_isync;
+	uint32_t			ac_imask;
 
-	uint16_t			sc_mac_ver;
-	uint8_t				sc_mac_rev;
-	uint8_t				sc_rf_rev;
-	uint16_t			sc_eep_rev;
+	uint16_t			ac_mac_ver;
+	uint8_t				ac_mac_rev;
+	uint8_t				ac_rf_rev;
+	uint16_t			ac_eep_rev;
 
-	uint8_t				sc_txchainmask;
-	uint8_t				sc_rxchainmask;
-	uint8_t				sc_ntxchains;
-	uint8_t				sc_nrxchains;
+	uint8_t				ac_txchainmask;
+	uint8_t				ac_rxchainmask;
+	uint8_t				ac_ntxchains;
+	uint8_t				ac_nrxchains;
 
-	uint8_t				sc_sup_calib_mask;
-	uint8_t				sc_cur_calib_mask;
+	uint8_t				ac_sup_calib_mask;
+	uint8_t				ac_cur_calib_mask;
 #define ATHN_CAL_IQ		(1 << 0)
 #define ATHN_CAL_ADC_GAIN	(1 << 1)
 #define ATHN_CAL_ADC_DC		(1 << 2)
 #define ATHN_CAL_TEMP		(1 << 3)
 
-	struct ieee80211_channel	*sc_curchan;
-	struct ieee80211_channel	*sc_curchanext;
+	struct ieee80211_channel	*ac_curchan;
+	struct ieee80211_channel	*ac_curchanext;
 
 	/* Open Loop Power Control. */
-	int8_t				sc_tx_gain_tbl[AR9280_TX_GAIN_TABLE_SIZE];
-	int8_t				sc_pdadc;
-	int8_t				sc_tcomp;
-	int				sc_olpc_ticks;
+	int8_t				ac_tx_gain_tbl[AR9280_TX_GAIN_TABLE_SIZE];
+	int8_t				ac_pdadc;
+	int8_t				ac_tcomp;
+	int				ac_olpc_ticks;
 
 	/* PA predistortion. */
-	uint16_t			sc_gain1[AR_MAX_CHAINS];
-	uint32_t			sc_txgain[AR9003_TX_GAIN_TABLE_SIZE];
-	int16_t				sc_pa_in[AR_MAX_CHAINS]
+	uint16_t			ac_gain1[AR_MAX_CHAINS];
+	uint32_t			ac_txgain[AR9003_TX_GAIN_TABLE_SIZE];
+	int16_t				ac_pa_in[AR_MAX_CHAINS]
 					     [AR9003_PAPRD_MEM_TAB_SIZE];
-	int16_t				sc_angle[AR_MAX_CHAINS]
+	int16_t				ac_angle[AR_MAX_CHAINS]
 					     [AR9003_PAPRD_MEM_TAB_SIZE];
-	int32_t				sc_trainpow;
-	uint8_t				sc_paprd_curchain;
+	int32_t				ac_trainpow;
+	uint8_t				ac_paprd_curchain;
 
-	uint32_t			sc_rwbuf[64];
+	uint32_t			ac_rwbuf[64];
 
-	size_t				sc_kc_entries;
+	size_t				ac_kc_entries;
 
-	void				*sc_eep;
-	const void			*sc_eep_def;
-	uint32_t			sc_eep_base;
-	uint32_t			sc_eep_size;
+	void				*ac_eep;
+	const void			*ac_eep_def;
+	uint32_t			ac_eep_base;
+	uint32_t			ac_eep_size;
 
-	struct athn_rxq			sc_rxq[2];
-	struct athn_txq			sc_txq[31];
+	void				*ac_descs;
+	bus_dmamap_t			ac_map;
+	bus_dma_segment_t		ac_seg;
+	SIMPLEQ_HEAD(, athn_tx_buf)	ac_txbufs;
+	struct athn_tx_buf		*ac_bcnbuf;
+	struct athn_tx_buf		ac_txpool[ATHN_NTXBUFS];
 
-	void				*sc_descs;
-	bus_dmamap_t			sc_map;
-	bus_dma_segment_t		sc_seg;
-	SIMPLEQ_HEAD(, athn_tx_buf)	sc_txbufs;
-	struct athn_tx_buf		*sc_bcnbuf;
-	struct athn_tx_buf		sc_txpool[ATHN_NTXBUFS];
+	bus_dmamap_t			ac_txsmap;
+	bus_dma_segment_t		ac_txsseg;
+	void				*ac_txsring;
+	int				ac_txscur;
 
-	bus_dmamap_t			sc_txsmap;
-	bus_dma_segment_t		sc_txsseg;
-	void				*sc_txsring;
-	int				sc_txscur;
+	u_short				ac_if_flags;
+	int				ac_tx_timer;
 
-	u_short				sc_if_flags;
-	int				sc_tx_timer;
+	const struct athn_ini		*ac_ini;
+	const struct athn_gain		*ac_rx_gain;
+	const struct athn_gain		*ac_tx_gain;
+	const struct athn_addac		*ac_addac;
+	const struct athn_serdes	*ac_serdes;
+	uint32_t			ac_workaround;
+	uint32_t			ac_obs_off;
+	uint32_t			ac_gpio_input_en_off;
 
-	const struct athn_ini		*sc_ini;
-	const struct athn_gain		*sc_rx_gain;
-	const struct athn_gain		*sc_tx_gain;
-	const struct athn_addac		*sc_addac;
-	const struct athn_serdes	*sc_serdes;
-	uint32_t			sc_workaround;
-	uint32_t			sc_obs_off;
-	uint32_t			sc_gpio_input_en_off;
+	struct athn_ops			ac_ops;
 
-	struct athn_ops			sc_ops;
+	int				ac_fixed_ridx;
 
-	int				sc_fixed_ridx;
-
-	int16_t				sc_cca_min_2g;
-	int16_t				sc_cca_max_2g;
-	int16_t				sc_cca_min_5g;
-	int16_t				sc_cca_max_5g;
-	int16_t				sc_def_nf;
+	int16_t				ac_cca_min_2g;
+	int16_t				ac_cca_max_2g;
+	int16_t				ac_cca_min_5g;
+	int16_t				ac_cca_max_5g;
+	int16_t				ac_def_nf;
 	struct {
 		int16_t	nf[AR_MAX_CHAINS];
 		int16_t	nf_ext[AR_MAX_CHAINS];
-	}				sc_nf_hist[ATHN_NF_CAL_HIST_MAX];
-	int				sc_nf_hist_cur;
-	int16_t				sc_nf_priv[AR_MAX_CHAINS];
-	int16_t				sc_nf_ext_priv[AR_MAX_CHAINS];
-	int				sc_pa_calib_ticks;
+	}				ac_nf_hist[ATHN_NF_CAL_HIST_MAX];
+	int				ac_nf_hist_cur;
+	int16_t				ac_nf_priv[AR_MAX_CHAINS];
+	int16_t				ac_nf_ext_priv[AR_MAX_CHAINS];
+	int				ac_pa_calib_ticks;
 
-	struct athn_calib		sc_calib;
-	struct athn_ani			sc_ani;
+	struct athn_calib		ac_calib;
+	struct athn_ani			ac_ani;
 
-	struct bpf_if *			sc_drvbpf;
+	struct bpf_if *			ac_drvbpf;
 
 	union {
 		struct athn_rx_radiotap_header th;
 		uint8_t pad[IEEE80211_RADIOTAP_HDRLEN];
-	} sc_rxtapu;
-#define sc_rxtap			sc_rxtapu.th
-	int				sc_rxtap_len;
+	} ac_rxtapu;
+#define ac_rxtap			ac_rxtapu.th
+	int				ac_rxtap_len;
 
 	union {
 		struct athn_tx_radiotap_header th;
 		uint8_t pad[IEEE80211_RADIOTAP_HDRLEN];
-	} sc_txtapu;
-#define sc_txtap			sc_txtapu.th
-	int				sc_txtap_len;
+	} ac_txtapu;
+#define ac_txtap			ac_txtapu.th
+	int				ac_txtap_len;
 
 	/*
 	 * Attach overrides.  Set before calling athn_attach().
 	 */
-	int				sc_max_aid;
-	int				(*sc_media_change)(struct ifnet *);
+	int				ac_max_aid;
+	int				(*ac_media_change)(struct ifnet *);
 };
 
 int	athn_attach(struct athn_softc *);
+int	athn_attach_common(struct athn_common *);
 void	athn_detach(struct athn_softc *);
+void	athn_detach_common(struct athn_common *);
 void	athn_suspend(struct athn_softc *);
 bool	athn_resume(struct athn_softc *);
 int	athn_intr(void *);
 void athn_start(struct athn_softc *);
 
 /* used by if_athn_usb.c */
-void	athn_btcoex_init(struct athn_softc *);
-int	athn_hw_reset(struct athn_softc *, struct ieee80211_channel *,
+void	athn_btcoex_init(struct athn_common *);
+int	athn_hw_reset(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *, int);
-void	athn_init_pll(struct athn_softc *, const struct ieee80211_channel *);
-void	athn_led_init(struct athn_softc *);
-int	athn_reset(struct athn_softc *, int);
-void	athn_reset_key(struct athn_softc *, int);
-void	athn_rx_start(struct athn_softc *);
-void	athn_set_bss(struct athn_softc *, struct ieee80211_node *);
-int	athn_set_chan(struct athn_softc *, struct ieee80211_channel *,
+void	athn_init_pll(struct athn_common *, const struct ieee80211_channel *);
+void	athn_led_init(struct athn_common *);
+int	athn_reset(struct athn_common *, int);
+void	athn_reset_key(struct athn_common *, int);
+void	athn_rx_start(struct athn_common *);
+void	athn_set_bss(struct athn_common *, struct ieee80211_node *);
+int	athn_set_chan(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
 void	athn_set_hostap_timers(struct ieee80211vap *);
-void	athn_set_led(struct athn_softc *, int);
-void	athn_set_opmode(struct athn_softc *);
-int	athn_set_power_awake(struct athn_softc *);
-void	athn_set_power_sleep(struct athn_softc *);
-void	athn_set_rxfilter(struct athn_softc *, uint32_t);
+void	athn_set_led(struct athn_common *, int);
+void	athn_set_opmode(struct athn_common *);
+int	athn_set_power_awake(struct athn_common *);
+void	athn_set_power_sleep(struct athn_common *);
+void	athn_set_rxfilter(struct athn_common *, uint32_t);
 void	athn_set_sta_timers(struct ieee80211vap *);
 void	athn_updateslot(struct ieee80211com *);
 
