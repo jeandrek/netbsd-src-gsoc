@@ -160,6 +160,13 @@ Static void	athn_usb_wmieof(struct usbd_xfer *, void *,
 		    usbd_status);
 Static void	athn_usb_write(struct athn_common *, uint32_t, uint32_t);
 Static void	athn_usb_write_barrier(struct athn_usb_softc *);
+Static void	athn_usb_get_radiocaps(struct ieee80211com *, int, int *,
+		    struct ieee80211_channel []);
+Static struct ieee80211vap *
+		athn_usb_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
+		    int, enum ieee80211_opmode, int,
+		    const uint8_t [IEEE80211_ADDR_LEN],
+		    const uint8_t [IEEE80211_ADDR_LEN]);
 
 /************************************************************************
  * unused/notyet declarations
@@ -257,6 +264,7 @@ athn_usb_attach(device_t parent, device_t self, void *aux)
 	uaa = aux;
 	ac->ac_dev = self;
 	ac->ac_ic = usbwifi_ic(&usc->usc_uw);
+	ac->ac_softc = usc;
 	usc->usc_uw.uw_ac = usc;
 	usc->usc_uw.uw_dev = self;
 	usc->usc_uw.uw_udev = uaa->uaa_device;
@@ -425,6 +433,8 @@ athn_usb_attachhook(device_t arg)
 	//ac->ac_media_change = athn_usb_media_change;
 
 	/* Override some operations for USB. */
+	ic->ic_getradiocaps = athn_usb_get_radiocaps;
+	ic->ic_vap_create = athn_usb_vap_create;
 	//ic->ic_parent = athn_usb_parent;
 	//ic->ic_transmit = athn_usb_transmit;
 	//ic->ic_raw_xmit = athn_usb_raw_xmit;
@@ -1303,6 +1313,16 @@ athn_usb_write_barrier(struct athn_usb_softc *usc)
 	    usc->usc_wbuf, usc->usc_wcount * sizeof(usc->usc_wbuf[0]), NULL);
  done:
 	usc->usc_wcount = 0;	/* Always flush buffer. */
+}
+
+Static void
+athn_usb_get_radiocaps(struct ieee80211com *ic,
+    int maxchans, int *nchans,
+    struct ieee80211_channel chans[])
+{
+	struct athn_usb_softc *usc = ic->ic_softc;
+	struct athn_common *ac = &usc->usc_ac;
+	athn_get_radiocaps_common(ac, ic, maxchans, nchans. chans);
 }
 
 #if 0
@@ -2805,6 +2825,18 @@ athn_usb_stop_locked(struct usbwifi *uw)
 	athn_reset(ac, 1);
 	athn_init_pll(ac, NULL);
 	athn_set_power_sleep(ac);
+}
+
+static struct ieee80211vap *
+athn_usb_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
+    int unit, enum ieee80211_opmode opmode, int flags,
+    const uint8_t bssid[IEEE80211_ADDR_LEN],
+    const uint8_t macaddr[IEEE80211_ADDR_LEN])
+{
+	struct athn_usb_softc *usc = ic->ic_softc;
+	struct athn_common *ac = &usc->usc_ac;
+	return athn_vap_create_common(ac, ic, name, unit, opmode,
+			flags, bssid, macaddr);
 }
 
 MODULE(MODULE_CLASS_DRIVER, if_athn_usb, NULL);

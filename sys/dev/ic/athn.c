@@ -87,23 +87,23 @@ Static const char *
 Static const char *
 		athn_get_rf_name(struct athn_softc *);
 Static int	athn_init(struct athn_softc *);
-Static int	athn_init_calib(struct athn_softc *,
+Static int	athn_init_calib(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static void	athn_set_channel(struct ieee80211com *);
 Static int	athn_newstate(struct ieee80211vap *, enum ieee80211_state,
 		    int);
 Static struct ieee80211_node *
 		athn_node_alloc(struct ieee80211vap *, const uint8_t *);
-Static int	athn_reset_power_on(struct athn_softc *);
+Static int	athn_reset_power_on(struct athn_common *);
 Static int	athn_stop_rx_dma(struct athn_softc *);
 Static int	athn_switch_chan(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static void	athn_calib_to(void *);
-Static void	athn_disable_interrupts(struct athn_softc *);
-Static void	athn_enable_interrupts(struct athn_softc *);
+Static void	athn_disable_interrupts(struct athn_common *);
+Static void	athn_enable_interrupts(struct athn_common *);
 Static void	athn_get_chipid(struct athn_common *);
 Static void	athn_init_dma(struct athn_common *);
-Static void	athn_init_qos(struct athn_softc *);
+Static void	athn_init_qos(struct athn_common *);
 Static void	athn_init_tx_queues(struct athn_softc *);
 Static void	athn_newassoc(struct ieee80211_node *, int);
 Static void	athn_next_scan(void *);
@@ -117,8 +117,8 @@ Static void	athn_write_serdes(struct athn_softc *,
 Static void	athn_softintr(void *);
 Static void	athn_parent(struct ieee80211com *);
 Static int	athn_transmit(struct ieee80211com *, struct mbuf *);
-Static void	athn_get_radiocaps(struct ieee80211com *,
-		    int, int *, struct ieee80211_channel []);
+Static void	athn_get_radiocaps(struct ieee80211com *, int, int *,
+		    struct ieee80211_channel []);
 Static struct ieee80211vap *
 		athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
 		    int, enum ieee80211_opmode, int,
@@ -127,8 +127,8 @@ Static struct ieee80211vap *
 Static void athn_vap_delete(struct ieee80211vap *);
 
 #ifdef ATHN_BT_COEXISTENCE
-Static void	athn_btcoex_disable(struct athn_softc *);
-Static void	athn_btcoex_enable(struct athn_softc *);
+Static void	athn_btcoex_disable(struct athn_common *);
+Static void	athn_btcoex_enable(struct athn_common *);
 #endif
 
 #ifdef unused
@@ -160,6 +160,7 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_softc = sc;
 	sc->sc_ac.ac_dev = sc->sc_dev;
 	sc->sc_ac.ac_ic = &sc->sc_ic;
+	sc->sc_ac.ac_softc = sc;
 
 	if ((error = athn_attach_common(&sc->sc_ac)) != 0)
 		return error;
@@ -268,7 +269,7 @@ athn_attach_common(struct athn_common *ac)
 		    ether_sprintf(ic->ic_macaddr));
 	} else {
 		aprint_normal(": Atheros %s, RF %s\n", athn_get_mac_name(sc),
-		    athn_get_rf_name(sc));
+		    athn_get_rf_name(ac));
 		aprint_verbose_dev(sc->sc_dev,
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    ac->ac_mac_rev,
@@ -355,7 +356,7 @@ athn_attach_common(struct athn_common *ac)
 	ic->ic_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
 
 	/* Get the list of authorized/supported channels. */
-	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,
+	athn_get_radiocaps_common(ac, ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,
 	    ic->ic_channels);
 
 	ic->ic_name = device_xname(sc->sc_dev);
@@ -471,6 +472,7 @@ PUBLIC void
 athn_rx_start(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_common *ac = &sc->sc_ac;
 	uint32_t rfilt;
 
 	/* Setup Rx DMA descriptors. */
@@ -524,9 +526,8 @@ athn_rx_start(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_set_rxfilter(struct athn_softc *sc, uint32_t rfilt)
+athn_set_rxfilter(struct athn_common *ac, uint32_t rfilt)
 {
-
 	AR_WRITE(ac, AR_RX_FILTER, rfilt);
 #ifdef notyet
 	reg = AR_READ(ac, AR_PHY_ERR);
@@ -548,6 +549,7 @@ PUBLIC int
 athn_intr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
+	struct athn_common *ac = &sc->sc_ac;
 
 	/* XXX check ic_nrunning?
 	if (!IS_UP_AND_RUNNING(i*fp))
@@ -577,6 +579,7 @@ Static void
 athn_softintr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
+	struct athn_common *ac = &sc->sc_ac;
 
 	/* XXX check ic_nrunning?
 	if (!IS_UP_AND_RUNNING(i*fp))
@@ -648,7 +651,7 @@ athn_get_mac_name(struct athn_softc *sc)
  * Return RF chip name (not for single-chip solutions).
  */
 Static const char *
-athn_get_rf_name(struct athn_softc *sc)
+athn_get_rf_name(struct athn_common *ac)
 {
 
 	KASSERT(!AR_SINGLE_CHIP(ac));
@@ -843,6 +846,7 @@ athn_init_pll(struct athn_common *ac, const struct ieee80211_channel *c)
 Static void
 athn_write_serdes(struct athn_softc *sc, const struct athn_serdes *serdes)
 {
+	struct athn_common *ac = &sc->sc_ac;
 	int i;
 
 	/* Write sequence to Serializer/Deserializer. */
@@ -960,7 +964,7 @@ athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	int error, qid;
 
 	/* Disable interrupts. */
-	athn_disable_interrupts(sc);
+	athn_disable_interrupts(ac);
 
 	/* Stop all Tx queues. */
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++)
@@ -1006,7 +1010,7 @@ athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	athn_rx_start(ac);
 
 	/* Re-enable interrupts. */
-	athn_enable_interrupts(sc);
+	athn_enable_interrupts(ac);
 	return 0;
 }
 
@@ -1221,7 +1225,7 @@ athn_btcoex_init(struct athn_common *ac)
 }
 
 Static void
-athn_btcoex_enable(struct athn_softc *sc)
+athn_btcoex_enable(struct athn_common *ac)
 {
 	struct athn_ops *ops = &ac->ac_ops;
 	uint32_t reg;
@@ -1260,13 +1264,13 @@ athn_btcoex_enable(struct athn_softc *sc)
 
 	/* Disable PCIe Active State Power Management (ASPM). */
 	if (ac->ac_disable_aspm != NULL)
-		ac->ac_disable_aspm(sc);
+		ac->ac_disable_aspm(ac);
 
 	/* XXX Start periodic timer. */
 }
 
 Static void
-athn_btcoex_disable(struct athn_softc *sc)
+athn_btcoex_disable(struct athncommon *ac)
 {
 	struct athn_ops *ops = &ac->ac_ops;
 
@@ -1343,7 +1347,7 @@ athn_calib_to(void *arg)
 }
 
 Static int
-athn_init_calib(struct athn_softc *sc, struct ieee80211_channel *curchan,
+athn_init_calib(struct athn_common *ac, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan)
 {
 	struct athn_ops *ops = &ac->ac_ops;
@@ -2106,7 +2110,7 @@ athn_set_opmode(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_set_bss(struct athn_softc *sc, struct ieee80211_node *ni)
+athn_set_bss(struct athn_common *ac, struct ieee80211_node *ni)
 {
 	const uint8_t *bssid = ni->ni_bssid;
 
@@ -2117,11 +2121,11 @@ athn_set_bss(struct athn_softc *sc, struct ieee80211_node *ni)
 }
 
 Static void
-athn_enable_interrupts(struct athn_softc *sc)
+athn_enable_interrupts(struct athn_common *ac)
 {
 	uint32_t mask2;
 
-	athn_disable_interrupts(sc);	/* XXX */
+	athn_disable_interrupts(ac);	/* XXX */
 
 	AR_WRITE(ac, AR_IMR, ac->ac_imask);
 
@@ -2144,7 +2148,7 @@ athn_enable_interrupts(struct athn_softc *sc)
 }
 
 Static void
-athn_disable_interrupts(struct athn_softc *sc)
+athn_disable_interrupts(struct athn_common *ac)
 {
 
 	AR_WRITE(ac, AR_IER, 0);
@@ -2167,7 +2171,7 @@ athn_disable_interrupts(struct athn_softc *sc)
 }
 
 Static void
-athn_init_qos(struct athn_softc *sc)
+athn_init_qos(struct athn_common *ac)
 {
 
 	/* Initialize QoS settings. */
@@ -2187,10 +2191,10 @@ athn_init_qos(struct athn_softc *sc)
 }
 
 PUBLIC int
-athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
+athn_hw_reset(struct athn_common *ac, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan, int init)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct athn_ops *ops = &ac->ac_ops;
 	uint32_t reg, def_ant, sta_id1, cfg_led, tsflo, tsfhi;
 	int i, error;
@@ -2224,7 +2228,7 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 		tsflo = AR_READ(ac, AR_TSF_L32);
 
 		/* NB: RTC reset clears TSF. */
-		error = athn_reset_power_on(sc);
+		error = athn_reset_power_on(ac);
 	} else {
 		tsfhi = tsflo = 0;	/* XXX: gcc */
 		error = athn_reset(ac, 0);
@@ -2331,7 +2335,8 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	for (i = 0; i < AR_NUM_DCU; i++)
 		AR_WRITE(ac, AR_DQCUMASK(i), 1 << i);
 
-	athn_init_tx_queues(sc);
+	if (!(ac->ac_flags & ATHN_FLAG_USB))
+		athn_init_tx_queues(ac->ac_softc);
 
 	/* Initialize interrupt mask. */
 	ac->ac_imask =
@@ -2360,7 +2365,7 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 		AR_WRITE(ac, AR_INTR_PRIO_SYNC_MASK, 0);
 	}
 
-	athn_init_qos(sc);
+	athn_init_qos(ac);
 
 	AR_SETBITS(ac, AR_PCU_MISC, AR_PCU_MIC_NEW_LOC_ENA);
 
@@ -2380,7 +2385,7 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 
 	ops->init_baseband(ac);
 
-	if ((error = athn_init_calib(sc, curchan, extchan)) != 0) {
+	if ((error = athn_init_calib(ac, curchan, extchan)) != 0) {
 		aprint_error_dev(sc->sc_dev,
 		    "could not initialize calibration\n");
 		return error;
@@ -2558,7 +2563,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		athn_newassoc(vap->iv_bss, 1);
 
 		athn_set_bss(ac, vap->iv_bss);
-		athn_disable_interrupts(sc);
+		athn_disable_interrupts(ac);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
 			athn_set_hostap_timers(vap);
@@ -2578,7 +2583,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 			AR_WRITE(ac, AR_RX_FILTER, reg);
 			AR_WRITE_BARRIER(ac);
 		}
-		athn_enable_interrupts(sc);
+		athn_enable_interrupts(ac);
 
 		if (ac->ac_sup_calib_mask != 0) {
 			memset(&ac->ac_calib, 0, sizeof(ac->ac_calib));
@@ -2655,6 +2660,7 @@ PUBLIC void
 athn_updateslot(struct ieee80211com *ic)
 {
 	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = &sc->sc_ac;
 	int slot;
 
 	slot = (ic->ic_flags & IEEE80211_F_SHSLOT) ? 9 : 20;
@@ -2665,6 +2671,7 @@ athn_updateslot(struct ieee80211com *ic)
 void
 athn_start(struct athn_softc *sc)
 {
+	struct athn_common *ac = &sc->sc_ac;
 	struct ieee80211vap *vap = NULL;
 	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
@@ -2898,7 +2905,7 @@ athn_init(struct athn_softc *sc)
 			    "could not enable device\n");
 			goto fail;
 		}
-		if ((error = athn_reset_power_on(sc)) != 0) {
+		if ((error = athn_reset_power_on(ac)) != 0) {
 			aprint_error_dev(sc->sc_dev,
 			    "could not power on device\n");
 			goto fail;
@@ -2939,7 +2946,7 @@ athn_init(struct athn_softc *sc)
 	athn_rx_start(ac);
 
 	/* Enable interrupts. */
-	athn_enable_interrupts(sc);
+	athn_enable_interrupts(ac);
 
 #ifdef ATHN_BT_COEXISTENCE
 	/* Enable bluetooth coexistence for combo chips. */
@@ -2999,7 +3006,7 @@ athn_stop(struct athn_softc *sc, int disable)
 #endif
 
 	/* Disable interrupts. */
-	athn_disable_interrupts(sc);
+	athn_disable_interrupts(ac);
 	/* Acknowledge interrupts (avoids interrupt storms). */
 	AR_WRITE(ac, AR_INTR_SYNC_CAUSE, 0xffffffff);
 	AR_WRITE(ac, AR_INTR_SYNC_MASK, 0);
@@ -3068,6 +3075,7 @@ static int
 athn_transmit(struct ieee80211com *ic, struct mbuf *m)
 {
 	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = &sc->sc_ac;
 	int s;
 
 	DPRINTFN(5, ("%s: %s\n",ic->ic_name, __func__));
@@ -3080,11 +3088,19 @@ athn_transmit(struct ieee80211com *ic, struct mbuf *m)
 	return 0;
 }
 
-static void
+Static void
 athn_get_radiocaps(struct ieee80211com *ic,
      int maxchans, int *nchans, struct ieee80211_channel chans[])
 {
 	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = &sc->sc_ac;
+	athn_get_radiocaps_common(ac, ic, maxchans, nchans, chans);
+}
+
+PUBLIC void
+athn_get_radiocaps_common(struct athn_common *ac, struct ieee80211com *ic,
+     int maxchans, int *nchans, struct ieee80211_channel chans[])
+{
 	uint8_t bands[IEEE80211_MODE_BYTES];
 
 	/* XXX correct way to check for 5ghz? */
@@ -3123,20 +3139,32 @@ athn_parent(struct ieee80211com *ic)
 		ieee80211_start_all(ic);
 }
 
-static struct ieee80211vap *
+Static struct ieee80211vap *
 athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
     int unit, enum ieee80211_opmode opmode, int flags,
     const uint8_t bssid[IEEE80211_ADDR_LEN],
     const uint8_t macaddr[IEEE80211_ADDR_LEN])
 {
-	struct athn_vap *vap;
 	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = &sc->sc_ac;
+	return athn_vap_create_common(ac, ic, name, unit, opmode,
+			flags, bssid, macaddr);
+}
+
+PUBLIC struct ieee80211vap *
+athn_vap_create_common(struct athn_common *ac,
+    struct ieee80211com *ic,  const char name[IFNAMSIZ],
+    int unit, enum ieee80211_opmode opmode, int flags,
+    const uint8_t bssid[IEEE80211_ADDR_LEN],
+    const uint8_t macaddr[IEEE80211_ADDR_LEN])
+{
+	struct athn_vap *vap;
 	struct ifnet *ifp;
 	size_t max_nnodes;
 
 	/* Only allow 1 vap for now */
 	if (!TAILQ_EMPTY(&ic->ic_vaps)) {
-		aprint_error_dev(sc->sc_dev, "Only 1 vap at a time.\n");
+		aprint_error_dev(ac->ac_dev, "Only 1 vap at a time.\n");
 		return NULL;
 	}
 

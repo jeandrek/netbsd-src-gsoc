@@ -474,9 +474,9 @@ struct athn_common {
 	void				(*ac_disable)(struct athn_softc *);
 	void				(*ac_power)(struct athn_softc *, int);
 #endif
-	void				(*ac_disable_aspm)(struct athn_softc *);
+	void				(*ac_disable_aspm)(struct athn_common *);
 	void				(*ac_enable_extsynch)(
-					    struct athn_softc *);
+					    struct athn_common *);
 
 	bus_dma_tag_t			ac_dmat;
 
@@ -631,7 +631,7 @@ void	athn_detach_common(struct athn_common *);
 void	athn_suspend(struct athn_softc *);
 bool	athn_resume(struct athn_softc *);
 int	athn_intr(void *);
-void athn_start(struct athn_softc *);
+void	athn_start(struct athn_softc *);
 
 /* used by if_athn_usb.c */
 void	athn_btcoex_init(struct athn_common *);
@@ -653,6 +653,15 @@ void	athn_set_power_sleep(struct athn_common *);
 void	athn_set_rxfilter(struct athn_common *, uint32_t);
 void	athn_set_sta_timers(struct ieee80211vap *);
 void	athn_updateslot(struct ieee80211com *);
+void	athn_get_radiocaps_common(struct athn_common *,
+	    struct ieee80211com *, int, int *,
+	    struct ieee80211_channel []);
+struct ieee80211vap *
+	athn_vap_create_common(struct athn_common *, struct ieee80211com *,
+	    const char [IFNAMSIZ],
+	    int, enum ieee80211_opmode, int,
+	    const uint8_t [IEEE80211_ADDR_LEN],
+	    const uint8_t [IEEE80211_ADDR_LEN]);
 
 #ifdef notyet_edca
 void	athn_updateedca(struct ieee80211com *);

@@ -1456,20 +1456,20 @@
 /*
  * Macros to access registers.
  */
-#define AR_READ(sc, reg)						\
-	(sc)->sc_ops.read((sc), (reg))
+#define AR_READ(ac, reg)						\
+	(ac)->ac_ops.read((ac), (reg))
 
-#define AR_WRITE(sc, reg, val)						\
-	(sc)->sc_ops.write((sc), (reg), (val))
+#define AR_WRITE(ac, reg, val)						\
+	(ac)->ac_ops.write((ac), (reg), (val))
 
-#define AR_WRITE_BARRIER(sc)						\
-	(sc)->sc_ops.write_barrier((sc))
+#define AR_WRITE_BARRIER(ac)						\
+	(ac)->ac_ops.write_barrier((ac))
 
-#define AR_SETBITS(sc, reg, mask)					\
-	AR_WRITE(sc, reg, AR_READ(sc, reg) | (mask))
+#define AR_SETBITS(ac, reg, mask)					\
+	AR_WRITE(ac, reg, AR_READ(ac, reg) | (mask))
 
-#define AR_CLRBITS(sc, reg, mask)					\
-	AR_WRITE(sc, reg, AR_READ(sc, reg) & ~(mask))
+#define AR_CLRBITS(ac, reg, mask)					\
+	AR_WRITE(ac, reg, AR_READ(ac, reg) & ~(mask))
 
 /*
  * Macros to access subfields in registers.
