@@ -730,8 +730,7 @@ Static void
 ar5008_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_desc *ds)
 {
-	struct athn_softc *sc = ac->ac_softc;
-	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
+	struct athn_rx_radiotap_header *tap = &ac->ac_rxtap;
 	struct ieee80211com *ic = ac->ac_ic;
 	uint64_t tsf;
 	uint32_t tstamp;
@@ -1353,9 +1352,9 @@ Static int
 ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
     const struct ieee80211_bpf_params *params)
 {
-	struct athn_softc *sc = ac->ac_softc;
 	struct ieee80211com *ic = ni->ni_ic;
-	struct athn_common *ac = ic->ic_softc;
+	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = &sc->sc_ac;
 	struct ieee80211_key *k = NULL;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap = ni->ni_vap;
@@ -1469,7 +1468,7 @@ ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
 	}
 
 	if (__predict_false(ac->ac_drvbpf != NULL)) {
-		struct athn_tx_radiotap_header *tap = &sc->sc_txtap;
+		struct athn_tx_radiotap_header *tap = &ac->ac_txtap;
 
 		tap->wt_flags = 0;
 		/* Use initial transmit rate. */

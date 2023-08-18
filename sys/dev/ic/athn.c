@@ -174,6 +174,9 @@ athn_attach(struct athn_softc *sc)
 PUBLIC int
 athn_attach_common(struct athn_common *ac)
 {
+	struct ieee80211com *ic = ac->ac_ic;
+	int error;
+
 	/* Read hardware revision. */
 	athn_get_chipid(ac);
 
@@ -279,9 +282,9 @@ athn_attach_common(struct athn_common *ac)
 	}
 
 	callout_init(&ac->ac_calib_to, 0);
-	callout_setfunc(&ac->ac_calib_to, athn_calib_to, sc);
+	callout_setfunc(&ac->ac_calib_to, athn_calib_to, ac);
 	callout_init(&ac->ac_watchdog_to, 0);
-	callout_setfunc(&ac->ac_watchdog_to, athn_watchdog, sc);
+	callout_setfunc(&ac->ac_watchdog_to, athn_watchdog, ac);
 
 #if 0
 	sc->sc_amrr.amrr_min_success_threshold = 1;
@@ -395,7 +398,7 @@ athn_attach_common(struct athn_common *ac)
 PUBLIC void
 athn_detach(struct athn_softc *sc)
 {
-	struct athn_common *ac = &sc->sc_ac'
+	struct athn_common *ac = &sc->sc_ac;
 	int qid;
 
 	athn_detach_common(ac);
@@ -470,14 +473,13 @@ athn_get_chanlist(struct athn_softc *sc)
 #endif
 
 PUBLIC void
-athn_rx_start(struct athn_softc *sc)
+athn_rx_start(struct athn_common *ac)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
-	struct athn_common *ac = &sc->sc_ac;
+	struct ieee80211com *ic = ac->ac_ic;
 	uint32_t rfilt;
 
 	/* Setup Rx DMA descriptors. */
-	ac->ac_ops.rx_enable(ac);
+	ac->ac_ops.rx_enable(ac); /* XXX USB? */
 
 	/* Set Rx filter. */
 	rfilt = AR_RX_FILTER_UCAST | AR_RX_FILTER_BCAST | AR_RX_FILTER_MCAST;
@@ -1262,9 +1264,12 @@ athn_btcoex_enable(struct athn_common *ac)
 	AR_WRITE(ac, AR_GPIO_PDPU, reg);
 	AR_WRITE_BARRIER(ac);
 
-	/* Disable PCIe Active State Power Management (ASPM). */
-	if (ac->ac_disable_aspm != NULL)
-		ac->ac_disable_aspm(ac);
+	if (!(ac->ac_flags & ATHN_FLAG_USB)) {
+		struct athn_softc *sc = ac->ac_softc;
+		/* Disable PCIe Active State Power Management (ASPM). */
+		if (sc->sc_disable_aspm != NULL)
+			sc->sc_disable_aspm(sc);
+	}
 
 	/* XXX Start periodic timer. */
 }
@@ -1302,10 +1307,9 @@ athn_iter_func(void *arg, struct ieee80211_node *ni)
 Static void
 athn_calib_to(void *arg)
 {
-	struct athn_softc *sc = arg;
-	struct athn_common *ac = sc->sc_ac;
+	struct athn_common *ac = arg;
 	struct athn_ops *ops = &ac->ac_ops;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	int s;
 
 	s = splnet();
@@ -1339,7 +1343,7 @@ athn_calib_to(void *arg)
 #ifdef notyet
 	if (ic->ic_fixed_rate == -1) {
 #endif
-		ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, sc);
+		ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, ac);
 #ifdef notyet
 	}
 #endif
@@ -2728,16 +2732,15 @@ athn_start(struct athn_softc *sc)
 Static void
 athn_watchdog(void *arg)
 {
-	struct athn_softc *sc = arg;
-	struct athn_common *ac = sc->sc_ac;
+	struct athn_common *ac = arg;
 
 	if (ac->ac_tx_timer > 0) {
 		if (--ac->ac_tx_timer == 0) {
 			aprint_error_dev(ac->ac_dev, "device timeout\n");
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
-			(void)athn_init(sc);
-			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
+			(void)athn_init(ac->ac_softc);
+			ieee80211_stat_add(&ac->ac_ic->ic_oerrors, 1);
 			return;
 		}
 		callout_schedule(&ac->ac_watchdog_to, hz);

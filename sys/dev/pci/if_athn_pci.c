@@ -84,9 +84,9 @@ Static int	athn_pci_activate(device_t, enum devact);
 CFATTACH_DECL_NEW(athn_pci, sizeof(struct athn_pci_softc), athn_pci_match,
     athn_pci_attach, athn_pci_detach, athn_pci_activate);
 
-Static uint32_t	athn_pci_read(struct athn_softc *, uint32_t);
-Static void	athn_pci_write(struct athn_softc *, uint32_t, uint32_t);
-Static void	athn_pci_write_barrier(struct athn_softc *);
+Static uint32_t	athn_pci_read(struct athn_common *, uint32_t);
+Static void	athn_pci_write(struct athn_common *, uint32_t, uint32_t);
+Static void	athn_pci_write_barrier(struct athn_common *);
 Static void	athn_pci_disable_aspm(struct athn_softc *);
 
 Static int
@@ -152,7 +152,7 @@ athn_pci_attach(device_t parent, device_t self, void *aux)
 	    &psc->psc_cap_off, NULL);
 	if (error != 0) {	/* Found. */
 		sc->sc_disable_aspm = athn_pci_disable_aspm;
-		sc->sc_flags |= ATHN_FLAG_PCIE;
+		sc->sc_ac.ac_flags |= ATHN_FLAG_PCIE;
 	}
 	/*
 	 * Noone knows why this shit is necessary but there are claims that
@@ -174,9 +174,9 @@ athn_pci_attach(device_t parent, device_t self, void *aux)
 	subsysid = PCI_PRODUCT(reg);
 	if (subsysid == PCI_SUBSYSID_ATHEROS_COEX3WIRE_SA ||
 	    subsysid == PCI_SUBSYSID_ATHEROS_COEX3WIRE_DA)
-		sc->sc_flags |= ATHN_FLAG_BTCOEX3WIRE;
+		sc->sc_ac.ac_flags |= ATHN_FLAG_BTCOEX3WIRE;
 	else if (subsysid == PCI_SUBSYSID_ATHEROS_COEX2WIRE)
-		sc->sc_flags |= ATHN_FLAG_BTCOEX2WIRE;
+		sc->sc_ac.ac_flags |= ATHN_FLAG_BTCOEX2WIRE;
 
 	/*
 	 * Setup memory-mapping of PCI registers.
@@ -315,24 +315,27 @@ athn_pci_activate(device_t self, enum devact act)
 // }
 
 Static uint32_t
-athn_pci_read(struct athn_softc *sc, uint32_t addr)
+athn_pci_read(struct athn_common *ac, uint32_t addr)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_pci_softc *psc = (struct athn_pci_softc *)sc;
 
 	return bus_space_read_4(psc->psc_iot, psc->psc_ioh, addr);
 }
 
 Static void
-athn_pci_write(struct athn_softc *sc, uint32_t addr, uint32_t val)
+athn_pci_write(struct athn_common *ac, uint32_t addr, uint32_t val)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_pci_softc *psc = (struct athn_pci_softc *)sc;
 
 	bus_space_write_4(psc->psc_iot, psc->psc_ioh, addr, val);
 }
 
 Static void
-athn_pci_write_barrier(struct athn_softc *sc)
+athn_pci_write_barrier(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_pci_softc *psc = (struct athn_pci_softc *)sc;
 
 	bus_space_barrier(psc->psc_iot, psc->psc_ioh, 0, psc->psc_mapsz,

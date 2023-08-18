@@ -463,7 +463,6 @@ struct athn_common {
 	void				(*ac_disable)(struct athn_softc *);
 	void				(*ac_power)(struct athn_softc *, int);
 #endif
-	void				(*ac_disable_aspm)(struct athn_common *);
 	void				(*ac_enable_extsynch)(
 					    struct athn_common *);
 
@@ -620,6 +619,8 @@ struct athn_softc {
 #define sc_if	sc_ec.ec_if
 	struct ifaltq			sc_sendq;
 	void				*sc_soft_ih;
+
+	void				(*sc_disable_aspm)(struct athn_softc *);
 
 	struct athn_rxq			sc_rxq[2];
 	struct athn_txq			sc_txq[31];

@@ -85,12 +85,12 @@ Static int	athn_cardbus_detach(device_t, int);
 CFATTACH_DECL_NEW(athn_cardbus, sizeof(struct athn_cardbus_softc),
     athn_cardbus_match, athn_cardbus_attach, athn_cardbus_detach, NULL);
 
-Static uint32_t	athn_cardbus_read(struct athn_softc *, uint32_t);
+Static uint32_t	athn_cardbus_read(struct athn_common *, uint32_t);
 Static bool	athn_cardbus_resume(device_t, const pmf_qual_t *l);
 Static void	athn_cardbus_setup(struct athn_cardbus_softc *);
 Static bool	athn_cardbus_suspend(device_t, const pmf_qual_t *);
-Static void	athn_cardbus_write(struct athn_softc *, uint32_t, uint32_t);
-Static void	athn_cardbus_write_barrier(struct athn_softc *);
+Static void	athn_cardbus_write(struct athn_common *, uint32_t, uint32_t);
+Static void	athn_cardbus_write_barrier(struct athn_common *);
 
 #ifdef openbsd_power_management
 Static int	athn_cardbus_enable(struct athn_softc *);
@@ -258,24 +258,27 @@ athn_cardbus_setup(struct athn_cardbus_softc *csc)
 }
 
 Static uint32_t
-athn_cardbus_read(struct athn_softc *sc, uint32_t addr)
+athn_cardbus_read(struct athn_common *ac, uint32_t addr)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_cardbus_softc *csc = (struct athn_cardbus_softc *)sc;
 
 	return bus_space_read_4(csc->csc_iot, csc->csc_ioh, addr);
 }
 
 Static void
-athn_cardbus_write(struct athn_softc *sc, uint32_t addr, uint32_t val)
+athn_cardbus_write(struct athn_common *ac, uint32_t addr, uint32_t val)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_cardbus_softc *csc = (struct athn_cardbus_softc *)sc;
 
 	bus_space_write_4(csc->csc_iot, csc->csc_ioh, addr, val);
 }
 
 Static void
-athn_cardbus_write_barrier(struct athn_softc *sc)
+athn_cardbus_write_barrier(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_cardbus_softc *csc = (struct athn_cardbus_softc *)sc;
 
 	bus_space_barrier(csc->csc_iot, csc->csc_ioh, 0, csc->csc_mapsz,
