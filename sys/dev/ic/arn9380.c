@@ -131,7 +131,7 @@ ar9380_attach(struct athn_common *ac)
 Static void
 ar9380_setup(struct athn_common *ac)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct ar9380_eeprom *eep = ac->ac_eep;
 	struct ar9380_base_eep_hdr *base = &eep->baseEepHeader;
 	uint8_t type;

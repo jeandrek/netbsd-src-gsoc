@@ -163,7 +163,7 @@ PUBLIC int
 ar5008_attach(struct athn_common *ac)
 {
 	struct athn_ops *ops = &ac->ac_ops;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct ar_base_eep_header *base;
 	uint8_t eep_ver, kc_entries_log;
 	int error;
@@ -214,7 +214,7 @@ ar5008_attach(struct athn_common *ac)
 
 	/* Read entire ROM content in memory. */
 	if ((error = ar5008_read_rom(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not read ROM\n");
+		aprint_error_dev(ac->ac_dev, "could not read ROM\n");
 		return error;
 	}
 
@@ -225,7 +225,7 @@ ar5008_attach(struct athn_common *ac)
 	eep_ver = (base->version >> 12) & 0xf;
 	ac->ac_eep_rev = (base->version & 0xfff);
 	if (eep_ver != AR_EEP_VER || ac->ac_eep_rev == 0) {
-		aprint_error_dev(sc->sc_dev, "unsupported ROM version %d.%d\n",
+		aprint_error_dev(ac->ac_dev, "unsupported ROM version %d.%d\n",
 		    eep_ver, ac->ac_eep_rev);
 		return EINVAL;
 	}
@@ -332,7 +332,7 @@ ar5008_read_rom(struct athn_common *ac)
 		sum ^= *eep;
 	}
 	if (sum != 0xffff) {
-		aprint_error_dev(sc->sc_dev, "bad ROM checksum 0x%04x\n", sum);
+		aprint_error_dev(ac->ac_dev, "bad ROM checksum 0x%04x\n", sum);
 		return EIO;
 	}
 	if (need_swap)
@@ -533,7 +533,7 @@ ar5008_tx_alloc(struct athn_common *ac)
 		    AR5008_MAX_SCATTER, ATHN_TXBUFSZ, 0, BUS_DMA_NOWAIT,
 		    &bf->bf_map);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not create Tx buf DMA map\n");
 			goto fail;
 		}
@@ -619,7 +619,7 @@ ar5008_rx_alloc(struct athn_common *ac)
 		    ATHN_RXBUFSZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW,
 		    &bf->bf_map);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    " could not create Rx buf DMA map\n");
 			goto fail;
 		}
@@ -629,7 +629,7 @@ ar5008_rx_alloc(struct athn_common *ac)
 		 */
 		bf->bf_m = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 		if (bf->bf_m == NULL) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not allocate Rx mbuf\n");
 			error = ENOBUFS;
 			goto fail;
@@ -639,7 +639,7 @@ ar5008_rx_alloc(struct athn_common *ac)
 		    mtod(bf->bf_m, void *), ATHN_RXBUFSZ, NULL,
 		    BUS_DMA_NOWAIT | BUS_DMA_READ);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not DMA map Rx buffer\n");
 			goto fail;
 		}
@@ -728,7 +728,7 @@ ar5008_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_desc *ds)
 {
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	uint64_t tsf;
 	uint32_t tstamp;
 	uint8_t rate;
@@ -788,7 +788,7 @@ ar5008_rx_radiotap(struct athn_common *ac, struct mbuf *m,
 static __inline int
 ar5008_rx_process(struct athn_common *ac)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct athn_rxq *rxq = &sc->sc_rxq[0];
 	struct athn_rx_buf *bf, *nbf;
 	struct ar_rx_desc *ds;
@@ -802,7 +802,7 @@ ar5008_rx_process(struct athn_common *ac)
 
 	bf = SIMPLEQ_FIRST(&rxq->head);
 	if (__predict_false(bf == NULL)) {	/* Should not happen. */
-		aprint_error_dev(sc->sc_dev, "Rx queue is empty!\n");
+		aprint_error_dev(ac->ac_dev, "Rx queue is empty!\n");
 		return ENOENT;
 	}
 	ds = bf->bf_desc;
@@ -1097,7 +1097,7 @@ ar5008_tx_intr(struct athn_common *ac)
 Static int
 ar5008_swba_intr(struct athn_common *ac)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct athn_tx_buf *bf = ac->ac_bcnbuf;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap;
@@ -1482,7 +1482,7 @@ ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
 	    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 	if (__predict_false(error != 0)) {
 		if (error != EFBIG) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "can't map mbuf (error %d)\n", error);
 			m_freem(m);
 			return error;
@@ -1512,7 +1512,7 @@ ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
 		error = bus_dmamap_load_mbuf(ac->ac_dmat, bf->bf_map, m,
 		    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "can't map mbuf (error %d)\n", error);
 			m_freem(m);
 			return error;
@@ -1756,7 +1756,7 @@ ar5008_synth_delay(struct athn_common *ac)
 	uint32_t synth_delay;
 
 	synth_delay = MS(AR_READ(ac, AR_PHY_RX_DELAY), AR_PHY_RX_DELAY_DELAY);
-	if (sc->sc_ic.ic_curmode == IEEE80211_MODE_11B)
+	if (ac->ac_ic->ic_curmode == IEEE80211_MODE_11B)
 		synth_delay = (synth_delay * 4) / 22;
 	else
 		synth_delay = synth_delay / 10;	/* in 100ns steps */

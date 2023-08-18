@@ -223,12 +223,12 @@ ar9003_attach(struct athn_common *ac)
 
 	/* Determine ROM type and location. */
 	if ((error = ar9003_find_rom(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not find ROM\n");
+		aprint_error_dev(ac->ac_dev, "could not find ROM\n");
 		return error;
 	}
 	/* Read entire ROM content in memory. */
 	if ((error = ar9003_read_rom(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not read ROM\n");
+		aprint_error_dev(ac->ac_dev, "could not read ROM\n");
 		return error;
 	}
 
@@ -685,7 +685,7 @@ ar9003_tx_alloc(struct athn_common *ac)
 		    AR9003_MAX_SCATTER, ATHN_TXBUFSZ, 0, BUS_DMA_NOWAIT,
 		    &bf->bf_map);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not create Tx buf DMA map\n");
 			goto fail;
 		}
@@ -754,7 +754,7 @@ ar9003_rx_alloc(struct athn_common *ac, int qid, int count)
 		    ATHN_RXBUFSZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW,
 		    &bf->bf_map);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not create Rx buf DMA map\n");
 			goto fail;
 		}
@@ -763,7 +763,7 @@ ar9003_rx_alloc(struct athn_common *ac, int qid, int count)
 		 */
 		bf->bf_m = MCLGETI(NULL, M_DONTWAIT, NULL, ATHN_RXBUFSZ);
 		if (bf->bf_m == NULL) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not allocate Rx mbuf\n");
 			error = ENOBUFS;
 			goto fail;
@@ -773,7 +773,7 @@ ar9003_rx_alloc(struct athn_common *ac, int qid, int count)
 		    mtod(bf->bf_m, void *), ATHN_RXBUFSZ, NULL,
 		    BUS_DMA_NOWAIT);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not DMA map Rx buffer\n");
 			goto fail;
 		}
@@ -870,7 +870,7 @@ ar9003_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_status *ds)
 {
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	uint64_t tsf;
 	uint32_t tstamp;
 	uint8_t rate;
@@ -927,7 +927,7 @@ ar9003_rx_radiotap(struct athn_common *ac, struct mbuf *m,
 Static int
 ar9003_rx_process(struct athn_common *ac, int qid)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct ifnet *ifp;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
@@ -940,7 +940,7 @@ ar9003_rx_process(struct athn_common *ac, int qid)
 
 	bf = SIMPLEQ_FIRST(&rxq->head);
 	if (__predict_false(bf == NULL)) {	/* Should not happen. */
-		aprint_error_dev(sc->sc_dev, "Rx queue is empty!\n");
+		aprint_error_dev(ac->ac_dev, "Rx queue is empty!\n");
 		return ENOENT;
 	}
 	bus_dmamap_sync(ac->ac_dmat, bf->bf_map, 0, ATHN_RXBUFSZ,
@@ -1231,7 +1231,7 @@ ar9003_tx_intr(struct athn_common *ac)
 Static int
 ar9003_swba_intr(struct athn_common *ac)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct athn_tx_buf *bf = ac->ac_bcnbuf;
 	struct ieee80211_frame *wh;
 	struct ieee80211vap *vap;
@@ -1624,7 +1624,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 	if (__predict_false(error != 0)) {
 		if (error != EFBIG) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "can't map mbuf (error %d)\n", error);
 			m_freem(m);
 			return error;
@@ -1654,7 +1654,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 		error = bus_dmamap_load_mbuf(ac->ac_dmat, bf->bf_map, m,
 		    BUS_DMA_NOWAIT | BUS_DMA_WRITE);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "can't map mbuf (error %d)\n", error);
 			m_freem(m);
 			return error;
@@ -1924,7 +1924,7 @@ ar9003_synth_delay(struct athn_common *ac)
 	uint32_t synth_delay;
 
 	synth_delay = MS(AR_READ(ac, AR_PHY_RX_DELAY), AR_PHY_RX_DELAY_DELAY);
-	if (sc->sc_ic.ic_curmode == IEEE80211_MODE_11B)
+	if (ac->ac_ic->ic_curmode == IEEE80211_MODE_11B)
 		synth_delay = (synth_delay * 4) / 22;
 	else
 		synth_delay = synth_delay / 10;	/* in 100ns steps */
@@ -2781,7 +2781,7 @@ Static int
 ar9003_paprd_tx_tone(struct athn_common *ac)
 {
 #define TONE_LEN	1800
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211com *ic = ac->ac_ic;
 	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
 	struct mbuf *m;

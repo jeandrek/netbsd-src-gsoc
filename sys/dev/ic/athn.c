@@ -83,9 +83,9 @@ int athn_debug = 0;
 
 Static int	athn_clock_rate(struct athn_softc *);
 Static const char *
-		athn_get_mac_name(struct athn_softc *);
+		athn_get_mac_name(struct athn_common *);
 Static const char *
-		athn_get_rf_name(struct athn_softc *);
+		athn_get_rf_name(struct athn_common *);
 Static int	athn_init(struct athn_softc *);
 Static int	athn_init_calib(struct athn_common *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
@@ -95,7 +95,7 @@ Static int	athn_newstate(struct ieee80211vap *, enum ieee80211_state,
 Static struct ieee80211_node *
 		athn_node_alloc(struct ieee80211vap *, const uint8_t *);
 Static int	athn_reset_power_on(struct athn_common *);
-Static int	athn_stop_rx_dma(struct athn_softc *);
+Static int	athn_stop_rx_dma(struct athn_common *);
 Static int	athn_switch_chan(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static void	athn_calib_to(void *);
@@ -112,7 +112,7 @@ Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
 Static void	athn_watchdog(void *);
-Static void	athn_write_serdes(struct athn_softc *,
+Static void	athn_write_serdes(struct athn_common *,
 		    const struct athn_serdes *);
 Static void	athn_softintr(void *);
 Static void	athn_parent(struct ieee80211com *);
@@ -178,12 +178,12 @@ athn_attach_common(struct athn_common *ac)
 	athn_get_chipid(ac);
 
 	if ((error = athn_reset_power_on(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not reset chip\n");
+		aprint_error_dev(ac->ac_dev, "could not reset chip\n");
 		return error;
 	}
 
 	if ((error = athn_set_power_awake(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not wakeup chip\n");
+		aprint_error_dev(ac->ac_dev, "could not wakeup chip\n");
 		return error;
 	}
 
@@ -204,29 +204,30 @@ athn_attach_common(struct athn_common *ac)
 	else
 		error = ENOTSUP;
 	if (error != 0) {
-		aprint_error_dev(sc->sc_dev, "could not attach chip\n");
+		aprint_error_dev(ac->ac_dev, "could not attach chip\n");
 		return error;
 	}
 
-	pmf_self_suspensor_init(sc->sc_dev, &sc->sc_suspensor, &sc->sc_qual);
-	pmf_event_register(sc->sc_dev, PMFE_RADIO_OFF, athn_pmf_wlan_off,
+	pmf_self_suspensor_init(ac->ac_dev, &ac->ac_suspensor, &ac->ac_qual);
+	pmf_event_register(ac->ac_dev, PMFE_RADIO_OFF, athn_pmf_wlan_off,
 	    false);
 
 	/* We can put the chip in sleep state now. */
 	athn_set_power_sleep(ac);
 
 	if (!(ac->ac_flags & ATHN_FLAG_USB)) {
+		struct athn_softc *sc = ac->ac_softc;
 		sc->sc_soft_ih = softint_establish(SOFTINT_NET, athn_softintr,
 		    sc);
 		if (sc->sc_soft_ih == NULL) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not establish softint\n");
 			return EINVAL;
 		}
 
 		error = ac->ac_ops.dma_alloc(ac);
 		if (error != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not allocate DMA resources\n");
 			return error;
 		}
@@ -261,16 +262,16 @@ athn_attach_common(struct athn_common *ac)
  	ic->ic_rxstream = ac->ac_nrxchains;
 
 	if (AR_SINGLE_CHIP(ac)) {
-		aprint_normal(": Atheros %s\n", athn_get_mac_name(sc));
-		aprint_verbose_dev(sc->sc_dev,
+		aprint_normal(": Atheros %s\n", athn_get_mac_name(ac));
+		aprint_verbose_dev(ac->ac_dev,
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    ac->ac_mac_rev,
 		    ac->ac_ntxchains, ac->ac_nrxchains, ac->ac_eep_rev,
 		    ether_sprintf(ic->ic_macaddr));
 	} else {
-		aprint_normal(": Atheros %s, RF %s\n", athn_get_mac_name(sc),
+		aprint_normal(": Atheros %s, RF %s\n", athn_get_mac_name(ac),
 		    athn_get_rf_name(ac));
-		aprint_verbose_dev(sc->sc_dev,
+		aprint_verbose_dev(ac->ac_dev,
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    ac->ac_mac_rev,
 		    ac->ac_ntxchains, ac->ac_nrxchains,
@@ -359,7 +360,7 @@ athn_attach_common(struct athn_common *ac)
 	athn_get_radiocaps_common(ac, ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,
 	    ic->ic_channels);
 
-	ic->ic_name = device_xname(sc->sc_dev);
+	ic->ic_name = device_xname(ac->ac_dev);
 
 	ieee80211_ifattach(ic);
 
@@ -620,7 +621,7 @@ athn_get_chipid(struct athn_common *ac)
 }
 
 Static const char *
-athn_get_mac_name(struct athn_softc *sc)
+athn_get_mac_name(struct athn_common *ac)
 {
 
 	switch (ac->ac_mac_ver) {
@@ -844,9 +845,8 @@ athn_init_pll(struct athn_common *ac, const struct ieee80211_channel *c)
 }
 
 Static void
-athn_write_serdes(struct athn_softc *sc, const struct athn_serdes *serdes)
+athn_write_serdes(struct athn_common *ac, const struct athn_serdes *serdes)
 {
-	struct athn_common *ac = &sc->sc_ac;
 	int i;
 
 	/* Write sequence to Serializer/Deserializer. */
@@ -856,11 +856,11 @@ athn_write_serdes(struct athn_softc *sc, const struct athn_serdes *serdes)
 }
 
 PUBLIC void
-athn_config_pcie(struct athn_softc *sc)
+athn_config_pcie(struct athn_common *ac)
 {
 
 	/* Disable PLL when in L0s as well as receiver clock when in L1. */
-	athn_write_serdes(sc, ac->ac_serdes);
+	athn_write_serdes(ac, ac->ac_serdes);
 
 	DELAY(1000);
 	/* Allow forcing of PCIe core into L1 state. */
@@ -910,10 +910,10 @@ static const struct athn_serdes ar_nonpcie_serdes = {
 };
 
 PUBLIC void
-athn_config_nonpcie(struct athn_softc *sc)
+athn_config_nonpcie(struct athn_common *ac)
 {
 
-	athn_write_serdes(sc, &ar_nonpcie_serdes);
+	athn_write_serdes(ac, &ar_nonpcie_serdes);
 }
 
 PUBLIC int
@@ -925,7 +925,7 @@ athn_set_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 
 	/* Check that Tx is stopped, otherwise RF Bus grant will not work. */
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++)
-		if (athn_tx_pending(sc, qid))
+		if (athn_tx_pending(ac, qid))
 			return EBUSY;
 
 	/* Request RF Bus grant. */
@@ -968,7 +968,7 @@ athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 
 	/* Stop all Tx queues. */
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++)
-		athn_stop_tx_dma(sc, qid);
+		athn_stop_tx_dma(ac, qid);
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++)
 		athn_tx_reclaim(sc, qid);
 
@@ -979,7 +979,7 @@ athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	AR_WRITE(ac, AR_FILT_OFDM, 0);
 	AR_WRITE(ac, AR_FILT_CCK, 0);
 	athn_set_rxfilter(ac, 0);
-	error = athn_stop_rx_dma(sc);
+	error = athn_stop_rx_dma(ac);
 	if (error != 0)
 		goto reset;
 
@@ -1767,7 +1767,7 @@ athn_init_dma(struct athn_common *ac)
 }
 
 PUBLIC void
-athn_inc_tx_trigger_level(struct athn_softc *sc)
+athn_inc_tx_trigger_level(struct athn_common *ac)
 {
 	uint32_t reg, ftrig;
 
@@ -1785,7 +1785,7 @@ athn_inc_tx_trigger_level(struct athn_softc *sc)
 }
 
 PUBLIC int
-athn_stop_rx_dma(struct athn_softc *sc)
+athn_stop_rx_dma(struct athn_common *ac)
 {
 	int ntries;
 
@@ -1843,7 +1843,7 @@ athn_tx_reclaim(struct athn_softc *sc, int qid)
 }
 
 PUBLIC int
-athn_tx_pending(struct athn_softc *sc, int qid)
+athn_tx_pending(struct athn_common *ac, int qid)
 {
 
 	return MS(AR_READ(ac, AR_QSTS(qid)), AR_Q_STS_PEND_FR_CNT) != 0 ||
@@ -1851,14 +1851,14 @@ athn_tx_pending(struct athn_softc *sc, int qid)
 }
 
 PUBLIC void
-athn_stop_tx_dma(struct athn_softc *sc, int qid)
+athn_stop_tx_dma(struct athn_common *ac, int qid)
 {
 	uint32_t tsflo;
 	int ntries, i;
 
 	AR_WRITE(ac, AR_Q_TXD, 1 << qid);
 	for (ntries = 0; ntries < 40; ntries++) {
-		if (!athn_tx_pending(sc, qid))
+		if (!athn_tx_pending(ac, qid))
 			break;
 		DELAY(100);
 	}
@@ -1880,7 +1880,7 @@ athn_stop_tx_dma(struct athn_softc *sc, int qid)
 		AR_WRITE_BARRIER(ac);
 
 		for (ntries = 0; ntries < 40; ntries++) {
-			if (!athn_tx_pending(sc, qid))
+			if (!athn_tx_pending(ac, qid))
 				break;
 			DELAY(100);
 		}
@@ -1892,7 +1892,7 @@ athn_stop_tx_dma(struct athn_softc *sc, int qid)
 }
 
 PUBLIC int
-athn_txtime(struct athn_softc *sc, int len, int ridx, u_int flags)
+athn_txtime(struct athn_common *ac, int len, int ridx, u_int flags)
 {
 #define divround(a, b)	(((a) + (b) - 1) / (b))
 	int txtime;
@@ -2201,7 +2201,7 @@ athn_hw_reset(struct athn_common *ac, struct ieee80211_channel *curchan,
 
 	/* XXX not if already awake */
 	if ((error = athn_set_power_awake(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not wakeup chip\n");
+		aprint_error_dev(ac->ac_dev, "could not wakeup chip\n");
 		return error;
 	}
 
@@ -2234,14 +2234,14 @@ athn_hw_reset(struct athn_common *ac, struct ieee80211_channel *curchan,
 		error = athn_reset(ac, 0);
 	}
 	if (error != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "could not reset chip (error=%d)\n", error);
 		return error;
 	}
 
 	/* XXX not if already awake */
 	if ((error = athn_set_power_awake(ac)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not wakeup chip\n");
+		aprint_error_dev(ac->ac_dev, "could not wakeup chip\n");
 		return error;
 	}
 
@@ -2254,7 +2254,7 @@ athn_hw_reset(struct athn_common *ac, struct ieee80211_channel *curchan,
 		if (ac->ac_flags & ATHN_FLAG_RFSILENT_REVERSED)
 			reg = !reg;
 		if (!reg) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "radio is disabled by hardware switch\n");
 			return EPERM;
 		}
@@ -2326,7 +2326,7 @@ athn_hw_reset(struct athn_common *ac, struct ieee80211_channel *curchan,
 	AR_WRITE(ac, AR_RSSI_THR, SM(AR_RSSI_THR_BM_THR, 7));
 
 	if ((error = ops->set_synth(ac, curchan, extchan)) != 0) {
-		aprint_error_dev(sc->sc_dev, "could not set channel\n");
+		aprint_error_dev(ac->ac_dev, "could not set channel\n");
 		return error;
 	}
 	ac->ac_curchan = curchan;
@@ -2386,7 +2386,7 @@ athn_hw_reset(struct athn_common *ac, struct ieee80211_channel *curchan,
 	ops->init_baseband(ac);
 
 	if ((error = athn_init_calib(ac, curchan, extchan)) != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "could not initialize calibration\n");
 		return error;
 	}
@@ -2729,7 +2729,7 @@ athn_watchdog(void *arg)
 
 	if (ac->ac_tx_timer > 0) {
 		if (--ac->ac_tx_timer == 0) {
-			aprint_error_dev(sc->sc_dev, "device timeout\n");
+			aprint_error_dev(ac->ac_dev, "device timeout\n");
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
 			(void)athn_init(sc);
@@ -2870,6 +2870,7 @@ athn_set_multi(struct ieee80211com *ic)
 Static int
 athn_init(struct athn_softc *sc)
 {
+	struct athn_common *ac = &sc->sc_ac;
 	struct athn_ops *ops = &ac->ac_ops;
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_channel *curchan, *extchan;
@@ -2882,7 +2883,7 @@ athn_init(struct athn_softc *sc)
 		athn_stop(sc, 0);	/* see athn_watchdog() */
 	} else {
 		/* avoid recursion in athn_resume */
-		if (!pmf_device_subtree_resume(sc->sc_dev, &sc->sc_qual) ||
+		if (!pmf_device_subtree_resume(sc->sc_dev, &ac->ac_qual) ||
 		    !device_is_active(sc->sc_dev)) {
 			printf("%s: failed to power up device\n",
 			    device_xname(sc->sc_dev));
@@ -2901,12 +2902,12 @@ athn_init(struct athn_softc *sc)
 	/* For CardBus, power on the socket. */
 	if (ac->ac_enable != NULL) {
 		if ((error = ac->ac_enable(sc)) != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not enable device\n");
 			goto fail;
 		}
 		if ((error = athn_reset_power_on(ac)) != 0) {
-			aprint_error_dev(sc->sc_dev,
+			aprint_error_dev(ac->ac_dev,
 			    "could not power on device\n");
 			goto fail;
 		}
@@ -2937,7 +2938,7 @@ athn_init(struct athn_softc *sc)
 		ops->rfsilent_init(ac);
 
 	if ((error = athn_hw_reset(ac, curchan, extchan, 1)) != 0) {
-		aprint_error_dev(sc->sc_dev,
+		aprint_error_dev(ac->ac_dev,
 		    "unable to reset hardware; reset status %d\n", error);
 		goto fail;
 	}
@@ -3012,7 +3013,7 @@ athn_stop(struct athn_softc *sc, int disable)
 	AR_WRITE(ac, AR_INTR_SYNC_MASK, 0);
 
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++)
-		athn_stop_tx_dma(sc, qid);
+		athn_stop_tx_dma(ac, qid);
 	/* XXX call athn_hw_reset if Tx still pending? */
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++)
 		athn_tx_reclaim(sc, qid);
@@ -3025,7 +3026,7 @@ athn_stop(struct athn_softc *sc, int disable)
 	AR_WRITE(ac, AR_FILT_CCK, 0);
 	AR_WRITE_BARRIER(ac);
 	athn_set_rxfilter(ac, 0);
-	athn_stop_rx_dma(sc);
+	athn_stop_rx_dma(ac);
 
 	athn_reset(ac, 0);
 	athn_init_pll(ac, NULL);
@@ -3041,7 +3042,7 @@ athn_stop(struct athn_softc *sc, int disable)
 		ac->ac_disable(sc);
 #endif
 	if (disable)
-		pmf_device_recursive_suspend(sc->sc_dev, &sc->sc_qual);
+		pmf_device_recursive_suspend(ac->ac_dev, &ac->ac_qual);
 }
 
 Static void

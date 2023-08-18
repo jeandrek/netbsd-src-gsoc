@@ -453,8 +453,6 @@ struct athn_ops {
 
 struct athn_softc {
 	device_t			sc_dev;
-	device_suspensor_t		sc_suspensor;
-	pmf_qual_t			sc_qual;
 	struct ieee80211com		sc_ic;
 	struct ethercom			sc_ec;
 #define sc_if	sc_ec.ec_if
@@ -469,6 +467,8 @@ struct athn_common {
 	device_t			ac_dev;
 	struct ieee80211com		*ac_ic;
 	void				*ac_softc;
+	device_suspensor_t		ac_suspensor;
+	pmf_qual_t			ac_qual;
 #if 0
 	int				(*ac_enable)(struct athn_softc *);
 	void				(*ac_disable)(struct athn_softc *);
@@ -678,14 +678,14 @@ uint8_t	athn_chan2fbin(struct ieee80211_channel *);
 void	athn_get_pier_ival(uint8_t, const uint8_t *, int, int *, int *);
 
 /* used by arn5008.c and arn9003.c */
-void	athn_config_nonpcie(struct athn_softc *);
-void	athn_config_pcie(struct athn_softc *);
+void	athn_config_nonpcie(struct athn_common *);
+void	athn_config_pcie(struct athn_common *);
 void	athn_get_delta_slope(uint32_t, uint32_t *, uint32_t *);
-void	athn_inc_tx_trigger_level(struct athn_softc *);
+void	athn_inc_tx_trigger_level(struct athn_common *);
 void	athn_stop(struct athn_softc *, int);
-void	athn_stop_tx_dma(struct athn_softc *, int);
-int	athn_tx_pending(struct athn_softc *, int);
-int	athn_txtime(struct athn_softc *, int, int, u_int);
+void	athn_stop_tx_dma(struct athn_common *, int);
+int	athn_tx_pending(struct athn_common *, int);
+int	athn_txtime(struct athn_common *, int, int, u_int);
 
 /* used by arn5008.c, arn9003.c, arn9287.c, and arn9380.c */
 int	athn_interpolate(int, int, int, int, int);
