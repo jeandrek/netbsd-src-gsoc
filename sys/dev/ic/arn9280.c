@@ -476,7 +476,7 @@ ar9280_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
 
 	range = (extc != NULL) ? 19 : 10;
 
-	spurchans = ac->ac_ops.get_spur_chans(sc, IEEE80211_IS_CHAN_2GHZ(c));
+	spurchans = ac->ac_ops.get_spur_chans(ac, IEEE80211_IS_CHAN_2GHZ(c));
 	for (i = 0; i < AR_EEPROM_MODAL_SPURS; i++) {
 		spur = spurchans[i].spurChan;
 		if (spur == AR_NO_SPUR)

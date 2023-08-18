@@ -683,7 +683,7 @@ ar5416_spur_mitigate(struct athn_common *ac, struct ieee80211_channel *c,
 	const struct ar_spur_chan *spurchans;
 	int i, spur, bin, spur_delta_phase, spur_freq_sd;
 
-	spurchans = ac->ac_ops.get_spur_chans(sc, IEEE80211_IS_CHAN_2GHZ(c));
+	spurchans = ac->ac_ops.get_spur_chans(ac, IEEE80211_IS_CHAN_2GHZ(c));
 	for (i = 0; i < AR_EEPROM_MODAL_SPURS; i++) {
 		spur = spurchans[i].spurChan;
 		if (spur == AR_NO_SPUR)

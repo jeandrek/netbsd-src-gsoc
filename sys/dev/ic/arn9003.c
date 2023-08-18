@@ -217,9 +217,9 @@ ar9003_attach(struct athn_common *ac)
 	ac->ac_gpio_input_en_off = AR_GPIO_INPUT_EN_VAL;
 
 	if (!(ac->ac_flags & ATHN_FLAG_PCIE))
-		athn_config_nonpcie(sc);
+		athn_config_nonpcie(ac);
 	else
-		athn_config_pcie(sc);
+		athn_config_pcie(ac);
 
 	/* Determine ROM type and location. */
 	if ((error = ar9003_find_rom(ac)) != 0) {
@@ -236,7 +236,7 @@ ar9003_attach(struct athn_common *ac)
 	if (AR_READ(ac, AR_ENT_OTP) & AR_ENT_OTP_MPSD)
 		ac->ac_flags |= ATHN_FLAG_NON_ENTERPRISE;
 
-	ops->setup(sc);
+	ops->setup(ac);
 	return 0;
 }
 
@@ -359,13 +359,13 @@ ar9003_find_rom(struct athn_common *ac)
 
 	ac->ac_eep_size = AR_SREV_9485(ac) ? 4096 : 1024;
 	ac->ac_eep_base = ac->ac_eep_size - 1;
-	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
+	error = ops->read_rom_data(ac, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
 	ac->ac_eep_size = 512;
 	ac->ac_eep_base = ac->ac_eep_size - 1;
-	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
+	error = ops->read_rom_data(ac, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
@@ -374,13 +374,13 @@ ar9003_find_rom(struct athn_common *ac)
 
 	ac->ac_eep_size = 1024;
 	ac->ac_eep_base = ac->ac_eep_size - 1;
-	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
+	error = ops->read_rom_data(ac, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
 	ac->ac_eep_size = 512;
 	ac->ac_eep_base = ac->ac_eep_size - 1;
-	error = ops->read_rom_data(sc, ac->ac_eep_base, &hdr, sizeof(hdr));
+	error = ops->read_rom_data(ac, ac->ac_eep_base, &hdr, sizeof(hdr));
 	if (error == 0 && hdr != 0 && hdr != 0xffffffff)
 		return 0;
 
@@ -397,7 +397,7 @@ ar9003_restore_rom_block(struct athn_common *ac, uint8_t alg, uint8_t ref,
 
 	if (alg == AR_EEP_COMPRESS_BLOCK) {
 		/* Block contains chunks that shadow ROM template. */
-		def = ac->ac_ops.get_rom_template(sc, ref);
+		def = ac->ac_ops.get_rom_template(ac, ref);
 		if (def == NULL) {
 			DPRINTFN(DBG_INIT, sc, "unknown template image %d\n",
 			    ref);
@@ -459,7 +459,7 @@ ar9003_read_rom(struct athn_common *ac)
 	addr = ac->ac_eep_base;
 	for (i = 0; i < 100; i++) {
 		/* Read block header. */
-		error = ops->read_rom_data(sc, addr, &hdr, sizeof(hdr));
+		error = ops->read_rom_data(ac, addr, &hdr, sizeof(hdr));
 		if (error != 0)
 			break;
 		if (hdr == 0 || hdr == 0xffffffff)
@@ -476,13 +476,13 @@ ar9003_read_rom(struct athn_common *ac)
 		    i, alg, ref, len);
 
 		/* Read block data (len <= 0x7ff). */
-		error = ops->read_rom_data(sc, addr, buf, len);
+		error = ops->read_rom_data(ac, addr, buf, len);
 		if (error != 0)
 			break;
 		addr -= len;
 
 		/* Read block checksum. */
-		error = ops->read_rom_data(sc, addr, &sum, sizeof(sum));
+		error = ops->read_rom_data(ac, addr, &sum, sizeof(sum));
 		if (error != 0)
 			break;
 		addr -= sizeof(sum);
@@ -504,7 +504,7 @@ ar9003_read_rom(struct athn_common *ac)
 #if BYTE_ORDER == BIG_ENDIAN
 	/* NB: ROM is always little endian. */
 	if (error == 0)
-		ops->swap_rom(sc);
+		ops->swap_rom(ac);
 #endif
 	free(buf, M_DEVBUF);
 	return error;
@@ -739,6 +739,7 @@ ar9003_tx_free(struct athn_common *ac)
 Static int
 ar9003_rx_alloc(struct athn_common *ac, int qid, int count)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
 	struct ar_rx_status *ds;
@@ -795,6 +796,7 @@ ar9003_rx_alloc(struct athn_common *ac, int qid, int count)
 Static void
 ar9003_rx_free(struct athn_common *ac, int qid)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
 	int i;
@@ -828,6 +830,7 @@ ar9003_reset_txsring(struct athn_common *ac)
 Static void
 ar9003_rx_enable(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc; /* XXX */
 	struct athn_rxq *rxq;
 	struct athn_rx_buf *bf;
 	struct ar_rx_status *ds;
@@ -869,6 +872,7 @@ Static void
 ar9003_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_status *ds)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
 	struct ieee80211com *ic = ac->ac_ic;
 	uint64_t tsf;
@@ -929,6 +933,7 @@ ar9003_rx_process(struct athn_common *ac, int qid)
 {
 	struct ieee80211com *ic = ac->ac_ic;
 	struct ifnet *ifp;
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rxq *rxq = &sc->sc_rxq[qid];
 	struct athn_rx_buf *bf;
 	struct ar_rx_status *ds;
@@ -1108,6 +1113,7 @@ ar9003_rx_intr(struct athn_common *ac, int qid)
 Static int
 ar9003_tx_process(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct ifnet *ifp = NULL;
 	struct ieee80211_ratectl_tx_status txs;
 	struct athn_txq *txq;
@@ -1149,7 +1155,7 @@ ar9003_tx_process(struct athn_common *ac)
 		if_statinc(ifp, if_oerrors);
 
 	if (ds->ds_status3 & AR_TXS3_UNDERRUN)
-		athn_inc_tx_trigger_level(sc);
+		athn_inc_tx_trigger_level(ac);
 
 	/* XXX Is paprd used? */
 	/* Wakeup PA predistortion state machine. */
@@ -1218,7 +1224,7 @@ ar9003_tx_intr(struct athn_common *ac)
 
 	if (!SIMPLEQ_EMPTY(&ac->ac_txbufs)) {
 		ac->ac_flags &= ~ATHN_FLAG_TX_BUSY;
-			athn_start(sc);
+		athn_start(ac->ac_softc);
 	}
 
 	splx(s);
@@ -1257,7 +1263,7 @@ ar9003_swba_intr(struct athn_common *ac)
 		vap->iv_dtim_count--;
 
 	/* Make sure previous beacon has been sent. */
-	if (athn_tx_pending(sc, ATHN_QID_BEACON)) {
+	if (athn_tx_pending(ac, ATHN_QID_BEACON)) {
 		DPRINTFN(DBG_INTR, sc, "beacon stuck\n");
 		return EBUSY;
 	}
@@ -1333,7 +1339,7 @@ ar9003_swba_intr(struct athn_common *ac)
 	    BUS_DMASYNC_PREWRITE);
 
 	/* Stop Tx DMA before putting the new beacon on the queue. */
-	athn_stop_tx_dma(sc, ATHN_QID_BEACON);
+	athn_stop_tx_dma(ac, ATHN_QID_BEACON);
 
 	AR_WRITE(ac, AR_QTXDP(ATHN_QID_BEACON), bf->bf_daddr);
 
@@ -1356,7 +1362,7 @@ ar9003_swba_intr(struct athn_common *ac)
 	/* 		wh->i_fc[1] |= IEEE80211_FC1_MORE_DATA; */
 	/* 	} */
 
-	/* 	if (ac->ac_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) { */
+	/* 	if (ac->ac_ops.tx(ac, m, ni, ATHN_TXFLAG_CAB) != 0) { */
 	/* 		ieee80211_free_node(ni); */
 	/* 		if_statinc(ifp, if_oerrors); */
 	/* 		break; */
@@ -1473,7 +1479,7 @@ ar9003_intr(struct athn_common *ac)
 
 		if ((ac->ac_flags & ATHN_FLAG_RFSILENT) &&
 		    (sync & AR_INTR_SYNC_GPIO_PIN(ac->ac_rfsilent_pin))) {
-			pmf_event_inject(sc->sc_dev, PMFE_RADIO_OFF);
+			pmf_event_inject(ac->ac_dev, PMFE_RADIO_OFF);
 			return 1;
 		}
 
@@ -1487,6 +1493,7 @@ Static int
 ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
     const struct ieee80211_bpf_params *params)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct ieee80211com *ic = ni->ni_ic;
 	struct ieee80211_key *k = NULL;
 	struct ieee80211_frame *wh;
@@ -1759,7 +1766,7 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 	if (!(ds->ds_ctl12 & AR_TXC12_NO_ACK)) {
 		/* Compute duration for each series. */
 		for (i = 0; i < 4; i++) {
-			series[i].dur = athn_txtime(sc, IEEE80211_ACK_LEN,
+			series[i].dur = athn_txtime(ac, IEEE80211_ACK_LEN,
 			    athn_rates[ridx[i]].rspridx, ic->ic_flags);
 		}
 	}
@@ -1847,13 +1854,13 @@ ar9003_tx(struct ieee80211_node *ni, struct mbuf *m,
 		    ATHN_RIDX_OFDM6 : ATHN_RIDX_CCK2;
 		if (ds->ds_ctl11 & AR_TXC11_RTS_ENABLE) {
 			/* Account for CTS duration. */
-			dur += athn_txtime(sc, IEEE80211_ACK_LEN,
+			dur += athn_txtime(ac, IEEE80211_ACK_LEN,
 			    athn_rates[protridx].rspridx, ic->ic_flags);
 		}
-		dur += athn_txtime(sc, totlen, ridx[0], ic->ic_flags);
+		dur += athn_txtime(ac, totlen, ridx[0], ic->ic_flags);
 		if (!(ds->ds_ctl12 & AR_TXC12_NO_ACK)) {
 			/* Account for ACK duration. */
-			dur += athn_txtime(sc, IEEE80211_ACK_LEN,
+			dur += athn_txtime(ac, IEEE80211_ACK_LEN,
 			    athn_rates[ridx[0]].rspridx, ic->ic_flags);
 		}
 		/* Write protection frame duration and rate. */
@@ -2577,7 +2584,7 @@ ar9003_paprd_calib(struct athn_common *ac, struct ieee80211_channel *c)
 	int i;
 
 	/* Read PA predistortion masks from ROM. */
-	ops->get_paprd_masks(sc, c, &ht20mask, &ht40mask);
+	ops->get_paprd_masks(ac, c, &ht20mask, &ht40mask);
 
 	/* AM-to-AM: amplifier's amplitude characteristic. */
 	reg = AR_READ(ac, AR_PHY_PAPRD_AM2AM);
@@ -3369,7 +3376,7 @@ ar9003_hw_init(struct athn_common *ac, struct ieee80211_channel *c,
 	ar9003_set_phy(ac, c, extc);
 	ar9003_init_chains(ac);
 
-	ops->set_txpower(sc, c, extc);
+	ops->set_txpower(ac, c, extc);
 #undef X
 }
 

@@ -464,6 +464,7 @@ struct athn_softc {
 };
 
 struct athn_common {
+	/* Some e.g. dmat, txbufs should probably go in softc too. */
 	device_t			ac_dev;
 	struct ieee80211com		*ac_ic;
 	void				*ac_softc;

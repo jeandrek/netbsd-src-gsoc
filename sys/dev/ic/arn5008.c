@@ -208,9 +208,9 @@ ar5008_attach(struct athn_common *ac)
 	ac->ac_gpio_input_en_off = AR_GPIO_INPUT_EN_VAL;
 
 	if (!(ac->ac_flags & ATHN_FLAG_PCIE))
-		athn_config_nonpcie(sc);
+		athn_config_nonpcie(ac);
 	else
-		athn_config_pcie(sc);
+		athn_config_pcie(ac);
 
 	/* Read entire ROM content in memory. */
 	if ((error = ar5008_read_rom(ac)) != 0) {
@@ -264,7 +264,7 @@ ar5008_attach(struct athn_common *ac)
 	else
 		ac->ac_rxchainmask = base->rxMask;
 
-	ops->setup(sc);
+	ops->setup(ac);
 	return 0;
 }
 
@@ -356,7 +356,7 @@ ar5008_swap_rom(struct athn_common *ac)
 	base->deviceCap = bswap16(base->deviceCap);
 
 	/* Swap device-dependent fields. */
-	ac->ac_ops.swap_rom(sc);
+	ac->ac_ops.swap_rom(ac);
 }
 
 /*
@@ -579,6 +579,7 @@ ar5008_tx_free(struct athn_common *ac)
 Static int
 ar5008_rx_alloc(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rxq *rxq = &sc->sc_rxq[0];
 	struct athn_rx_buf *bf;
 	struct ar_rx_desc *ds;
@@ -660,6 +661,7 @@ ar5008_rx_alloc(struct athn_common *ac)
 Static void
 ar5008_rx_free(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rxq *rxq = &sc->sc_rxq[0];
 	struct athn_rx_buf *bf;
 	int i;
@@ -691,6 +693,7 @@ ar5008_rx_free(struct athn_common *ac)
 Static void
 ar5008_rx_enable(struct athn_common *ac)
 {
+	struct athn_softc *sc = ac->ac_softc; /* XXX */
 	struct athn_rxq *rxq = &sc->sc_rxq[0];
 	struct athn_rx_buf *bf;
 	struct ar_rx_desc *ds;
@@ -727,6 +730,7 @@ Static void
 ar5008_rx_radiotap(struct athn_common *ac, struct mbuf *m,
     struct ar_rx_desc *ds)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rx_radiotap_header *tap = &sc->sc_rxtap;
 	struct ieee80211com *ic = ac->ac_ic;
 	uint64_t tsf;
@@ -789,6 +793,7 @@ static __inline int
 ar5008_rx_process(struct athn_common *ac)
 {
 	struct ieee80211com *ic = ac->ac_ic;
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_rxq *rxq = &sc->sc_rxq[0];
 	struct athn_rx_buf *bf, *nbf;
 	struct ar_rx_desc *ds;
@@ -993,6 +998,7 @@ ar5008_rx_intr(struct athn_common *ac)
 Static int
 ar5008_tx_process(struct athn_common *ac, int qid)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct athn_txq *txq = &sc->sc_txq[qid];
 	struct ieee80211_ratectl_tx_status txs;
 	struct ieee80211_node *ni;
@@ -1019,7 +1025,7 @@ ar5008_tx_process(struct athn_common *ac, int qid)
 		if_statinc(ifp, if_oerrors);
 
 	if (ds->ds_status1 & AR_TXS1_UNDERRUN)
-		athn_inc_tx_trigger_level(sc);
+		athn_inc_tx_trigger_level(ac);
 
 	ni = bf->bf_ni;
 
@@ -1084,7 +1090,7 @@ ar5008_tx_intr(struct athn_common *ac)
 	}
 	if (!SIMPLEQ_EMPTY(&ac->ac_txbufs)) {
 		ac->ac_flags &= ~ATHN_FLAG_TX_BUSY;
-		athn_start(sc); /* XXX safe to just call athn_start? */
+		athn_start(ac->ac_softc); /* XXX safe to just call athn_start? */
 	}
 
 	splx(s);
@@ -1122,7 +1128,7 @@ ar5008_swba_intr(struct athn_common *ac)
 		vap->iv_dtim_count--;
 
 	/* Make sure previous beacon has been sent. */
-	if (athn_tx_pending(sc, ATHN_QID_BEACON)) {
+	if (athn_tx_pending(ac, ATHN_QID_BEACON)) {
 		DPRINTFN(DBG_INTR, sc, "beacon stuck\n");
 		return EBUSY;
 	}
@@ -1186,7 +1192,7 @@ ar5008_swba_intr(struct athn_common *ac)
 	    BUS_DMASYNC_PREWRITE);
 
 	/* Stop Tx DMA before putting the new beacon on the queue. */
-	athn_stop_tx_dma(sc, ATHN_QID_BEACON);
+	athn_stop_tx_dma(ac, ATHN_QID_BEACON);
 
 	AR_WRITE(ac, AR_QTXDP(ATHN_QID_BEACON), bf->bf_daddr);
 
@@ -1210,7 +1216,7 @@ ar5008_swba_intr(struct athn_common *ac)
 	/* 		wh->i_fc[1] |= IEEE80211_FC1_MORE_DATA; */
 	/* 	} */
 
-	/* 	if (ac->ac_ops.tx(sc, m, ni, ATHN_TXFLAG_CAB) != 0) { */
+	/* 	if (ac->ac_ops.tx(ac, m, ni, ATHN_TXFLAG_CAB) != 0) { */
 	/* 		ieee80211_free_node(ni); */
 	/* 		if_statinc(ifp, if_oerrors); */
 	/* 		break; */
@@ -1334,7 +1340,7 @@ ar5008_intr(struct athn_common *ac)
 		    (sync & AR_INTR_SYNC_GPIO_PIN(ac->ac_rfsilent_pin))) {
 			AR_WRITE(ac, AR_INTR_SYNC_ENABLE, 0);
 			(void)AR_READ(ac, AR_INTR_SYNC_ENABLE);
-			pmf_event_inject(sc->sc_dev, PMFE_RADIO_OFF);
+			pmf_event_inject(ac->ac_dev, PMFE_RADIO_OFF);
 		}
 
 		AR_WRITE(ac, AR_INTR_SYNC_CAUSE, sync);
@@ -1347,6 +1353,7 @@ Static int
 ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
     const struct ieee80211_bpf_params *params)
 {
+	struct athn_softc *sc = ac->ac_softc;
 	struct ieee80211com *ic = ni->ni_ic;
 	struct athn_common *ac = ic->ic_softc;
 	struct ieee80211_key *k = NULL;
@@ -1611,7 +1618,7 @@ ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
 	if (!(ds->ds_ctl1 & AR_TXC1_NO_ACK)) {
 		/* Compute duration for each series. */
 		for (i = 0; i < 4; i++) {
-			series[i].dur = athn_txtime(sc, IEEE80211_ACK_LEN,
+			series[i].dur = athn_txtime(ac, IEEE80211_ACK_LEN,
 			    athn_rates[ridx[i]].rspridx, ic->ic_flags);
 		}
 	}
@@ -1673,13 +1680,13 @@ ar5008_tx(struct ieee80211_node *ni, struct mbuf *m,
 		    ATHN_RIDX_OFDM6 : ATHN_RIDX_CCK2;
 		if (ds->ds_ctl0 & AR_TXC0_RTS_ENABLE) {
 			/* Account for CTS duration. */
-			dur += athn_txtime(sc, IEEE80211_ACK_LEN,
+			dur += athn_txtime(ac, IEEE80211_ACK_LEN,
 			    athn_rates[protridx].rspridx, ic->ic_flags);
 		}
-		dur += athn_txtime(sc, totlen, ridx[0], ic->ic_flags);
+		dur += athn_txtime(ac, totlen, ridx[0], ic->ic_flags);
 		if (!(ds->ds_ctl1 & AR_TXC1_NO_ACK)) {
 			/* Account for ACK duration. */
-			dur += athn_txtime(sc, IEEE80211_ACK_LEN,
+			dur += athn_txtime(ac, IEEE80211_ACK_LEN,
 			    athn_rates[ridx[0]].rspridx, ic->ic_flags);
 		}
 		/* Write protection frame duration and rate. */
@@ -2546,10 +2553,10 @@ ar5008_hw_init(struct athn_common *ac, struct ieee80211_channel *c,
 
 	if (ac->ac_flags & ATHN_FLAG_OLPC) {
 		ac->ac_olpc_ticks = ticks;
-		ops->olpc_init(sc);
+		ops->olpc_init(ac);
 	}
 
-	ops->set_txpower(sc, c, extc);
+	ops->set_txpower(ac, c, extc);
 
 	if (!AR_SINGLE_CHIP(ac))
 		ar5416_rf_reset(ac, c);
