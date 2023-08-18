@@ -1326,101 +1326,101 @@
 #define AR_GPIO_BTACTIVE_PIN	6
 #define AR_GPIO_BTPRIORITY_PIN	7
 
-#define AR_SREV_5416(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_5416_PCI || \
-	 (sc)->sc_mac_ver == AR_SREV_VERSION_5416_PCIE)
-#define AR_SREV_5416_20_OR_LATER(sc) \
-	((AR_SREV_5416(sc) && \
-	  (sc)->sc_mac_rev >= AR_SREV_REVISION_5416_20) || \
-	 (sc)->sc_mac_ver >= AR_SREV_VERSION_9100)
-#define AR_SREV_5416_22_OR_LATER(sc) \
-	((AR_SREV_5416(sc) && \
-	  (sc)->sc_mac_rev >= AR_SREV_REVISION_5416_22) || \
-	 (sc)->sc_mac_ver >= AR_SREV_VERSION_9100)
+#define AR_SREV_5416(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_5416_PCI || \
+	 (ac)->ac_mac_ver == AR_SREV_VERSION_5416_PCIE)
+#define AR_SREV_5416_20_OR_LATER(ac) \
+	((AR_SREV_5416(ac) && \
+	  (ac)->ac_mac_rev >= AR_SREV_REVISION_5416_20) || \
+	 (ac)->ac_mac_ver >= AR_SREV_VERSION_9100)
+#define AR_SREV_5416_22_OR_LATER(ac) \
+	((AR_SREV_5416(ac) && \
+	  (ac)->ac_mac_rev >= AR_SREV_REVISION_5416_22) || \
+	 (ac)->ac_mac_ver >= AR_SREV_VERSION_9100)
 
-#define AR_SREV_9160(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9160)
-#define AR_SREV_9160_10_OR_LATER(sc) \
-	((sc)->sc_mac_ver >= AR_SREV_VERSION_9160)
-#define AR_SREV_9160_11(sc) \
-	(AR_SREV_9160(sc) && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9160_11)
+#define AR_SREV_9160(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9160)
+#define AR_SREV_9160_10_OR_LATER(ac) \
+	((ac)->ac_mac_ver >= AR_SREV_VERSION_9160)
+#define AR_SREV_9160_11(ac) \
+	(AR_SREV_9160(ac) && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9160_11)
 
-#define AR_SREV_9280(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9280)
-#define AR_SREV_9280_10_OR_LATER(sc) \
-	((sc)->sc_mac_ver >= AR_SREV_VERSION_9280)
-#define AR_SREV_9280_10(sc) \
-	(AR_SREV_9280(sc) && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9280_10)
-#define AR_SREV_9280_20(sc) \
-	(AR_SREV_9280(sc) && \
-	 (sc)->sc_mac_rev >= AR_SREV_REVISION_9280_20)
-#define AR_SREV_9280_20_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9280 || \
-	 (AR_SREV_9280(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9280_20))
+#define AR_SREV_9280(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9280)
+#define AR_SREV_9280_10_OR_LATER(ac) \
+	((ac)->ac_mac_ver >= AR_SREV_VERSION_9280)
+#define AR_SREV_9280_10(ac) \
+	(AR_SREV_9280(ac) && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9280_10)
+#define AR_SREV_9280_20(ac) \
+	(AR_SREV_9280(ac) && \
+	 (ac)->ac_mac_rev >= AR_SREV_REVISION_9280_20)
+#define AR_SREV_9280_20_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9280 || \
+	 (AR_SREV_9280(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9280_20))
 
-#define AR_SREV_9285(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9285)
-#define AR_SREV_9285_10_OR_LATER(sc) \
-	((sc)->sc_mac_ver >= AR_SREV_VERSION_9285)
-#define AR_SREV_9285_11(sc) \
-	(AR_SREV_9285(sc) && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9285_11)
-#define AR_SREV_9285_11_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9285 || \
-	 (AR_SREV_9285(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9285_11))
-#define AR_SREV_9285_12(sc) \
-	(AR_SREV_9285(sc) && \
-	 ((sc)->sc_mac_rev == AR_SREV_REVISION_9285_12))
-#define AR_SREV_9285_12_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9285 || \
-	 (AR_SREV_9285(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9285_12))
+#define AR_SREV_9285(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9285)
+#define AR_SREV_9285_10_OR_LATER(ac) \
+	((ac)->ac_mac_ver >= AR_SREV_VERSION_9285)
+#define AR_SREV_9285_11(ac) \
+	(AR_SREV_9285(ac) && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9285_11)
+#define AR_SREV_9285_11_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9285 || \
+	 (AR_SREV_9285(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9285_11))
+#define AR_SREV_9285_12(ac) \
+	(AR_SREV_9285(ac) && \
+	 ((ac)->ac_mac_rev == AR_SREV_REVISION_9285_12))
+#define AR_SREV_9285_12_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9285 || \
+	 (AR_SREV_9285(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9285_12))
 
-#define AR_SREV_9271(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9271)
-#define AR_SREV_9271_10(sc) \
-	(AR_SREV_9271(sc) && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9271_10)
+#define AR_SREV_9271(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9271)
+#define AR_SREV_9271_10(ac) \
+	(AR_SREV_9271(ac) && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9271_10)
 
-#define AR_SREV_9287(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9287)
-#define AR_SREV_9287_10_OR_LATER(sc) \
-	((sc)->sc_mac_ver >= AR_SREV_VERSION_9287)
-#define AR_SREV_9287_10(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9287 && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9287_10)
-#define AR_SREV_9287_11(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9287 && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9287_11)
-#define AR_SREV_9287_11_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9287 || \
-	 (AR_SREV_9287(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9287_11))
-#define AR_SREV_9287_12(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9287 && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9287_12)
-#define AR_SREV_9287_12_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9287 || \
-	 (AR_SREV_9287(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9287_12))
-#define AR_SREV_9287_13_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9287 || \
-	 (AR_SREV_9287(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9287_13))
+#define AR_SREV_9287(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9287)
+#define AR_SREV_9287_10_OR_LATER(ac) \
+	((ac)->ac_mac_ver >= AR_SREV_VERSION_9287)
+#define AR_SREV_9287_10(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9287 && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9287_10)
+#define AR_SREV_9287_11(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9287 && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9287_11)
+#define AR_SREV_9287_11_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9287 || \
+	 (AR_SREV_9287(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9287_11))
+#define AR_SREV_9287_12(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9287 && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9287_12)
+#define AR_SREV_9287_12_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9287 || \
+	 (AR_SREV_9287(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9287_12))
+#define AR_SREV_9287_13_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9287 || \
+	 (AR_SREV_9287(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9287_13))
 
-#define AR_SREV_9380(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9380)
-#define AR_SREV_9380_10_OR_LATER(sc) \
-	((sc)->sc_mac_ver >= AR_SREV_VERSION_9380)
-#define AR_SREV_9380_20(sc) \
-	(AR_SREV_9380(sc) && \
-	 (sc)->sc_mac_rev == AR_SREV_REVISION_9380_20)
-#define AR_SREV_9380_20_OR_LATER(sc) \
-	((sc)->sc_mac_ver > AR_SREV_VERSION_9380 || \
-	 (AR_SREV_9380(sc) && (sc)->sc_mac_rev >= AR_SREV_REVISION_9380_20))
+#define AR_SREV_9380(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9380)
+#define AR_SREV_9380_10_OR_LATER(ac) \
+	((ac)->ac_mac_ver >= AR_SREV_VERSION_9380)
+#define AR_SREV_9380_20(ac) \
+	(AR_SREV_9380(ac) && \
+	 (ac)->ac_mac_rev == AR_SREV_REVISION_9380_20)
+#define AR_SREV_9380_20_OR_LATER(ac) \
+	((ac)->ac_mac_ver > AR_SREV_VERSION_9380 || \
+	 (AR_SREV_9380(ac) && (ac)->ac_mac_rev >= AR_SREV_REVISION_9380_20))
 
-#define AR_SREV_9485(sc) \
-	((sc)->sc_mac_ver == AR_SREV_VERSION_9485)
+#define AR_SREV_9485(ac) \
+	((ac)->ac_mac_ver == AR_SREV_VERSION_9485)
 
-#define AR_SINGLE_CHIP(sc)	AR_SREV_9280_10_OR_LATER(sc)
+#define AR_SINGLE_CHIP(ac)	AR_SREV_9280_10_OR_LATER(ac)
 
 #define AR_RADIO_SREV_MAJOR	0xf0
 #define AR_RAD5133_SREV_MAJOR	0xc0

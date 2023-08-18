@@ -158,9 +158,9 @@ athn_attach(struct athn_softc *sc)
 	int error;
 
 	ic->ic_softc = sc;
+	sc->sc_ac.ac_softc = sc;
 	sc->sc_ac.ac_dev = sc->sc_dev;
 	sc->sc_ac.ac_ic = &sc->sc_ic;
-	sc->sc_ac.ac_softc = sc;
 
 	if ((error = athn_attach_common(&sc->sc_ac)) != 0)
 		return error;
@@ -1303,6 +1303,7 @@ Static void
 athn_calib_to(void *arg)
 {
 	struct athn_softc *sc = arg;
+	struct athn_common *ac = sc->sc_ac;
 	struct athn_ops *ops = &ac->ac_ops;
 	struct ieee80211com *ic = &sc->sc_ic;
 	int s;
@@ -1823,6 +1824,7 @@ Static void
 athn_tx_reclaim(struct athn_softc *sc, int qid)
 {
 	struct athn_txq *txq = &sc->sc_txq[qid];
+	struct athn_common *ac = sc->sc_ac; /* Could be done away with. */
 	struct athn_tx_buf *bf;
 
 	/* Reclaim all buffers queued in the specified Tx queue. */
@@ -1917,6 +1919,7 @@ athn_txtime(struct athn_common *ac, int len, int ridx, u_int flags)
 PUBLIC void
 athn_init_tx_queues(struct athn_softc *sc)
 {
+	struct athn_common *ac = sc->sc_ac;
 	int qid;
 
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++) {
@@ -2726,6 +2729,7 @@ Static void
 athn_watchdog(void *arg)
 {
 	struct athn_softc *sc = arg;
+	struct athn_common *ac = sc->sc_ac;
 
 	if (ac->ac_tx_timer > 0) {
 		if (--ac->ac_tx_timer == 0) {

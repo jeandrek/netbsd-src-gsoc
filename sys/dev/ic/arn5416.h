@@ -28,17 +28,17 @@
 #ifndef _IF_ARN5416_H_
 #define _IF_ARN5416_H_
 
-int	ar5416_attach(struct athn_softc *);
-int	ar5416_init_calib(struct athn_softc *,
+int	ar5416_attach(struct athn_common *);
+int	ar5416_init_calib(struct athn_common *,
 	    struct ieee80211_channel *, struct ieee80211_channel *);
-uint8_t	ar5416_get_rf_rev(struct athn_softc *);
-void	ar5416_reset_addac(struct athn_softc *, struct ieee80211_channel *);
-void	ar5416_rf_reset(struct athn_softc *, struct ieee80211_channel *);
-void	ar5416_reset_bb_gain(struct athn_softc *, struct ieee80211_channel *);
-void	ar5416_swap_rom(struct athn_softc *);
-void	ar5416_set_txpower(struct athn_softc *, struct ieee80211_channel *,
+uint8_t	ar5416_get_rf_rev(struct athn_common *);
+void	ar5416_reset_addac(struct athn_common *, struct ieee80211_channel *);
+void	ar5416_rf_reset(struct athn_common *, struct ieee80211_channel *);
+void	ar5416_reset_bb_gain(struct athn_common *, struct ieee80211_channel *);
+void	ar5416_swap_rom(struct athn_common *);
+void	ar5416_set_txpower(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
 const struct ar_spur_chan *
-	ar5416_get_spur_chans(struct athn_softc *, int);
+	ar5416_get_spur_chans(struct athn_common *, int);
 
 #endif /* _IF_ARN5416_H_ */

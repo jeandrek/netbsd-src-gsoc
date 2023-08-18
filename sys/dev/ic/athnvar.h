@@ -379,7 +379,7 @@ struct athn_calib {
 
 #define ATHN_NF_CAL_HIST_MAX	5
 
-struct athn_softc;
+struct athn_common;
 
 struct athn_ops {
 	/* Bus callbacks. */
@@ -451,20 +451,8 @@ struct athn_ops {
 	void	(*set_spur_immunity_level)(struct athn_common *, int);
 };
 
-struct athn_softc {
-	device_t			sc_dev;
-	struct ieee80211com		sc_ic;
-	struct ethercom			sc_ec;
-#define sc_if	sc_ec.ec_if
-	struct ifaltq			sc_sendq;
-	void				*sc_soft_ih;
-	struct athn_rxq			sc_rxq[2];
-	struct athn_txq			sc_txq[31];
-	struct athn_common		sc_ac;
-};
-
 struct athn_common {
-	/* Some e.g. dmat, txbufs should probably go in softc too. */
+	/* Some e.g. dmat, txbufs should probably rather be in softc. */
 	device_t			ac_dev;
 	struct ieee80211com		*ac_ic;
 	void				*ac_softc;
@@ -623,6 +611,20 @@ struct athn_common {
 	 */
 	int				ac_max_aid;
 	int				(*ac_media_change)(struct ifnet *);
+};
+
+struct athn_softc {
+	device_t			sc_dev;
+	struct ieee80211com		sc_ic;
+	struct ethercom			sc_ec;
+#define sc_if	sc_ec.ec_if
+	struct ifaltq			sc_sendq;
+	void				*sc_soft_ih;
+
+	struct athn_rxq			sc_rxq[2];
+	struct athn_txq			sc_txq[31];
+
+	struct athn_common		sc_ac;
 };
 
 int	athn_attach(struct athn_softc *);

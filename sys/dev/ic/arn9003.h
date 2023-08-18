@@ -28,15 +28,15 @@
 #ifndef _IF_ARN9003_H_
 #define _IF_ARN9003_H_
 
-int	ar9003_attach(struct athn_softc *);
-int	ar9003_init_calib(struct athn_softc *);
-void	ar9003_reset_txsring(struct athn_softc *);
-void	ar9003_get_lg_tpow(struct athn_softc *, struct ieee80211_channel *,
+int	ar9003_attach(struct athn_common *);
+int	ar9003_init_calib(struct athn_common *);
+void	ar9003_reset_txsring(struct athn_common *);
+void	ar9003_get_lg_tpow(struct athn_common *, struct ieee80211_channel *,
 	    uint8_t, const uint8_t *, const struct ar_cal_target_power_leg *,
 	    int, uint8_t[4]);
-void	ar9003_get_ht_tpow(struct athn_softc *, struct ieee80211_channel *,
+void	ar9003_get_ht_tpow(struct athn_common *, struct ieee80211_channel *,
 	    uint8_t, const uint8_t *, const struct ar_cal_target_power_ht *,
 	    int, uint8_t[14]);
-void	ar9003_write_txpower(struct athn_softc *, int16_t power[ATHN_POWER_COUNT]);
+void	ar9003_write_txpower(struct athn_common *, int16_t power[ATHN_POWER_COUNT]);
 
 #endif /* _IF_ARN9003_H_ */

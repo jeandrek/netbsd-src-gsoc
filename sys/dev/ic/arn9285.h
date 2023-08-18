@@ -28,11 +28,11 @@
 #ifndef _IF_ARN9285_H_
 #define _IF_ARN9285_H_
 
-int	ar9285_attach(struct athn_softc *);
-int	ar9285_init_calib(struct athn_softc *, struct ieee80211_channel *,
+int	ar9285_attach(struct athn_common *);
+int	ar9285_init_calib(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
-void	ar9285_pa_calib(struct athn_softc *);
-void	ar9271_load_ani(struct athn_softc *);
-void	ar9271_pa_calib(struct athn_softc *);
+void	ar9285_pa_calib(struct athn_common *);
+void	ar9271_load_ani(struct athn_common *);
+void	ar9271_pa_calib(struct athn_common *);
 
 #endif /* _IF_ARN9285_H_ */

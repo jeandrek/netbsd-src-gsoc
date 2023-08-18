@@ -136,13 +136,13 @@ athn_pci_attach(device_t parent, device_t self, void *aux)
 	char intrbuf[PCI_INTRSTR_LEN];
 
 	sc->sc_dev = self;
-	sc->sc_dmat = pa->pa_dmat;
+	sc->sc_ac.ac_dmat = pa->pa_dmat;
 	psc->psc_pc = pa->pa_pc;
 	psc->psc_tag = pa->pa_tag;
 
-	sc->sc_ops.read = athn_pci_read;
-	sc->sc_ops.write = athn_pci_write;
-	sc->sc_ops.write_barrier = athn_pci_write_barrier;
+	sc->sc_ac.ac_ops.read = athn_pci_read;
+	sc->sc_ac.ac_ops.write = athn_pci_write;
+	sc->sc_ac.ac_ops.write_barrier = athn_pci_write_barrier;
 
 	/*
 	 * Get the offset of the PCI Express Capability Structure in PCI

@@ -28,8 +28,8 @@
 #ifndef _IF_ARN9287_H_
 #define _IF_ARN9287_H_
 
-int	ar9287_attach(struct athn_softc *);
-void	ar9287_1_3_enable_async_fifo(struct athn_softc *);
-void	ar9287_1_3_setup_async_fifo(struct athn_softc *);
+int	ar9287_attach(struct athn_common *);
+void	ar9287_1_3_enable_async_fifo(struct athn_common *);
+void	ar9287_1_3_setup_async_fifo(struct athn_common *);
 
 #endif /* _IF_ARN9287_H_ */

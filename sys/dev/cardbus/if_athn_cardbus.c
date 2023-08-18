@@ -138,7 +138,7 @@ athn_cardbus_attach(device_t parent, device_t self, void *aux)
 	bus_addr_t base;
 	int error;
 
-	sc->sc_dmat = ca->ca_dmat;
+	sc->sc_ac.ac_dmat = ca->ca_dmat;
 	csc->csc_ct = ct;
 	csc->csc_tag = ca->ca_tag;
 
@@ -151,9 +151,9 @@ athn_cardbus_attach(device_t parent, device_t self, void *aux)
 	sc->sc_disable = athn_cardbus_disable;
 	sc->sc_power = athn_cardbus_power;
 #endif
-	sc->sc_ops.read = athn_cardbus_read;
-	sc->sc_ops.write = athn_cardbus_write;
-	sc->sc_ops.write_barrier = athn_cardbus_write_barrier;
+	sc->sc_ac.ac_ops.read = athn_cardbus_read;
+	sc->sc_ac.ac_ops.write = athn_cardbus_write;
+	sc->sc_ac.ac_ops.write_barrier = athn_cardbus_write_barrier;
 
 	/*
 	 * Map control/status registers.

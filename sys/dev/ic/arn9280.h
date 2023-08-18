@@ -28,15 +28,15 @@
 #ifndef _IF_ARN9280_H_
 #define _IF_ARN9280_H_
 
-int	ar9280_attach(struct athn_softc *);
-void	ar9280_reset_rx_gain(struct athn_softc *, struct ieee80211_channel *);
-void	ar9280_reset_tx_gain(struct athn_softc *, struct ieee80211_channel *);
-void	ar9280_olpc_get_pdadcs(struct athn_softc *, struct ieee80211_channel *,
+int	ar9280_attach(struct athn_common *);
+void	ar9280_reset_rx_gain(struct athn_common *, struct ieee80211_channel *);
+void	ar9280_reset_tx_gain(struct athn_common *, struct ieee80211_channel *);
+void	ar9280_olpc_get_pdadcs(struct athn_common *, struct ieee80211_channel *,
 	    int, uint8_t *, uint8_t *, uint8_t *);
 
-int	ar9280_set_synth(struct athn_softc *, struct ieee80211_channel *,
+int	ar9280_set_synth(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
-void	ar9280_spur_mitigate(struct athn_softc *, struct ieee80211_channel *,
+void	ar9280_spur_mitigate(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
 
 #endif /* _IF_ARN9280_H_ */
