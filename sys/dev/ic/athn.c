@@ -61,8 +61,8 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 
 #include <net80211/ieee80211_netbsd.h>
 #include <net80211/ieee80211_var.h>
-#include <net80211/ieee80211_amrr.h>
-#include <net80211/ieee80211_radiotap.h>
+//#include <net80211/ieee80211_radiotap.h>
+#include <net80211/ieee80211_ratectl.h>
 #include <net80211/ieee80211_regdomain.h>
 
 #include <dev/ic/athnreg.h>
@@ -77,9 +77,6 @@ __KERNEL_RCSID(0, "$NetBSD: athn.c,v 1.26 2022/03/18 23:32:24 riastradh Exp $");
 
 #define Static static
 
-#define IS_UP_AND_RUNNING(ifp) \
-	(((ifp)->if_flags & IFF_UP) && ((ifp)->if_flags & IFF_RUNNING))
-
 #ifdef ATHN_DEBUG
 int athn_debug = 0;
 #endif
@@ -89,15 +86,14 @@ Static const char *
 		athn_get_mac_name(struct athn_softc *);
 Static const char *
 		athn_get_rf_name(struct athn_softc *);
-Static int	athn_init(struct ifnet *);
+Static int	athn_init(struct athn_softc *);
 Static int	athn_init_calib(struct athn_softc *,
 		    struct ieee80211_channel *, struct ieee80211_channel *);
-Static int	athn_ioctl(struct ifnet *, u_long, void *);
-Static int	athn_media_change(struct ifnet *);
-Static int	athn_newstate(struct ieee80211com *, enum ieee80211_state,
+Static void	athn_set_channel(struct ieee80211com *);
+Static int	athn_newstate(struct ieee80211vap *, enum ieee80211_state,
 		    int);
 Static struct ieee80211_node *
-		athn_node_alloc(struct ieee80211_node_table *);
+		athn_node_alloc(struct ieee80211vap *, const uint8_t *);
 Static int	athn_reset_power_on(struct athn_softc *);
 Static int	athn_stop_rx_dma(struct athn_softc *);
 Static int	athn_switch_chan(struct athn_softc *,
@@ -105,22 +101,30 @@ Static int	athn_switch_chan(struct athn_softc *,
 Static void	athn_calib_to(void *);
 Static void	athn_disable_interrupts(struct athn_softc *);
 Static void	athn_enable_interrupts(struct athn_softc *);
-Static void	athn_get_chanlist(struct athn_softc *);
 Static void	athn_get_chipid(struct athn_softc *);
 Static void	athn_init_dma(struct athn_softc *);
 Static void	athn_init_qos(struct athn_softc *);
 Static void	athn_init_tx_queues(struct athn_softc *);
-Static void	athn_iter_func(void *, struct ieee80211_node *);
 Static void	athn_newassoc(struct ieee80211_node *, int);
 Static void	athn_next_scan(void *);
+Static void	athn_scan_start(struct ieee80211com *);
+Static void	athn_scan_end(struct ieee80211com *);
 Static void	athn_pmf_wlan_off(device_t self);
-Static void	athn_radiotap_attach(struct athn_softc *);
-Static void	athn_start(struct ifnet *);
 Static void	athn_tx_reclaim(struct athn_softc *, int);
-Static void	athn_watchdog(struct ifnet *);
+Static void	athn_watchdog(void *);
 Static void	athn_write_serdes(struct athn_softc *,
 		    const struct athn_serdes *);
 Static void	athn_softintr(void *);
+Static void	athn_parent(struct ieee80211com *);
+Static int	athn_transmit(struct ieee80211com *, struct mbuf *);
+Static void	athn_get_radiocaps(struct ieee80211com *,
+		    int, int *, struct ieee80211_channel []);
+Static struct ieee80211vap *
+		athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
+		    int, enum ieee80211_opmode, int,
+		    const uint8_t [IEEE80211_ADDR_LEN],
+		    const uint8_t [IEEE80211_ADDR_LEN]);
+Static void athn_vap_delete(struct ieee80211vap *);
 
 #ifdef ATHN_BT_COEXISTENCE
 Static void	athn_btcoex_disable(struct athn_softc *);
@@ -139,15 +143,21 @@ Static void	athn_ani_monitor(struct athn_softc *);
 Static void	athn_ani_ofdm_err_trigger(struct athn_softc *);
 Static void	athn_ani_restart(struct athn_softc *);
 #endif /* notyet */
-Static void	athn_set_multi(struct athn_softc *);
+Static void	athn_set_multi(struct ieee80211com *);
+
+struct athn_vap {
+	struct ieee80211vap vap;
+	int (*newstate)(struct ieee80211vap *, enum ieee80211_state, int);
+	callout_t av_scan_to;
+};
 
 PUBLIC int
 athn_attach(struct athn_softc *sc)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct ifnet *ifp = &sc->sc_if;
-	size_t max_nnodes;
 	int error;
+
+	ic->ic_softc = sc;
 
 	/* Read hardware revision. */
 	athn_get_chipid(sc);
@@ -217,18 +227,6 @@ athn_attach(struct athn_softc *sc)
 	}
 	DPRINTFN(DBG_INIT, sc, "%zd key cache entries\n", sc->sc_kc_entries);
 
-	/*
-	 * In HostAP mode, the number of STAs that we can handle is
-	 * limited by the number of entries in the HW key cache.
-	 * TKIP keys consume 2 entries in the cache.
-	 */
-	KASSERT(sc->sc_kc_entries / 2 > IEEE80211_WEP_NKID);
-	max_nnodes = (sc->sc_kc_entries / 2) - IEEE80211_WEP_NKID;
-	if (sc->sc_max_aid != 0)	/* we have an override */
-		ic->ic_max_aid = sc->sc_max_aid;
-	if (ic->ic_max_aid > max_nnodes)
-		ic->ic_max_aid = max_nnodes;
-
 	DPRINTFN(DBG_INIT, sc, "using %s loop power control\n",
 	    (sc->sc_flags & ATHN_FLAG_OLPC) ? "open" : "closed");
 	DPRINTFN(DBG_INIT, sc, "txchainmask=0x%x rxchainmask=0x%x\n",
@@ -244,13 +242,16 @@ athn_attach(struct athn_softc *sc)
 	    ((sc->sc_rxchainmask >> 1) & 1) +
 	    ((sc->sc_rxchainmask >> 0) & 1);
 
+	ic->ic_txstream = sc->sc_ntxchains;
+ 	ic->ic_rxstream = sc->sc_nrxchains;
+
 	if (AR_SINGLE_CHIP(sc)) {
 		aprint_normal(": Atheros %s\n", athn_get_mac_name(sc));
 		aprint_verbose_dev(sc->sc_dev,
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    sc->sc_mac_rev,
 		    sc->sc_ntxchains, sc->sc_nrxchains, sc->sc_eep_rev,
-		    ether_sprintf(ic->ic_myaddr));
+		    ether_sprintf(ic->ic_macaddr));
 	} else {
 		aprint_normal(": Atheros %s, RF %s\n", athn_get_mac_name(sc),
 		    athn_get_rf_name(sc));
@@ -258,20 +259,21 @@ athn_attach(struct athn_softc *sc)
 		    "rev %d (%dT%dR), ROM rev %d, address %s\n",
 		    sc->sc_mac_rev,
 		    sc->sc_ntxchains, sc->sc_nrxchains,
-		    sc->sc_eep_rev, ether_sprintf(ic->ic_myaddr));
+		    sc->sc_eep_rev, ether_sprintf(ic->ic_macaddr));
 	}
 
-	callout_init(&sc->sc_scan_to, 0);
-	callout_setfunc(&sc->sc_scan_to, athn_next_scan, sc);
 	callout_init(&sc->sc_calib_to, 0);
 	callout_setfunc(&sc->sc_calib_to, athn_calib_to, sc);
+	callout_init(&sc->sc_watchdog_to, 0);
+	callout_setfunc(&sc->sc_watchdog_to, athn_watchdog, sc);
 
+#if 0
 	sc->sc_amrr.amrr_min_success_threshold = 1;
 	sc->sc_amrr.amrr_max_success_threshold = 15;
+#endif
 
 	ic->ic_phytype = IEEE80211_T_OFDM;	/* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA;	/* default to BSS mode */
-	ic->ic_state = IEEE80211_S_INIT;
 
 	/* Set device capabilities. */
 	ic->ic_caps =
@@ -280,6 +282,7 @@ athn_attach(struct athn_softc *sc)
 	    IEEE80211_C_HOSTAP |	/* Host AP mode supported. */
 // XXX?	    IEEE80211_C_APPMGT |	/* Host AP power saving supported. */
 #endif
+	    IEEE80211_C_STA |
 	    IEEE80211_C_MONITOR |	/* Monitor mode supported. */
 	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
 	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
@@ -323,41 +326,40 @@ athn_attach(struct athn_softc *sc)
 #endif
 
 	/* Set supported rates. */
-	if (sc->sc_flags & ATHN_FLAG_11G) {
-		ic->ic_sup_rates[IEEE80211_MODE_11B] =
-		    ieee80211_std_rateset_11b;
-		ic->ic_sup_rates[IEEE80211_MODE_11G] =
-		    ieee80211_std_rateset_11g;
-	}
-	if (sc->sc_flags & ATHN_FLAG_11A) {
-		ic->ic_sup_rates[IEEE80211_MODE_11A] =
-		    ieee80211_std_rateset_11a;
-	}
+	/* XXX remove? */
+	// if (sc->sc_flags & ATHN_FLAG_11G) {
+	// 	ic->ic_sup_rates[IEEE80211_MODE_11B] =
+	// 	    ieee80211_std_rateset_11b;
+	// 	ic->ic_sup_rates[IEEE80211_MODE_11G] =
+	// 	    ieee80211_std_rateset_11g;
+	// }
+	// if (sc->sc_flags & ATHN_FLAG_11A) {
+	// 	ic->ic_sup_rates[IEEE80211_MODE_11A] =
+	// 	    ieee80211_std_rateset_11a;
+	// }
+
+	ic->ic_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
 
 	/* Get the list of authorized/supported channels. */
-	athn_get_chanlist(sc);
+	athn_get_radiocaps(ic, IEEE80211_CHAN_MAX, &ic->ic_nchans,
+	    ic->ic_channels);
 
-	ifp->if_softc = sc;
-	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
-	if (!ifp->if_init)
-		ifp->if_init = athn_init;
-	if (!ifp->if_ioctl)
-		ifp->if_ioctl = athn_ioctl;
-	if (!ifp->if_start)
-		ifp->if_start = athn_start;
-	if (!ifp->if_watchdog)
-		ifp->if_watchdog = athn_watchdog;
-	IFQ_SET_READY(&ifp->if_snd);
-	memcpy(ifp->if_xname, device_xname(sc->sc_dev), IFNAMSIZ);
+	ic->ic_name = device_xname(sc->sc_dev);
 
-	if_initialize(ifp);
 	ieee80211_ifattach(ic);
-	/* Use common softint-based if_input */
-	ifp->if_percpuq = if_percpuq_create(ifp);
-	if_register(ifp);
 
+	ic->ic_parent = athn_parent;
 	ic->ic_node_alloc = athn_node_alloc;
 	ic->ic_newassoc = athn_newassoc;
+	ic->ic_getradiocaps = athn_get_radiocaps;
+	ic->ic_vap_create = athn_vap_create;
+	ic->ic_vap_delete = athn_vap_delete;
+	ic->ic_transmit = athn_transmit;
+	ic->ic_raw_xmit = sc->sc_ops.tx;
+	ic->ic_update_mcast = athn_set_multi;
+	ic->ic_scan_start = athn_scan_start;
+	ic->ic_scan_end = athn_scan_end;
+	ic->ic_set_channel = athn_set_channel;
 	if (ic->ic_updateslot == NULL)
 		ic->ic_updateslot = athn_updateslot;
 #ifdef notyet_edca
@@ -368,28 +370,22 @@ athn_attach(struct athn_softc *sc)
 	ic->ic_delete_key = athn_delete_key;
 #endif
 
-	/* Override 802.11 state transition machine. */
-	sc->sc_newstate = ic->ic_newstate;
-	ic->ic_newstate = athn_newstate;
+	/* XXX */
+	//ieee80211_media_init(ic, sc->sc_media_change, ieee80211_media_status);
 
-	/* XXX we should create at least one vap here??? */
+	sc->sc_sendq.ifq_maxlen = ifqmaxlen;
+	IFQ_LOCK_INIT(&sc->sc_sendq);
 
-	if (sc->sc_media_change == NULL)
-		sc->sc_media_change = athn_media_change;
-	ieee80211_media_init(ic, sc->sc_media_change, ieee80211_media_status);
-
-	athn_radiotap_attach(sc);
 	return 0;
 }
 
 PUBLIC void
 athn_detach(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
 	int qid;
 
-	callout_halt(&sc->sc_scan_to, NULL);
 	callout_halt(&sc->sc_calib_to, NULL);
+	callout_stop(&sc->sc_watchdog_to);
 
 	if (!(sc->sc_flags & ATHN_FLAG_USB)) {
 		for (qid = 0; qid < ATHN_QID_COUNT; qid++)
@@ -409,37 +405,23 @@ athn_detach(struct athn_softc *sc)
 		sc->sc_eep = NULL;
 	}
 
-	bpf_detach(ifp);
+	/* XXX  How do we detach from bpf?
+	bpf_detach(if*p);
+	*/
 	ieee80211_ifdetach(&sc->sc_ic);
-	if_detach(ifp);
+	/* XXX
+	if_detach(if*p);
+	*/
 
-	callout_destroy(&sc->sc_scan_to);
 	callout_destroy(&sc->sc_calib_to);
+	callout_destroy(&sc->sc_watchdog_to);
 
 	pmf_event_deregister(sc->sc_dev, PMFE_RADIO_OFF, athn_pmf_wlan_off,
 	    false);
 }
 
-/*
- * Attach the interface to 802.11 radiotap.
- */
-Static void
-athn_radiotap_attach(struct athn_softc *sc)
-{
-
-	bpf_attach2(&sc->sc_if, DLT_IEEE802_11_RADIO,
-	    sizeof(struct ieee80211_frame) + IEEE80211_RADIOTAP_HDRLEN,
-	    &sc->sc_drvbpf);
-
-	sc->sc_rxtap_len = sizeof(sc->sc_rxtapu);
-	sc->sc_rxtap.wr_ihdr.it_len = htole16(sc->sc_rxtap_len);
-	sc->sc_rxtap.wr_ihdr.it_present = htole32(ATHN_RX_RADIOTAP_PRESENT);
-
-	sc->sc_txtap_len = sizeof(sc->sc_txtapu);
-	sc->sc_txtap.wt_ihdr.it_len = htole16(sc->sc_txtap_len);
-	sc->sc_txtap.wt_ihdr.it_present = htole32(ATHN_TX_RADIOTAP_PRESENT);
-}
-
+#if 0
+/* XXX remove this, but first compare it to getradiocaps */
 Static void
 athn_get_chanlist(struct athn_softc *sc)
 {
@@ -466,6 +448,7 @@ athn_get_chanlist(struct athn_softc *sc)
 		}
 	}
 }
+#endif
 
 PUBLIC void
 athn_rx_start(struct athn_softc *sc)
@@ -548,10 +531,11 @@ PUBLIC int
 athn_intr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
-	struct ifnet *ifp = &sc->sc_if;
 
-	if (!IS_UP_AND_RUNNING(ifp))
+	/* XXX check ic_nrunning?
+	if (!IS_UP_AND_RUNNING(i*fp))
 		return 0;
+	*/
 
 	if (!device_activation(sc->sc_dev, DEVACT_LEVEL_DRIVER))
 		/*
@@ -576,10 +560,11 @@ Static void
 athn_softintr(void *xsc)
 {
 	struct athn_softc *sc = xsc;
-	struct ifnet *ifp = &sc->sc_if;
 
-	if (!IS_UP_AND_RUNNING(ifp))
-		return;
+	/* XXX check ic_nrunning?
+	if (!IS_UP_AND_RUNNING(i*fp))
+		return 0;
+	*/
 
 	if (!device_activation(sc->sc_dev, DEVACT_LEVEL_DRIVER))
 		/*
@@ -1288,10 +1273,9 @@ athn_btcoex_disable(struct athn_softc *sc)
 Static void
 athn_iter_func(void *arg, struct ieee80211_node *ni)
 {
-	struct athn_softc *sc = arg;
-	struct athn_node *an = (struct athn_node *)ni;
+	struct athn_node *an = ATHN_NODE(ni);
 
-	ieee80211_amrr_choose(&sc->sc_amrr, ni, &an->amn);
+	an->txrate = ieee80211_ratectl_rate(ni, NULL, 0);
 }
 
 Static void
@@ -1328,12 +1312,15 @@ athn_calib_to(void *arg)
 
 	ops->next_calib(sc);
 #endif
+
+/* XXX */
+#ifdef notyet
 	if (ic->ic_fixed_rate == -1) {
-		if (ic->ic_opmode == IEEE80211_M_STA)
-			athn_iter_func(sc, ic->ic_bss);
-		else
-			ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, sc);
+#endif
+		ieee80211_iterate_nodes(&ic->ic_sta, athn_iter_func, sc);
+#ifdef notyet
 	}
+#endif
 	callout_schedule(&sc->sc_calib_to, hz / 2);
 	splx(s);
 }
@@ -1970,9 +1957,9 @@ athn_init_tx_queues(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_set_sta_timers(struct athn_softc *sc)
+athn_set_sta_timers(struct ieee80211vap *vap)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_softc *sc = vap->iv_ic->ic_softc;
 	uint32_t tsfhi, tsflo, tsftu, reg;
 	uint32_t intval, next_tbtt, next_dtim;
 	int dtim_period, rem_dtim_count;
@@ -1982,7 +1969,7 @@ athn_set_sta_timers(struct athn_softc *sc)
 	tsftu = AR_TSF_TO_TU(tsfhi, tsflo) + AR_FUDGE;
 
 	/* Beacon interval in TU. */
-	intval = ic->ic_bss->ni_intval;
+	intval = vap->iv_bss->ni_intval;
 
 	next_tbtt = roundup(tsftu, intval);
 #ifdef notyet
@@ -2039,13 +2026,13 @@ athn_set_sta_timers(struct athn_softc *sc)
 
 #ifndef IEEE80211_STA_ONLY
 PUBLIC void
-athn_set_hostap_timers(struct athn_softc *sc)
+athn_set_hostap_timers(struct ieee80211vap *vap)
 {
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_softc *sc = vap->iv_ic->ic_softc;
 	uint32_t intval, next_tbtt;
 
 	/* Beacon interval in TU. */
-	intval = ic->ic_bss->ni_intval;
+	intval = vap->iv_bss->ni_intval;
 	next_tbtt = intval;
 
 	AR_WRITE(sc, AR_NEXT_TBTT_TIMER, next_tbtt * IEEE80211_DUR_TU);
@@ -2298,8 +2285,8 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	ops->init_from_rom(sc, curchan, extchan);
 
 	/* XXX */
-	AR_WRITE(sc, AR_STA_ID0, LE_READ_4(&ic->ic_myaddr[0]));
-	AR_WRITE(sc, AR_STA_ID1, LE_READ_2(&ic->ic_myaddr[4]) |
+	AR_WRITE(sc, AR_STA_ID0, LE_READ_4(&ic->ic_macaddr[0]));
+	AR_WRITE(sc, AR_STA_ID1, LE_READ_2(&ic->ic_macaddr[4]) |
 	    sta_id1 | AR_STA_ID1_RTS_USE_DEF | AR_STA_ID1_CRPT_MIC_ENABLE);
 
 	athn_set_opmode(sc);
@@ -2404,7 +2391,7 @@ athn_hw_reset(struct athn_softc *sc, struct ieee80211_channel *curchan,
 }
 
 Static struct ieee80211_node *
-athn_node_alloc(struct ieee80211_node_table *ntp)
+athn_node_alloc(struct ieee80211vap *vap, const uint8_t *i)
 {
 
 	return malloc(sizeof(struct athn_node), M_DEVBUF,
@@ -2414,16 +2401,14 @@ athn_node_alloc(struct ieee80211_node_table *ntp)
 Static void
 athn_newassoc(struct ieee80211_node *ni, int isnew)
 {
-	struct ieee80211com *ic = ni->ni_ic;
-	struct athn_softc *sc = ic->ic_ifp->if_softc;
 	struct athn_node *an = (void *)ni;
 	struct ieee80211_rateset *rs = &ni->ni_rates;
 	uint8_t rate;
 	int ridx, i, j;
 
-	ieee80211_amrr_node_init(&sc->sc_amrr, &an->amn);
 	/* Start at lowest available bit-rate, AMRR will raise. */
-	ni->ni_txrate = 0;
+	an->txrate = 0;
+	ni->ni_txrate = rs->rs_rates[0] & IEEE80211_RATE_VAL;
 
 	for (i = 0; i < rs->rs_nrates; i++) {
 		rate = rs->rs_rates[i] & IEEE80211_RATE_VAL;
@@ -2449,52 +2434,78 @@ athn_newassoc(struct ieee80211_node *ni, int isnew)
 	}
 }
 
-Static int
-athn_media_change(struct ifnet *ifp)
-{
-	struct athn_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;
-	uint8_t rate, ridx;
-	int error;
 
-	error = ieee80211_media_change(ifp);
-	if (error != ENETRESET)
-		return error;
+/* XXX Where should the fixed rate stuff go? */
+// Static int
+// athn_media_change(struct ifnet *i*fp)
+// {
+// 	struct athn_softc *sc = i*fp->if_softc;
+// 	struct ieee80211com *ic = &sc->sc_ic;
+// 	uint8_t rate, ridx;
+// 	int error;
 
-	if (ic->ic_fixed_rate != -1) {
-		rate = ic->ic_sup_rates[ic->ic_curmode].
-		    rs_rates[ic->ic_fixed_rate] & IEEE80211_RATE_VAL;
-		/* Map 802.11 rate to HW rate index. */
-		for (ridx = 0; ridx <= ATHN_RIDX_MAX; ridx++)
-			if (athn_rates[ridx].rate == rate)
-				break;
-		sc->sc_fixed_ridx = ridx;
-	}
-	if (IS_UP_AND_RUNNING(ifp)) {
-		athn_stop(ifp, 0);
-		error = athn_init(ifp);
-	}
-	return error;
-}
+// 	error = ieee80211_media_change(i*fp);
+// 	if (error != ENETRESET)
+// 		return error;
 
+// 	if (ic->ic_fixed_rate != -1) {
+// 		rate = ic->ic_sup_rates[ic->ic_curmode].
+// 		    rs_rates[ic->ic_fixed_rate] & IEEE80211_RATE_VAL;
+// 		/* Map 802.11 rate to HW rate index. */
+// 		for (ridx = 0; ridx <= ATHN_RIDX_MAX; ridx++)
+// 			if (athn_rates[ridx].rate == rate)
+// 				break;
+// 		sc->sc_fixed_ridx = ridx;
+// 	}
+// 	if (IS_UP_AND_RUNNING(i*fp)) {
+// 		athn_stop(i*fp, 0);
+// 		error = athn_init(i*fp);
+// 	}
+// 	return error;
+// }
+
+/* XXX Is this necessary? */
 Static void
 athn_next_scan(void *arg)
 {
-	struct athn_softc *sc = arg;
-	struct ieee80211com *ic = &sc->sc_ic;
+#if 0
+	struct ieee80211vap *vap = arg;
+	//struct ieee80211com *ic = vap->iv_ic;
 	int s;
 
 	s = splnet();
-	if (ic->ic_state == IEEE80211_S_SCAN)
-		ieee80211_next_scan(ic);
+	if (vap->iv_state == IEEE80211_S_SCAN)
+		ieee80211_next_scan();
 	splx(s);
+#endif
+}
+
+Static void
+athn_scan_start(struct ieee80211com *ic)
+{
+	ic->ic_flags |= IEEE80211_F_SCAN;
+}
+
+Static void
+athn_scan_end(struct ieee80211com *ic)
+{
+	ic->ic_flags &= ~IEEE80211_F_SCAN;
+}
+
+Static void
+athn_set_channel(struct ieee80211com *ic)
+{
+	struct athn_softc *sc = ic->ic_softc;
+
+	athn_switch_chan(sc, ic->ic_curchan, NULL); /* XXX extchan? */
 }
 
 Static int
-athn_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
+athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 {
-	struct ifnet *ifp = ic->ic_ifp;
-	struct athn_softc *sc = ifp->if_softc;
+	struct ieee80211com *ic = vap->iv_ic;
+	struct athn_vap *avap = (struct athn_vap *)vap;
+	struct athn_softc *sc = ic->ic_softc;
 	uint32_t reg;
 	int error;
 
@@ -2510,7 +2521,7 @@ athn_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		error = athn_switch_chan(sc, ic->ic_curchan, NULL);
 		if (error != 0)
 			return error;
-		callout_schedule(&sc->sc_scan_to, hz / 5);
+		callout_schedule(&avap->av_scan_to, hz / 5);
 		break;
 	case IEEE80211_S_AUTH:
 		athn_set_led(sc, 0);
@@ -2527,19 +2538,19 @@ athn_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 			break;
 
 		/* Fake a join to initialize the Tx rate. */
-		athn_newassoc(ic->ic_bss, 1);
+		athn_newassoc(vap->iv_bss, 1);
 
-		athn_set_bss(sc, ic->ic_bss);
+		athn_set_bss(sc, vap->iv_bss);
 		athn_disable_interrupts(sc);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
-			athn_set_hostap_timers(sc);
+			athn_set_hostap_timers(vap);
 			/* Enable software beacon alert interrupts. */
 			sc->sc_imask |= AR_IMR_SWBA;
 		} else
 #endif
 		{
-			athn_set_sta_timers(sc);
+			athn_set_sta_timers(vap);
 			/* Enable beacon miss interrupts. */
 			sc->sc_imask |= AR_IMR_BMISS;
 
@@ -2560,10 +2571,15 @@ athn_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		/* XXX Start ANI. */
 
 		callout_schedule(&sc->sc_calib_to, hz / 2);
+
+	/* XXX handle new states */
+	case IEEE80211_S_CAC:
+	case IEEE80211_S_CSA:
+	case IEEE80211_S_SLEEP:
 		break;
 	}
 
-	return sc->sc_newstate(ic, nstate, arg);
+	return (*avap->newstate)(vap, nstate, arg);
 }
 
 #ifdef notyet_edca
@@ -2619,10 +2635,9 @@ athn_clock_rate(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_updateslot(struct ifnet *ifp)
+athn_updateslot(struct ieee80211com *ic)
 {
-	struct athn_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_softc *sc = ic->ic_softc;
 	int slot;
 
 	slot = (ic->ic_flags & IEEE80211_F_SHSLOT) ? 9 : 20;
@@ -2630,93 +2645,84 @@ athn_updateslot(struct ifnet *ifp)
 	AR_WRITE_BARRIER(sc);
 }
 
-Static void
-athn_start(struct ifnet *ifp)
+void
+athn_start(struct athn_softc *sc)
 {
-	struct athn_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;
-	struct ether_header *eh;
+	struct ieee80211vap *vap = NULL;
+	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
 	struct mbuf *m;
 
-	if ((ifp->if_flags & (IFF_RUNNING | IFF_OACTIVE)) != IFF_RUNNING
-	    || !device_is_active(sc->sc_dev))
+	if (sc->sc_flags & ATHN_FLAG_TX_BUSY)
 		return;
 
 	for (;;) {
 		if (SIMPLEQ_EMPTY(&sc->sc_txbufs)) {
-			ifp->if_flags |= IFF_OACTIVE;
+			sc->sc_flags |= ATHN_FLAG_TX_BUSY;
 			break;
 		}
-		/* Send pending management frames first. */
-		IF_DEQUEUE(&ic->ic_mgtq, m);
-		if (m != NULL) {
-			ni = M_GETCTX(m, struct ieee80211_node *);
-			goto sendit;
-		}
-		if (ic->ic_state != IEEE80211_S_RUN)
-			break;
 
 		/* Encapsulate and send data frames. */
-		IFQ_DEQUEUE(&ifp->if_snd, m);
+		IFQ_DEQUEUE(&sc->sc_sendq, m);
 		if (m == NULL)
 			break;
+		ni = M_GETCTX(m, struct ieee80211_node *);
+		M_CLEARCTX(m);
+		vap = ni->ni_vap;
 
-		if (m->m_len < (int)sizeof(*eh) &&
-		    (m = m_pullup(m, sizeof(*eh))) == NULL) {
-			if_statinc(ifp, if_oerrors);
+		if (m->m_len < (int)sizeof(*wh) &&
+		    (m = m_pullup(m, sizeof(*wh))) == NULL) {
+			if_statinc(vap->iv_ifp, if_oerrors);
 			continue;
 		}
-		eh = mtod(m, struct ether_header *);
-		ni = ieee80211_find_txnode(ic, eh->ether_dhost);
+		wh = mtod(m, struct ieee80211_frame *);
 		if (ni == NULL) {
 			m_freem(m);
-			if_statinc(ifp, if_oerrors);
+			if_statinc(vap->iv_ifp, if_oerrors);
 			continue;
 		}
 
-		bpf_mtap(ifp, m, BPF_D_OUT);
+#if 0
+		ieee80211_radiotap_tx(vap, m);
+#endif
 
-		if ((m = ieee80211_encap(ic, m, ni)) == NULL)
-			continue;
- sendit:
-		bpf_mtap3(ic->ic_rawbpf, m, BPF_D_OUT);
-
-		if (sc->sc_ops.tx(sc, m, ni, 0) != 0) {
+		/* XXX What to pass for bpf_params? */
+		if (sc->sc_ops.tx(ni, m, NULL) != 0) {
 			ieee80211_free_node(ni);
-			if_statinc(ifp, if_oerrors);
+			if_statinc(vap->iv_ifp, if_oerrors);
 			continue;
 		}
 
 		sc->sc_tx_timer = 5;
-		ifp->if_timer = 1;
+		callout_schedule(&sc->sc_watchdog_to, hz);
 	}
 }
 
 Static void
-athn_watchdog(struct ifnet *ifp)
+athn_watchdog(void *arg)
 {
-	struct athn_softc *sc = ifp->if_softc;
-
-	ifp->if_timer = 0;
+	struct athn_softc *sc = arg;
 
 	if (sc->sc_tx_timer > 0) {
 		if (--sc->sc_tx_timer == 0) {
 			aprint_error_dev(sc->sc_dev, "device timeout\n");
 			/* see athn_init, no need to call athn_stop here */
 			/* athn_stop(ifp, 0); */
-			(void)athn_init(ifp);
-			if_statinc(ifp, if_oerrors);
+			(void)athn_init(sc);
+			ieee80211_stat_add(&sc->sc_ic.ic_oerrors, 1);
 			return;
 		}
-		ifp->if_timer = 1;
+		callout_schedule(&sc->sc_watchdog_to, hz);
 	}
-	ieee80211_watchdog(&sc->sc_ic);
 }
 
+
+/* XXX what do we do with the ethercom stuff??? */
 Static void
-athn_set_multi(struct athn_softc *sc)
+athn_set_multi(struct ieee80211com *ic)
 {
+	struct athn_softc *sc = ic->ic_softc;
+#if 0
 	struct ethercom *ec = &sc->sc_ec;
 	struct ifnet *ifp = &ec->ec_if;
 	struct ether_multi *enm;
@@ -2754,87 +2760,92 @@ athn_set_multi(struct athn_softc *sc)
  done:
 	ETHER_UNLOCK(ec);
  done2:
+#else
+	uint32_t lo, hi;
+
+	lo = hi = 0xffffffff;
+#endif
 	AR_WRITE(sc, AR_MCAST_FIL0, lo);
 	AR_WRITE(sc, AR_MCAST_FIL1, hi);
 	AR_WRITE_BARRIER(sc);
 }
 
+/* XXX handle ENETRESET with iv_reset? */
+// Static int
+// athn_ioctl(struct ifnet *i*fp, u_long cmd, void *data)
+// {
+// 	struct athn_softc *sc = i*fp->if_softc;
+// 	struct ieee80211com *ic = &sc->sc_ic;
+// 	int s, error = 0;
+
+// 	s = splnet();
+
+// 	switch (cmd) {
+// 	case SIOCSIFFLAGS:
+// 		if ((error = ifioctl_common(i*fp, cmd, data)) != 0)
+// 			break;
+
+// 		switch (i*fp->if_flags & (IFF_UP | IFF_RUNNING)) {
+// 		case IFF_UP | IFF_RUNNING:
+// #ifdef notyet
+// 			if (((i*fp->if_flags ^ sc->sc_if_flags) &
+// 				(IFF_ALLMULTI | IFF_PROMISC)) != 0)
+// 				/* XXX: setup multi */
+// #endif
+// 			break;
+// 		case IFF_UP:
+// 			athn_init(i*fp);
+// 			break;
+
+// 		case IFF_RUNNING:
+// 			athn_stop(i*fp, 1);
+// 			break;
+// 		case 0:
+// 		default:
+// 			break;
+// 		}
+// 		sc->sc_if_flags = i*fp->if_flags;
+// 		break;
+
+// 	case SIOCADDMULTI:
+// 	case SIOCDELMULTI:
+// 		if ((error = ether_ioctl(i*fp, cmd, data)) == ENETRESET) {
+// 			/* setup multicast filter, etc */
+// 			athn_set_multi(sc);
+// 			error = 0;
+// 		}
+// 		break;
+
+// 	case SIOCS80211CHANNEL:
+// 		error = ieee80211_ioctl(ic, cmd, data);
+// 		if (error == ENETRESET &&
+// 		    ic->ic_opmode == IEEE80211_M_MONITOR) {
+// 			if (IS_UP_AND_RUNNING(i*fp))
+// 				athn_switch_chan(sc, ic->ic_curchan, NULL);
+// 			error = 0;
+// 		}
+// 		break;
+
+// 	default:
+// 		error = ieee80211_ioctl(ic, cmd, data);
+// 	}
+
+// 	if (error == ENETRESET) {
+// 		error = 0;
+// 		if (IS_UP_AND_RUNNING(i*fp) &&
+// 		    ic->ic_roaming != IEEE80211_ROAMING_MANUAL) {
+// 			athn_stop(i*fp, 0);
+// 			error = athn_init(i*fp);
+// 		}
+// 	}
+
+// 	splx(s);
+// 	return error;
+// }
+
 Static int
-athn_ioctl(struct ifnet *ifp, u_long cmd, void *data)
+athn_init(struct athn_softc *sc)
 {
-	struct athn_softc *sc = ifp->if_softc;
-	struct ieee80211com *ic = &sc->sc_ic;
-	int s, error = 0;
-
-	s = splnet();
-
-	switch (cmd) {
-	case SIOCSIFFLAGS:
-		if ((error = ifioctl_common(ifp, cmd, data)) != 0)
-			break;
-
-		switch (ifp->if_flags & (IFF_UP | IFF_RUNNING)) {
-		case IFF_UP | IFF_RUNNING:
-#ifdef notyet
-			if (((ifp->if_flags ^ sc->sc_if_flags) &
-				(IFF_ALLMULTI | IFF_PROMISC)) != 0)
-				/* XXX: setup multi */
-#endif
-			break;
-		case IFF_UP:
-			athn_init(ifp);
-			break;
-
-		case IFF_RUNNING:
-			athn_stop(ifp, 1);
-			break;
-		case 0:
-		default:
-			break;
-		}
-		sc->sc_if_flags = ifp->if_flags;
-		break;
-
-	case SIOCADDMULTI:
-	case SIOCDELMULTI:
-		if ((error = ether_ioctl(ifp, cmd, data)) == ENETRESET) {
-			/* setup multicast filter, etc */
-			athn_set_multi(sc);
-			error = 0;
-		}
-		break;
-
-	case SIOCS80211CHANNEL:
-		error = ieee80211_ioctl(ic, cmd, data);
-		if (error == ENETRESET &&
-		    ic->ic_opmode == IEEE80211_M_MONITOR) {
-			if (IS_UP_AND_RUNNING(ifp))
-				athn_switch_chan(sc, ic->ic_curchan, NULL);
-			error = 0;
-		}
-		break;
-
-	default:
-		error = ieee80211_ioctl(ic, cmd, data);
-	}
-
-	if (error == ENETRESET) {
-		error = 0;
-		if (IS_UP_AND_RUNNING(ifp) &&
-		    ic->ic_roaming != IEEE80211_ROAMING_MANUAL) {
-			athn_stop(ifp, 0);
-			error = athn_init(ifp);
-		}
-	}
-
-	splx(s);
-	return error;
-}
-
-Static int
-athn_init(struct ifnet *ifp)
-{
-	struct athn_softc *sc = ifp->if_softc;
 	struct athn_ops *ops = &sc->sc_ops;
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_channel *curchan, *extchan;
@@ -2844,10 +2855,8 @@ athn_init(struct ifnet *ifp)
 	KASSERT(!cpu_intr_p());
 
 	if (device_is_active(sc->sc_dev)) {
-		athn_stop(ifp, 0);	/* see athn_watchdog() */
+		athn_stop(sc, 0);	/* see athn_watchdog() */
 	} else {
-		short flags = ifp->if_flags;
-		ifp->if_flags &= ~IFF_UP;
 		/* avoid recursion in athn_resume */
 		if (!pmf_device_subtree_resume(sc->sc_dev, &sc->sc_qual) ||
 		    !device_is_active(sc->sc_dev)) {
@@ -2855,14 +2864,14 @@ athn_init(struct ifnet *ifp)
 			    device_xname(sc->sc_dev));
 			return 0;
 		}
-		ifp->if_flags = flags;
 	}
 
 	curchan = ic->ic_curchan;
 	extchan = NULL;
 
 	/* In case a new MAC address has been configured. */
-	IEEE80211_ADDR_COPY(ic->ic_myaddr, CLLADDR(ifp->if_sadl));
+	/* XXX ??? */
+	//IEEE80211_ADDR_COPY(ic->ic_macaddr, CLLADDR(i*fp->if_sadl));
 
 #ifdef openbsd_power_management
 	/* For CardBus, power on the socket. */
@@ -2921,8 +2930,7 @@ athn_init(struct ifnet *ifp)
 		athn_btcoex_enable(sc);
 #endif
 
-	ifp->if_flags &= ~IFF_OACTIVE;
-	ifp->if_flags |= IFF_RUNNING;
+	sc->sc_flags |= ATHN_FLAG_TX_BUSY;
 
 #ifdef notyet
 	if (ic->ic_flags & IEEE80211_F_WEPON) {
@@ -2931,32 +2939,41 @@ athn_init(struct ifnet *ifp)
 			athn_set_key(ic, NULL, &ic->ic_nw_keys[i]);
 	}
 #endif
+
+#if 0 /* XXX */
 	if (ic->ic_opmode == IEEE80211_M_MONITOR)
-		ieee80211_new_state(ic, IEEE80211_S_RUN, -1);
+		ieee80211_new_state(vap, IEEE80211_S_RUN, -1);
 	else
-		ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
+		ieee80211_new_state(vap, IEEE80211_S_SCAN, -1);
+#endif
 
 	return 0;
  fail:
-	athn_stop(ifp, 1);
+	athn_stop(sc, 1);
 	return error;
 }
 
 PUBLIC void
-athn_stop(struct ifnet *ifp, int disable)
+athn_stop(struct athn_softc *sc, int disable)
 {
-	struct athn_softc *sc = ifp->if_softc;
 	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211vap *nvap;
 	int qid;
 
-	ifp->if_timer = sc->sc_tx_timer = 0;
-	ifp->if_flags &= ~(IFF_RUNNING | IFF_OACTIVE);
+	sc->sc_tx_timer = 0;
+	sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
 
-	callout_stop(&sc->sc_scan_to);
+	callout_stop(&sc->sc_watchdog_to);
+	/* Stop all scans. */
+	TAILQ_FOREACH(nvap, &ic->ic_vaps, iv_next) {
+		callout_stop(&(((struct athn_vap *)nvap)->av_scan_to));
+	}
+
 	/* In case we were scanning, release the scan "lock". */
 //	ic->ic_scan_lock = IEEE80211_SCAN_UNLOCKED;	/* XXX:??? */
 
-	ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
+	/* XXX */
+	//ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
 
 #ifdef ATHN_BT_COEXISTENCE
 	/* Disable bluetooth coexistence for combo chips. */
@@ -3007,29 +3024,157 @@ Static void
 athn_pmf_wlan_off(device_t self)
 {
 	struct athn_softc *sc = device_private(self);
-	struct ifnet *ifp = &sc->sc_if;
 
 	/* Turn the interface down. */
-	ifp->if_flags &= ~IFF_UP;
-	athn_stop(ifp, 1);
+	//i*fp->if_flags &= ~IFF_UP;
+	athn_stop(sc, 1);
 }
 
 PUBLIC void
 athn_suspend(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
-
-	if (ifp->if_flags & IFF_RUNNING)
-		athn_stop(ifp, 1);
+	//if (i*fp->if_flags & IFF_RUNNING)
+	athn_stop(sc, 1);
 }
 
 PUBLIC bool
 athn_resume(struct athn_softc *sc)
 {
-	struct ifnet *ifp = &sc->sc_if;
 
-	if (ifp->if_flags & IFF_UP)
-		athn_init(ifp);
+	//if (ifp->if_flags & IFF_UP)
+	athn_init(sc);
 
 	return true;
+}
+
+static int
+athn_transmit(struct ieee80211com *ic, struct mbuf *m)
+{
+	struct athn_softc *sc = ic->ic_softc;
+	int s;
+
+	DPRINTFN(5, ("%s: %s\n",ic->ic_name, __func__));
+
+	s = splnet();
+	IF_ENQUEUE(&sc->sc_sendq, m);
+	if (!(sc->sc_flags & ATHN_FLAG_TX_BUSY))
+		athn_start(sc);
+	splx(s);
+	return 0;
+}
+
+static void
+athn_get_radiocaps(struct ieee80211com *ic,
+     int maxchans, int *nchans, struct ieee80211_channel chans[])
+{
+	struct athn_softc *sc = ic->ic_softc;
+	uint8_t bands[IEEE80211_MODE_BYTES];
+
+	/* XXX correct way to check for 5ghz? */
+	if (sc->sc_flags & ATHN_FLAG_11A) {
+		memset(bands, 0, sizeof(bands));
+		setbit(bands, IEEE80211_MODE_11A);
+		setbit(bands, IEEE80211_MODE_11NA);
+		/* support ht40? */
+		ieee80211_add_channel_list_5ghz(chans, maxchans, nchans,
+		    athn_5ghz_chans, nitems(athn_5ghz_chans), bands, 0);
+	}
+
+	memset(bands, 0, sizeof(bands));
+	setbit(bands, IEEE80211_MODE_11B);
+	setbit(bands, IEEE80211_MODE_11G);
+	setbit(bands, IEEE80211_MODE_11NG);
+	/* support ht40? */
+	ieee80211_add_channels_default_2ghz(chans, maxchans, nchans, bands, 0);
+}
+
+static void
+athn_parent(struct ieee80211com *ic)
+{
+	struct athn_softc *sc = ic->ic_softc;
+	bool startall = false;
+
+	/* XXX kassert that the device is fully running */
+	/* XXX do we need to accquire lock here? */
+	if (ic->ic_nrunning > 0) {
+		athn_init(sc);
+		startall = true;
+	} else /* XXX pass 1 or 0? */
+		athn_stop(sc, 1);
+
+	if (startall)
+		ieee80211_start_all(ic);
+}
+
+static struct ieee80211vap *
+athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
+    int unit, enum ieee80211_opmode opmode, int flags,
+    const uint8_t bssid[IEEE80211_ADDR_LEN],
+    const uint8_t macaddr[IEEE80211_ADDR_LEN])
+{
+	struct athn_vap *vap;
+	struct athn_softc *sc = ic->ic_softc;
+	struct ifnet *ifp;
+	size_t max_nnodes;
+
+	/* Only allow 1 vap for now */
+	if (!TAILQ_EMPTY(&ic->ic_vaps)) {
+		aprint_error_dev(sc->sc_dev, "Only 1 vap at a time.\n");
+		return NULL;
+	}
+
+	vap = kmem_zalloc(sizeof(*vap), KM_SLEEP);
+
+	if (ieee80211_vap_setup(ic, &vap->vap, name, unit, opmode,
+	    flags | IEEE80211_CLONE_NOBEACONS, bssid) != 0) {
+		kmem_free(vap, sizeof(*vap));
+		return NULL;
+	}
+
+	callout_init(&vap->av_scan_to, 0);
+	callout_setfunc(&vap->av_scan_to, athn_next_scan, vap);
+
+	ifp = vap->vap.iv_ifp;
+
+	/* Use common softint-based if_input */
+	ifp->if_percpuq = if_percpuq_create(ifp);
+
+	/* Override state transition machine. */
+	vap->newstate = vap->vap.iv_newstate;
+	vap->vap.iv_newstate = athn_newstate;
+
+	ieee80211_ratectl_init(&vap->vap);
+
+	/*
+	 * In HostAP mode, the number of STAs that we can handle is
+	 * limited by the number of entries in the HW key cache.
+	 * TKIP keys consume 2 entries in the cache.
+	 */
+	KASSERT(sc->sc_kc_entries / 2 > IEEE80211_WEP_NKID);
+	max_nnodes = (sc->sc_kc_entries / 2) - IEEE80211_WEP_NKID;
+	if (sc->sc_max_aid != 0)	/* we have an override */
+		vap->vap.iv_max_aid = sc->sc_max_aid;
+	if (vap->vap.iv_max_aid > max_nnodes)
+		vap->vap.iv_max_aid = max_nnodes;
+
+	ieee80211_vap_attach(&vap->vap, ieee80211_media_change,
+	    ieee80211_media_status, macaddr);
+
+	return &vap->vap;
+}
+
+static void
+athn_vap_delete(struct ieee80211vap *arg)
+{
+	struct ifnet *ifp = arg->iv_ifp;
+	struct athn_vap *vap = (struct athn_vap *)arg;
+
+	DPRINTFN(5, ("%s: %s\n", ifp->if_xname, __func__));
+
+	callout_halt(&vap->av_scan_to, NULL);
+	callout_destroy(&vap->av_scan_to);
+	bpf_detach(ifp);
+	ieee80211_ratectl_deinit(arg);
+	ieee80211_vap_detach(arg);
+	kmem_free(vap, sizeof(*vap));
 }
