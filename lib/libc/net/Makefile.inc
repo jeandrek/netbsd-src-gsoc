@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.inc,v 1.94 2023/06/03 09:09:09 lukem Exp $
+#	$NetBSD: Makefile.inc,v 1.96 2023/08/03 14:56:36 rin Exp $
 #	@(#)Makefile.inc	8.2 (Berkeley) 9/5/93
 
 # net sources

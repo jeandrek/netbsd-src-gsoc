@@ -1,4 +1,4 @@
-.\"	$NetBSD: BUILDING.mdoc,v 1.145 2023/07/05 16:41:12 lukem Exp $
+.\"	$NetBSD: BUILDING.mdoc,v 1.149 2023/07/22 18:50:04 lukem Exp $
 .\"
 .\" Copyright (c) 2001-2023 The NetBSD Foundation, Inc.
 .\" All rights reserved.
@@ -33,7 +33,7 @@
 .\" Toolchain prefix for commands
 .ds toolprefix nb
 .
-.Dd July 5, 2023
+.Dd July 21, 2023
 .Dt BUILDING 8
 .Os NetBSD
 .\" turn off hyphenation
@@ -68,14 +68,24 @@ architecture) or
 .Em cross compiling
 (on another architecture or OS).
 .Pp
+This source tree contains the
+.Sy build.sh
+shell script which supports both native and cross builds of
+.Nx .
+.Pp
 This source tree contains a special subtree,
 .Dq tools ,
 which uses the host system to create a build toolchain for the target
 architecture.
 The host system must have at least C and C++
 compilers in order to create the toolchain
-.Nm ( make
-is not required); all other tools are created as part of the
+.Xr ( make 1
+is not required); all other tools
+(including
+.Xr make 1
+as
+.Sy \*[toolprefix]make )
+are created as part of the
 .Nx
 build process.
 (See the
@@ -123,7 +133,7 @@ version of
 .Xr make 1 .
 Intended for expert use with knowledge of its shortcomings,
 it has been superseded by the
-.Nm build.sh
+.Sy build.sh
 shell script as the recommended means for building
 .Nx .
 .
@@ -148,9 +158,9 @@ as building with an outdated version of
 Sources imported verbatim from third parties, without mangling the
 existing build structure.
 Other source trees in
-.Sy bin
+.Pa bin
 through
-.Sy usr.sbin
+.Pa usr.sbin
 use the
 .Nx
 .Xr make 1
@@ -170,7 +180,7 @@ format.
 Used to generate
 .Pa BUILDING .
 .
-.It Pa external , sys/external
+.It Pa external/ , sys/external/
 Sources and build infrastructure for components imported (mostly) unchanged
 from upstream maintainers, sorted by applicable license.
 This is (slowly) replacing the
@@ -184,6 +194,20 @@ directories.
 .Dq Reachover
 build structure for modular Xorg; the source is in
 .Sy X11SRCDIR .
+.
+.It Pa mk.conf
+Optional source tree specific
+.Xr mk.conf 5 ,
+used (if present) instead of
+.Pa /etc/mk.conf
+unless
+.Sy MAKECONF
+is defined.
+.Pp
+.Em Note :
+Not part of the
+.Nx
+source repository.
 .
 .It Pa regress/ , tests/
 Regression test harness.
@@ -338,7 +362,7 @@ or
 Most parts of the build require
 .Sy HOST_SH
 to be an absolute path; however,
-.Nm build.sh
+.Sy build.sh
 allows it to be a simple command name, which will be converted
 to an absolute path by searching the
 .Ev PATH .
@@ -373,14 +397,20 @@ The name of the
 .Xr make 1
 configuration file.
 See
-.Sx \*qmake\*q variables
+.Sx make variables
 and
 .Xr mk.conf 5 .
 .Pp
 .Em Note :
 Only settable in the process environment.
 .DFLT
-.Dq Pa /etc/mk.conf .
+.Dq Pa /etc/mk.conf ,
+although
+.Sy build.sh
+will set the default to the full path to
+.Pa mk.conf
+if the latter is present in the same directory as
+.Sy build.sh .
 .
 .It Sy MAKEFLAGS
 Flags to invoke
@@ -426,7 +456,7 @@ is not defined.
 can be provided only in the environment or via the
 .Fl O
 flag of
-.Nm build.sh ;
+.Sy build.sh ;
 it cannot usefully be set inside a Makefile, including in
 .Xr mk.conf 5
 or
@@ -461,7 +491,7 @@ The current directory may be read only.
 can be provided only in the environment or via the
 .Fl M
 flag of
-.Nm build.sh ;
+.Sy build.sh ;
 it cannot usefully be set inside a Makefile, including in
 .Xr mk.conf 5
 or
@@ -480,14 +510,14 @@ Must support execution of binaries.
 I.e., without
 .Xr mount 8 Ns 's
 .Fl o
-.Sy noexec
+.Cm noexec
 option.
 .DFLT
 .Dq Pa /tmp .
 .
 .El
 .
-.Ss \*qmake\*q variables
+.Ss make variables
 .
 Variables that control the behavior of
 .Nx
@@ -505,10 +535,218 @@ configuration file
 .Xr mk.conf 5
 specified by
 .Sy MAKECONF .
+.Pp
+.Em Note :
+Variables set in the environment, either directly or via
+.Sy build.sh
+options to set specific values in the
+.Sy \*[toolprefix]make- Ns Sy MACHINE
+wrapper script do not override variables set in the
+.Xr mk.conf 5
+file.
+To allow variables in
+.Xr mk.conf 5
+to be overridden by the environment or
+.Sy build.sh
+options, define the variables using the
+.Dq Li ?=
+.Xr make 1
+variable assignment operator.
+For example,
+.Bd -unfilled -offset indent
+.Li MAKEVERBOSE?=1
+.Ed
+.Pp
+The supported
+.Xr mk.conf 5
+make variables are:
+.\" Keep in sync with share/man/man5/mk.conf.5 section NETBSD SYSTEM VARIABLES
+.Bd -ragged -offset indent
+.Sy BSDOBJDIR ,
+.Sy BSDSRCDIR ,
+.Sy BUILD ,
+.Sy BUILDID ,
+.Sy BUILDINFO ,
+.Sy BUILDSEED ,
+.Sy CDEXTRA ,
+.Sy CONFIGOPTS ,
+.Sy COPTS ,
+.Sy CPUFLAGS ,
+.Sy DESTDIR ,
+.Sy EXTERNAL_TOOLCHAIN ,
+.Sy INSTALLBOOT_BOARDS ,
+.Sy INSTALLWORLDDIR ,
+.Sy KERNARCHDIR ,
+.Sy KERNCONFDIR ,
+.Sy KERNEL_DIR ,
+.Sy KERNOBJDIR ,
+.Sy KERNSRCDIR ,
+.Sy LOCALTIME ,
+.Sy MAKEVERBOSE ,
+.Sy MKAMDGPUFIRMWARE ,
+.Sy MKARGON2 ,
+.Sy MKARZERO ,
+.Sy MKATF ,
+.Sy MKBINUTILS ,
+.Sy MKBSDGREP ,
+.Sy MKBSDTAR ,
+.Sy MKCATPAGES ,
+.Sy MKCLEANSRC ,
+.Sy MKCLEANVERIFY ,
+.Sy MKCOMPAT ,
+.Sy MKCOMPATMODULES ,
+.Sy MKCOMPATTESTS ,
+.Sy MKCOMPATX11 ,
+.Sy MKCOMPLEX ,
+.Sy MKCROSSGDB ,
+.Sy MKCTF ,
+.Sy MKCVS ,
+.Sy MKCXX ,
+.Sy MKDEBUG ,
+.Sy MKDEBUGKERNEL ,
+.Sy MKDEBUGLIB ,
+.Sy MKDEBUGTOOLS ,
+.Sy MKDEPINCLUDES ,
+.Sy MKDOC ,
+.Sy MKDTB ,
+.Sy MKDTC ,
+.Sy MKDTRACE ,
+.Sy MKDYNAMICROOT ,
+.Sy MKFIRMWARE ,
+.Sy MKGCC ,
+.Sy MKGCCCMDS ,
+.Sy MKGDB ,
+.Sy MKGROFF ,
+.Sy MKGROFFHTMLDOC ,
+.Sy MKHESIOD ,
+.Sy MKHOSTOBJ ,
+.Sy MKHTML ,
+.Sy MKIEEEFP ,
+.Sy MKINET6 ,
+.Sy MKINFO ,
+.Sy MKIPFILTER ,
+.Sy MKISCSI ,
+.Sy MKKERBEROS ,
+.Sy MKKMOD ,
+.Sy MKKYUA ,
+.Sy MKLDAP ,
+.Sy MKLIBCSANITIZER ,
+.Sy MKLIBCXX ,
+.Sy MKLIBSTDCXX ,
+.Sy MKLINKLIB ,
+.Sy MKLINT ,
+.Sy MKLLVM ,
+.Sy MKLLVMRT ,
+.Sy MKLVM ,
+.Sy MKMAKEMANDB ,
+.Sy MKMAN ,
+.Sy MKMANDOC ,
+.Sy MKMANZ ,
+.Sy MKMDNS ,
+.Sy MKNLS ,
+.Sy MKNOUVEAUFIRMWARE ,
+.Sy MKNPF ,
+.Sy MKNSD ,
+.Sy MKOBJ ,
+.Sy MKOBJDIRS ,
+.Sy MKPAM ,
+.Sy MKPCC ,
+.Sy MKPF ,
+.Sy MKPIC ,
+.Sy MKPICINSTALL ,
+.Sy MKPICLIB ,
+.Sy MKPIE ,
+.Sy MKPIGZGZIP ,
+.Sy MKPOSTFIX ,
+.Sy MKPROFILE ,
+.Sy MKRADEONFIRMWARE ,
+.Sy MKRELRO ,
+.Sy MKREPRO ,
+.Sy MKREPRO_TIMESTAMP ,
+.Sy MKRUMP ,
+.Sy MKSANITIZER ,
+.Sy MKSHARE ,
+.Sy MKSKEY ,
+.Sy MKSLJIT ,
+.Sy MKSOFTFLOAT ,
+.Sy MKSTATICLIB ,
+.Sy MKSTATICPIE ,
+.Sy MKSTRIPIDENT ,
+.Sy MKSTRIPSYM ,
+.Sy MKTEGRAFIRMWARE ,
+.Sy MKTPM ,
+.Sy MKUNBOUND ,
+.Sy MKUNPRIVED ,
+.Sy MKUPDATE ,
+.Sy MKX11 ,
+.Sy MKX11FONTS ,
+.Sy MKX11MOTIF ,
+.Sy MKXORG_SERVER ,
+.Sy MKYP ,
+.Sy MKZFS ,
+.Sy NETBSDSRCDIR ,
+.Sy NETBSD_OFFICIAL_RELEASE ,
+.Sy NOCLEANDIR ,
+.Sy NODISTRIBDIRS ,
+.Sy NOINCLUDES ,
+.Sy OBJMACHINE ,
+.Sy RELEASEDIR ,
+.Sy RUMPUSER_THREADS ,
+.Sy RUMP_CURLWP ,
+.Sy RUMP_DEBUG ,
+.Sy RUMP_DIAGNOSTIC ,
+.Sy RUMP_KTRACE ,
+.Sy RUMP_LOCKDEBUG ,
+.Sy RUMP_LOCKS_UP ,
+.Sy RUMP_NBCOMPAT ,
+.Sy RUMP_VIRTIF ,
+.Sy RUMP_VNODE_LOCKDEBUG ,
+.Sy TOOLCHAIN_MISSING ,
+.Sy TOOLDIR ,
+.Sy USETOOLS ,
+.Sy USE_FORT ,
+.Sy USE_HESIOD ,
+.Sy USE_INET6 ,
+.Sy USE_JEMALLOC ,
+.Sy USE_KERBEROS ,
+.Sy USE_LDAP ,
+.Sy USE_LIBCSANITIZER ,
+.Sy USE_PAM ,
+.Sy USE_PIGZGZIP ,
+.Sy USE_SANITIZER ,
+.Sy USE_SKEY ,
+.Sy USE_SSP ,
+.Sy USE_XZ_SETS ,
+.Sy USE_YP ,
+.Sy X11MOTIFPATH ,
+.Sy X11SRCDIR .
+.Ed
+.Pp
+The obsolete
+.Xr mk.conf 5
+make variables are:
+.\" Keep in sync with share/man/man5/mk.conf.5 section OBSOLETE VARIABLES
+.Bd -ragged -offset indent
+.Sy EXTSRCSRCDIR ,
+.Sy MKBFD ,
+.Sy MKCRYPTO ,
+.Sy MKEXTSRC ,
+.Sy MKKDEBUG ,
+.Sy MKKERBEROS4 ,
+.Sy MKLLD ,
+.Sy MKLLDB ,
+.Sy MKMCLINKER ,
+.Sy MKPERFUSE ,
+.Sy MKTOOLSDEBUG ,
+.Sy NBUILDJOBS ,
+.Sy SHAREDSTRINGS ,
+.Sy USE_COMBINE ,
+.Sy USE_NEW_TOOLCHAIN .
+.Ed
 .
 .Sh BUILDING
 .
-.Ss \*qmake\*q command line options
+.Ss make command line options
 This is not a summary of all the options available to
 .Xr make 1 ;
 only the options used most frequently with
@@ -561,7 +799,7 @@ configuration file, or the system Makefile segments.
 .
 .El
 .
-.Ss \*qmake\*q targets
+.Ss make targets
 .
 These default targets may be built by running
 .Xr make 1
@@ -593,7 +831,7 @@ and any other files known to be created at build time.
 .
 .It Sy depend
 Create dependency files
-.Sy ( .depend )
+.Pa ( .depend )
 containing more detailed information about the dependencies of source
 code on header files.
 Allows programs to be recompiled automatically when a dependency changes.
@@ -645,7 +883,7 @@ text editors.
 .
 .El
 .
-.Ss \*qmake\*q targets for the top level
+.Ss make targets for the top level
 .
 Additional
 .Xr make 1
@@ -929,7 +1167,7 @@ this target should probably run those as well but currently does not.
 .
 .El
 .
-.Ss The \*qbuild.sh\*q script
+.Ss The build.sh script
 .
 This script file is a shell script designed to build the
 entire
@@ -948,7 +1186,7 @@ a suitable shell using a command like
 .Ed
 .Pp
 The above command will usually enable
-.Nm build.sh
+.Sy build.sh
 to automatically set
 .Sy HOST_SH Ns Cm = Ns Pa /path/to/suitable/shell ,
 but if that fails, then the following set of commands may be used instead:
@@ -965,10 +1203,10 @@ to exec a suitable shell instead, or shows an error message.
 If
 .Sy HOST_SH
 is not set explicitly, then
-.Nm build.sh
+.Sy build.sh
 sets a default using heuristics dependent on the host platform,
 or from the shell under which
-.Nm build.sh
+.Sy build.sh
 is executed (if that can be determined),
 or using the first copy of
 .Pa sh
@@ -1039,7 +1277,7 @@ Show a help message, and exit.
 .It Sy makewrapper
 Create the
 .Sy \*[toolprefix]make- Ns Sy MACHINE
-wrapper.
+wrapper script.
 This operation is automatically performed for any of the other
 operations.
 .
@@ -1242,7 +1480,7 @@ Set the value of
 to
 .Ar buildid .
 This will also append the build identifier to the name of the
-.Dq make
+.Sy \*[toolprefix]make- Ns Sy MACHINE
 wrapper script so that the resulting name is of the form
 .Dq Sy \*[toolprefix]make- Ns Sy MACHINE Ns Sy -BUILDID .
 .
@@ -1564,16 +1802,16 @@ Set the environment variable
 to an optional
 .Ar value .
 This is propagated to the
-.Sy \*[toolprefix]make
-wrapper.
+.Sy \*[toolprefix]make- Ns Sy MACHINE
+wrapper script.
 .
 .It Fl w Ar wrapper
 Create the
-.Sy \*[toolprefix]make
+.Sy \*[toolprefix]make- Ns Sy MACHINE
 wrapper script (see below) in a custom location,
 specified by
 .Ar wrapper .
-This allows, for instance, to place the wrapper in
+This allows, for instance, to place the wrapper script in
 .Ev PATH
 automatically.
 .Pp
@@ -1599,15 +1837,15 @@ Set
 Unset ("zap") the environment variable
 .Ar var .
 This is propagated to the
-.Sy \*[toolprefix]make
-wrapper.
+.Sy \*[toolprefix]make- Ns Sy MACHINE
+wrapper script.
 .
 .It Fl ?
 Show a help message, and exit.
 .
 .El
 .
-.Ss The \*q\*[toolprefix]make-MACHINE\*q wrapper script
+.Ss The \*[toolprefix]make-MACHINE wrapper script
 .
 If using the
 .Sy build.sh
@@ -1615,13 +1853,14 @@ script to build
 .Nx ,
 a
 .Sy \*[toolprefix]make-MACHINE
-script will be created in
+wrapper script will be created in
 .Sy TOOLDIR Ns Pa /bin
 upon the first build to assist in building subtrees on a cross-compile
 host.
 .Pp
+The
 .Sy \*[toolprefix]make-MACHINE
-can be invoked in lieu of
+wrapper script can be invoked in lieu of
 .Xr make 1 ,
 and will instead call the up-to-date version of
 .Dq \*[toolprefix]make
@@ -1636,8 +1875,13 @@ will also set variables specified with
 .Fl V ,
 and unset variables specified with
 .Fl Z .
+Note that by default these variables will not override
+.Xr mk.conf 5 ;
+see
+.Sx make variables
+for more details.
 .Pp
-This script can be symlinked into a directory listed in
+This wrapper script can be symlinked into a directory listed in
 .Ev PATH ,
 or called with an absolute path.
 .
@@ -1726,7 +1970,7 @@ manual pages are also available at
 .Sh HISTORY
 .
 The
-.Nm build.sh
+.Sy build.sh
 based build scheme was introduced for
 .Nx 1.6
 as

@@ -100,7 +100,13 @@ __KERNEL_RCSID(0, "$NetBSD: if_urtwn.c,v 1.104 2022/06/23 13:46:27 brook Exp $")
 #define DBG_RF		__BIT(5)
 #define DBG_REG 	__BIT(6)
 #define DBG_ALL 	0xffffffffU
-u_int urtwn_debug = 0;
+
+#ifndef	URTWN_DEBUG_DEFAULT
+#define	URTWN_DEBUG_DEFAULT	0
+#endif
+
+u_int urtwn_debug = URTWN_DEBUG_DEFAULT;
+
 #define DPRINTFN(n, fmt, a, b, c, d) do {			\
 	if (urtwn_debug & (n)) {				\
 		KERNHIST_LOG(usbhist, fmt, a, b, c, d);		\
@@ -322,11 +328,12 @@ static void	urtwn_cam_init(struct urtwn_softc *);
 static void	urtwn_pa_bias_init(struct urtwn_softc *);
 static void	urtwn_rxfilter_init(struct urtwn_softc *);
 static void	urtwn_edca_init(struct urtwn_softc *);
-static void	urtwn_write_txpower(struct urtwn_softc *, int, uint16_t[]);
+static void	urtwn_write_txpower(struct urtwn_softc *, int,
+		    uint16_t[URTWN_RIDX_COUNT]);
 static void	urtwn_get_txpower(struct urtwn_softc *, size_t, u_int, u_int,
-		    uint16_t[]);
+		    uint16_t[URTWN_RIDX_COUNT]);
 static void	urtwn_r88e_get_txpower(struct urtwn_softc *, size_t, u_int,
-		    u_int, uint16_t[]);
+		    u_int, uint16_t[URTWN_RIDX_COUNT]);
 static void	urtwn_set_txpower(struct urtwn_softc *, u_int, u_int);
 static void	urtwn_set_chan(struct urtwn_softc *, struct ieee80211_channel *);
 static void	urtwn_iq_calib(struct urtwn_softc *, bool);

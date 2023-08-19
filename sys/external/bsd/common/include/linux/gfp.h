@@ -84,4 +84,10 @@ gfpflags_allow_blocking(gfp_t gfp)
 	return (gfp & (__GFP_WAIT|__GFP_NORETRY)) == __GFP_WAIT;
 }
 
+static inline void
+page_frag_free(void *addr)
+{
+	panic("page_frag_free");
+}
+
 #endif	/* _LINUX_GFP_H_ */

@@ -317,21 +317,29 @@ ieee80211_scan_update_locked(struct ieee80211vap *vap,
 	}
 }
 
-#ifdef IEEE82011_DEBUG
+#ifdef IEEE80211_DEBUG
 static void
-ieee80211_scan_dump_channels(const struct ieee80211_scan_state *ss)
+ieee80211_scan_dump_channels(char *out, size_t len,
+    const struct ieee80211_scan_state *ss)
 {
 	struct ieee80211com *ic = ss->ss_ic;
 	const char *sep;
-	int i;
+	int i, written;
 
 	sep = "";
 	for (i = ss->ss_next; i < ss->ss_last; i++) {
 		const struct ieee80211_channel *c = ss->ss_chans[i];
 
-		printf("%s%u%c", sep, ieee80211_chan2ieee(ic, c),
+		written = snprintf(out, len, 
+		    "%s%u%c", sep, ieee80211_chan2ieee(ic, c),
 		    ieee80211_channel_type_char(c));
 		sep = ", ";
+		if (written < 0)
+			break;
+		if (written >= len)
+			break;
+		out += written;
+		len -= written;
 	}
 }
 

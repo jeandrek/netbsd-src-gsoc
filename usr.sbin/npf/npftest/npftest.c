@@ -1,4 +1,4 @@
-/*	$NetBSD: npftest.c,v 1.25 2020/05/30 14:16:56 rmind Exp $	*/
+/*	$NetBSD: npftest.c,v 1.27 2023/08/08 10:35:48 riastradh Exp $	*/
 
 /*
  * NPF testing framework.

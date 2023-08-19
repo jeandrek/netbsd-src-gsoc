@@ -5,9 +5,8 @@
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
 #include <linux/devcoredump.h>
-#if defined(__FreeBSD__)
 #include <linux/delay.h>
-#endif
+
 #include "iwl-drv.h"
 #include "runtime.h"
 #include "dbg.h"
@@ -568,6 +567,7 @@ static void iwl_dump_prph(struct iwl_fw_runtime *fwrt,
 */
 static struct scatterlist *alloc_sgtable(int size)
 {
+#if defined(__FreeBSD__) || defined(__Linux__)
 	int alloc_size, nents, i;
 	struct page *new_page;
 	struct scatterlist *iter;
@@ -597,6 +597,11 @@ static struct scatterlist *alloc_sgtable(int size)
 		sg_set_page(iter, new_page, alloc_size, 0);
 	}
 	return table;
+#endif
+#ifdef __NetBSD__
+        panic("alloc_sgtable");
+        return NULL;
+#endif        
 }
 
 static void iwl_fw_get_prph_len(struct iwl_fw_runtime *fwrt,
@@ -2195,6 +2200,9 @@ static u32 iwl_dump_ini_mem(struct iwl_fw_runtime *fwrt, struct list_head *list,
 		 "header size %llu > free_size %d",
 		 header_size, free_size)) {
 #elif defined(__FreeBSD__)
+		 "header size %ju > free_size %d",
+		 (uintmax_t)header_size, free_size)) {
+#elif defined(__NetBSD__)
 		 "header size %ju > free_size %d",
 		 (uintmax_t)header_size, free_size)) {
 #endif

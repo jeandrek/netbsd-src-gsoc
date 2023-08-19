@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.105 2021/09/18 01:47:10 christos Exp $
+#	$NetBSD: Makefile,v 1.108 2023/08/09 18:57:04 christos Exp $
 
 .include <bsd.hostinit.mk>
 
@@ -8,7 +8,7 @@ MODULE=		${EXTERNAL_GCC_SUBDIR}
 GCCDIST=	${.CURDIR}/../../external/gpl3/${EXTERNAL_GCC_SUBDIR}/dist
 GNUHOSTDIST=	${GCCDIST}
 
-.if ${HAVE_GCC} == 9
+.if ${HAVE_GCC} == 10
 MKNATIVE=		${.CURDIR}/mknative-gcc.old
 .endif
 
@@ -110,6 +110,12 @@ MKNATIVE_CONFIG_TARGET_LIBS+= \
 .endif
 .endif
 
+.if ${HAVE_GCC} <= 10
+EXTRA_FILES=	gcov-iov.h
+.else
+EXTRA_FILES=	bversion.h gtyp-input.list
+.endif
+
 BINENV=		/usr/bin/env -i
 
 
@@ -165,22 +171,7 @@ native-gcc: .native/.configure_done
 		${MACHINE_GNU_PLATFORM} ${GCC_MACHINE_ARCH} ${DESTDIR} ${TOOLDIR}
 
 NATIVE_CONFIGURE_ARGS=	${COMMON_CONFIGURE_ARGS}
-MPC=		${NETBSDSRCDIR}/external/lgpl3/mpc
-MPFR=		${NETBSDSRCDIR}/external/lgpl3/mpfr
-GMP=		${NETBSDSRCDIR}/external/lgpl3/gmp
-MPCOBJ!=	cd ${MPC}/lib/libmpc && ${PRINTOBJDIR}
-MPFROBJ!=	cd ${MPFR}/lib/libmpfr && ${PRINTOBJDIR}
-GMPOBJ!=	cd ${GMP}/lib/libgmp && ${PRINTOBJDIR}
-
-.include "../../external/lgpl3/gmp/Makefile.arch"
-
-NATIVE_CONFIGURE_ARGS+=	\
-			--with-mpc-lib=${MPCOBJ} \
-			--with-mpfr-lib=${MPFROBJ} \
-			--with-gmp-lib=${GMPOBJ} \
-			--with-mpc-include=${MPC}/dist/src \
-			--with-mpfr-include=${MPFR}/dist/src \
-			--with-gmp-include=${GMP}/lib/libgmp/arch/${GMP_MACHINE_ARCH}
+.include "lgpl3.mk"
 
 .if ${MACHINE_ARCH} != "vax"
 NATIVE_CONFIGURE_ARGS+= --enable-tls
@@ -230,7 +221,7 @@ MKENV_BUILD_MAKE=cd .native && ${MKNATIVE_ENV} ${BUILD_MAKE}
 				    -e 's/\(maybe-all-target-libgcc:\) all-target-libgcc/\1/' \
 				< Makefile.config > Makefile)
 	PATH=${TOOLDIR}/bin:$$PATH; export PATH; \
-		(cd .native/gcc && ${MKNATIVE_ENV} ${BUILD_MAKE} -e tree-check.h config.h multilib.h gcov-iov.h)
+		(cd .native/gcc && ${MKNATIVE_ENV} ${BUILD_MAKE} -e tree-check.h config.h multilib.h ${EXTRA_FILES})
 	PATH=${TOOLDIR}/bin:$$PATH; export PATH; \
 		(cd .native/gcc && ${MKNATIVE_ENV} ${BUILD_MAKE} -e libgcc.mvars tconfig.h); \
 		(cd .native && touch gcc/cc1obj gcc/cc1plus gcc/f771 gcc/libgcc.a gcc/libgcc_s.so)

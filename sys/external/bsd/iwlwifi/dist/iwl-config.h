@@ -6,6 +6,7 @@
 #ifndef __IWL_CONFIG_H__
 #define __IWL_CONFIG_H__
 
+#include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/netdevice.h>
 #include <linux/ieee80211.h>

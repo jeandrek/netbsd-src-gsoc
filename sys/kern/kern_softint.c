@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_softint.c,v 1.73 2023/04/09 09:18:09 riastradh Exp $	*/
+/*	$NetBSD: kern_softint.c,v 1.75 2023/08/04 12:24:36 riastradh Exp $	*/
 
 /*-
  * Copyright (c) 2007, 2008, 2019, 2020 The NetBSD Foundation, Inc.
@@ -170,7 +170,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_softint.c,v 1.73 2023/04/09 09:18:09 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_softint.c,v 1.75 2023/08/04 12:24:36 riastradh Exp $");
 
 #include <sys/param.h>
 #include <sys/proc.h>

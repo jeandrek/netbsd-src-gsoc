@@ -1,4 +1,4 @@
-# $NetBSD: mi,v 1.1277 2023/07/15 12:24:57 rillig Exp $
+# $NetBSD: mi,v 1.1287 2023/08/07 22:30:38 rillig Exp $
 #
 # Note: don't delete entries from here - mark them as "obsolete" instead.
 #
@@ -2296,6 +2296,7 @@
 ./usr/tests/kernel/posix_spawn/t_fileactions		tests-obsolete		obsolete
 ./usr/tests/kernel/posix_spawn/t_spawn			tests-obsolete		obsolete
 ./usr/tests/kernel/posix_spawn/t_spawnattr		tests-obsolete		obsolete
+./usr/tests/kernel/t_epoll				tests-obsolete		obsolete
 ./usr/tests/kernel/t_extattrctl				tests-kernel-tests	atf,rump
 ./usr/tests/kernel/t_extent				tests-kernel-tests	compattestfile,atf
 ./usr/tests/kernel/t_fcntl				tests-kernel-tests	atf
@@ -2309,6 +2310,7 @@
 ./usr/tests/kernel/t_lockf				tests-kernel-tests	compattestfile,atf
 ./usr/tests/kernel/t_lwpctl				tests-obsolete		obsolete
 ./usr/tests/kernel/t_magic_symlinks			tests-kernel-tests	compattestfile,atf
+./usr/tests/kernel/t_memfd_create			tests-kernel-tests	compattestfile,atf
 ./usr/tests/kernel/t_mkdir				tests-obsolete		obsolete
 ./usr/tests/kernel/t_mqueue				tests-kernel-tests	compattestfile,atf
 ./usr/tests/kernel/t_nointerpreter			tests-kernel-tests	atf
@@ -4175,6 +4177,7 @@
 ./usr/tests/libexec/ld.elf_so/t_dlerror-false		tests-libexec-tests	compattestfile,atf,pic
 ./usr/tests/libexec/ld.elf_so/t_dlinfo			tests-libexec-tests	compattestfile,atf,pic
 ./usr/tests/libexec/ld.elf_so/t_dlvsym			tests-libexec-tests	compattestfile,atf,pic
+./usr/tests/libexec/ld.elf_so/t_hash			tests-libexec-tests	compattestfile,atf,pic
 ./usr/tests/libexec/ld.elf_so/t_ifunc			tests-libexec-tests	compattestfile,atf,pic
 ./usr/tests/libexec/ld.elf_so/t_rtld_r_debug		tests-libexec-tests	compattestfile,atf,pic
 ./usr/tests/libexec/ld.elf_so/t_thread_local_dtor	tests-libexec-tests	compattestfile,atf,pic
@@ -6694,6 +6697,7 @@
 ./usr/tests/usr.bin/xlint/lint1/init_braces.exp			tests-obsolete		obsolete,atf
 ./usr/tests/usr.bin/xlint/lint1/init_c90.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/init_c90.exp			tests-obsolete		obsolete,atf
+./usr/tests/usr.bin/xlint/lint1/lang_level_c99.c		tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/lex_char.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/lex_char.exp			tests-obsolete		obsolete,atf
 ./usr/tests/usr.bin/xlint/lint1/lex_char_uchar.c		tests-usr.bin-tests	compattestfile,atf
@@ -7225,6 +7229,7 @@
 ./usr/tests/usr.bin/xlint/lint1/msg_247_ilp32_ldbl64.c		tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_247_lp64_ldbl128.c		tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_247_portable.c		tests-usr.bin-tests	compattestfile,atf
+./usr/tests/usr.bin/xlint/lint1/msg_247_portable_int.c		tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_248.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_248.exp			tests-obsolete		obsolete,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_249.c			tests-usr.bin-tests	compattestfile,atf
@@ -7439,6 +7444,8 @@
 ./usr/tests/usr.bin/xlint/lint1/msg_351.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_352.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/msg_353.c			tests-usr.bin-tests	compattestfile,atf
+./usr/tests/usr.bin/xlint/lint1/msg_354.c			tests-usr.bin-tests	compattestfile,atf
+./usr/tests/usr.bin/xlint/lint1/msg_355.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/op_colon.c			tests-usr.bin-tests	compattestfile,atf
 ./usr/tests/usr.bin/xlint/lint1/op_colon.exp			tests-obsolete		obsolete,atf
 ./usr/tests/usr.bin/xlint/lint1/op_shl_lp64.c			tests-usr.bin-tests	compattestfile,atf

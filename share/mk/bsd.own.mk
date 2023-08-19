@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.1342 2023/06/10 16:08:41 lukem Exp $
+#	$NetBSD: bsd.own.mk,v 1.1353 2023/08/09 14:57:19 christos Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -70,7 +70,7 @@ TOOLCHAIN_MISSING?=	no
 #
 # GCC Using platforms.
 #
-.if ${MKGCC:Uyes} != "no"
+.if ${MKGCC:Uyes} != "no"						# {
 
 #
 # What GCC is used?
@@ -89,14 +89,15 @@ MKGCCCMDS?=	no
 #
 .if ${HAVE_GCC} == 10
 EXTERNAL_GCC_SUBDIR?=	gcc.old
-.elif ${HAVE_GCC} == 11
+.elif ${HAVE_GCC} == 12
 EXTERNAL_GCC_SUBDIR?=	gcc
 .else
 EXTERNAL_GCC_SUBDIR?=	/does/not/exist
 .endif
-.else
+
+.else	# MKGCC == no							# } {
 MKGCCCMDS?=	no
-.endif
+.endif	# MKGCC == no							# }
 
 #
 # What binutils is used?
@@ -118,9 +119,13 @@ EXTERNAL_BINUTILS_SUBDIR=	/does/not/exist
 #
 # What GDB is used?
 #
+.if ${MACHINE_ARCH} == "x86_64"
+HAVE_GDB?=	1320
+.else
 HAVE_GDB?=	1100
+.endif
 
-.if ${HAVE_GDB} == 1310
+.if ${HAVE_GDB} == 1320
 EXTERNAL_GDB_SUBDIR=		gdb
 .elif ${HAVE_GDB} == 1100
 EXTERNAL_GDB_SUBDIR=		gdb.old
@@ -670,6 +675,36 @@ CXX=		${TOOL_CXX.${ACTIVE_CXX}}
 FC=		${TOOL_FC.${ACTIVE_FC}}
 OBJC=		${TOOL_OBJC.${ACTIVE_OBJC}}
 
+#
+# Clang and GCC compiler-specific options, usually to disable warnings.
+# The naming convention is "CC" + the compiler flag converted
+# to upper case, with '-' and '=' changed to '_' a la `tr -=a-z __A-Z`.
+# For variable naming purposes, treat -Werror=FLAG as -WFLAG,
+# and -Wno-error=FLAG as -Wno-FLAG (usually from Clang).
+#
+# E.g., CC_WNO_ADDRESS_OF_PACKED_MEMBER contains
+# both -Wno-error=address-of-packed-member for Clang,
+# and -Wno-address-of-packed-member for GCC 9+.
+#
+# Use these with e.g.
+#	COPTS.foo.c+= ${CC_WNO_ADDRESS_OF_PACKED_MEMBER}
+#
+CC_WNO_ADDRESS_OF_PACKED_MEMBER=${${ACTIVE_CC} == "clang" :? -Wno-error=address-of-packed-member :} \
+				${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 9:? -Wno-address-of-packed-member :}
+
+CC_WNO_CAST_FUNCTION_TYPE=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 8:? -Wno-cast-function-type :}
+CC_WNO_FORMAT_OVERFLOW=		${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-format-overflow :}
+CC_WNO_FORMAT_TRUNCATION=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-format-truncation :}
+CC_WNO_IMPLICIT_FALLTHROUGH=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-implicit-fallthrough :}
+CC_WNO_MAYBE_UNINITIALIZED=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 10:? -Wno-maybe-uninitialized :}
+CC_WNO_RETURN_LOCAL_ADDR=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 10:? -Wno-return-local-addr :}
+CC_WNO_STRINGOP_OVERFLOW=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-stringop-overflow :}
+CC_WNO_STRINGOP_TRUNCATION=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 8:? -Wno-stringop-truncation :}
+CC_WNO_MISSING_TEMPLATE_KEYWORD=${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 12:? -Wno-missing-template-keyword :}
+CC_WNO_STRINGOP_OVERREAD=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 12:? -Wno-stringop-overread :}
+CC_WNO_REGISTER=		${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 12:? -Wno-register :}
+CC_WNO_ARRAY_BOUNDS=		${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 12:? -Wno-array-bounds :}
+
 # For each ${MACHINE_CPU}, list the ports that use it.
 MACHINES.aarch64=	evbarm
 MACHINES.alpha=		alpha
@@ -870,32 +905,6 @@ MKISCSI=	no
 NOPROFILE=	# defined
 .endif
 .endif
-
-#
-# Clang and GCC compiler-specific options, usually to disable warnings.
-# The naming convention is "CC" + the compiler flag converted
-# to upper case, with '-' and '=' changed to '_' a la `tr -=a-z __A-Z`.
-# For variable naming purposes, treat -Werror=FLAG as -WFLAG,
-# and -Wno-error=FLAG as -Wno-FLAG (usually from Clang).
-#
-# E.g., CC_WNO_ADDRESS_OF_PACKED_MEMBER contains
-# both -Wno-error=address-of-packed-member for Clang,
-# and -Wno-address-of-packed-member for GCC 9+.
-#
-# Use these with e.g.
-#	COPTS.foo.c+= ${CC_WNO_ADDRESS_OF_PACKED_MEMBER}
-#
-CC_WNO_ADDRESS_OF_PACKED_MEMBER=${${ACTIVE_CC} == "clang" :? -Wno-error=address-of-packed-member :} \
-				${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 9:? -Wno-address-of-packed-member :}
-
-CC_WNO_CAST_FUNCTION_TYPE=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 8:? -Wno-cast-function-type :}
-CC_WNO_FORMAT_OVERFLOW=		${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-format-overflow :}
-CC_WNO_FORMAT_TRUNCATION=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-format-truncation :}
-CC_WNO_IMPLICIT_FALLTHROUGH=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-implicit-fallthrough :}
-CC_WNO_MAYBE_UNINITIALIZED=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 10:? -Wno-maybe-uninitialized :}
-CC_WNO_RETURN_LOCAL_ADDR=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 10:? -Wno-return-local-addr :}
-CC_WNO_STRINGOP_OVERFLOW=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 7:? -Wno-stringop-overflow :}
-CC_WNO_STRINGOP_TRUNCATION=	${${ACTIVE_CC} == "gcc" && ${HAVE_GCC:U0} >= 8:? -Wno-stringop-truncation :}
 
 #
 # The ia64 port is incomplete.
@@ -1117,8 +1126,8 @@ MKZFS?=		yes
 #
 # DTrace works on amd64, i386, aarch64, and earm*
 #
-.if ${MACHINE} == "i386" || \
-    ${MACHINE} == "amd64" || \
+.if ${MACHINE_ARCH} == "i386" || \
+    ${MACHINE_ARCH} == "x86_64" || \
     ${MACHINE_ARCH} == "aarch64" || \
     ${MACHINE_ARCH:Mearm*}
 MKDTRACE?=	yes
@@ -1494,6 +1503,13 @@ _NEEDS_LIBCXX.x86_64=		yes
 
 .if ${MKLLVM} == "yes" && ${_NEEDS_LIBCXX.${MACHINE_ARCH}:Uno} == "yes"
 MKLIBCXX:=	yes
+.endif
+
+#
+# Disable MKSTRIPSYM if MKDEBUG is enabled.
+#
+.if ${MKDEBUG} != "no"
+MKSTRIPSYM:=	no
 .endif
 
 #

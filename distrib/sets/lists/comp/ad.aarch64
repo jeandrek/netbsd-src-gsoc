@@ -1,4 +1,4 @@
-# $NetBSD: ad.aarch64,v 1.47 2021/06/07 17:11:17 christos Exp $
+# $NetBSD: ad.aarch64,v 1.50 2023/08/07 00:45:47 rin Exp $
 ./usr/include/aarch64				comp-c-include
 ./usr/include/aarch64/ansi.h			comp-c-include
 ./usr/include/aarch64/aout_machdep.h		comp-c-include
@@ -153,16 +153,21 @@
 ./usr/include/gcc-8/arm_fp16.h			comp-c-include		obsolete
 ./usr/include/gcc-8/arm_neon.h			comp-c-include		obsolete
 ./usr/include/gcc-8/tgmath.h			comp-c-include		obsolete
-./usr/include/gcc-9/arm_acle.h			comp-c-include		gcc=9
-./usr/include/gcc-9/arm_fp16.h			comp-c-include		gcc=9
-./usr/include/gcc-9/arm_neon.h			comp-c-include		gcc=9
-./usr/include/gcc-9/tgmath.h			comp-c-include		gcc=9
+./usr/include/gcc-9/arm_acle.h			comp-c-include		obsolete
+./usr/include/gcc-9/arm_fp16.h			comp-c-include		obsolete
+./usr/include/gcc-9/arm_neon.h			comp-c-include		obsolete
+./usr/include/gcc-9/tgmath.h			comp-c-include		obsolete
 ./usr/include/gcc-10/arm_acle.h			comp-c-include		gcc=10
 ./usr/include/gcc-10/arm_bf16.h			comp-c-include		gcc=10
 ./usr/include/gcc-10/arm_fp16.h			comp-c-include		gcc=10
 ./usr/include/gcc-10/arm_neon.h			comp-c-include		gcc=10
 ./usr/include/gcc-10/arm_sve.h			comp-c-include		gcc=10
 ./usr/include/gcc-10/tgmath.h			comp-c-include		gcc=10
+./usr/include/gcc-12/arm_acle.h			comp-c-include		gcc=12
+./usr/include/gcc-12/arm_bf16.h			comp-c-include		gcc=12
+./usr/include/gcc-12/arm_fp16.h			comp-c-include		gcc=12
+./usr/include/gcc-12/arm_neon.h			comp-c-include		gcc=12
+./usr/include/gcc-12/arm_sve.h			comp-c-include		gcc=12
 ./usr/include/ieeefp.h				comp-c-include
 ./usr/lib/eabi/libarm.a				comp-c-lib		compat,llvm
 ./usr/lib/eabi/libarm.so			base-sys-shlib		compat,pic,llvm
@@ -176,6 +181,9 @@
 ./usr/lib/eabihf/libarm.so			base-sys-shlib		compat,pic,llvm
 ./usr/lib/eabihf/libarm_p.a			comp-c-proflib		compat,profile,llvm
 ./usr/lib/eabihf/libarm_pic.a			comp-c-piclib		compat,pic,picinstall,llvm
+./usr/lib/libtsan.a				comp-c-lib		arch64,cxx,gcc=12
+./usr/lib/libtsan_p.a				comp-c-proflib		arch64,profile,cxx,gcc=12
+./usr/lib/libtsan_pic.a				comp-c-piclib		compat,picinstall,cxx,gcc=12
 ./usr/lib/oabi/libarm.a				comp-obsolete		obsolete
 ./usr/lib/oabi/libarm.so			base-obsolete		obsolete
 ./usr/lib/oabi/libarm_p.a			comp-obsolete		obsolete

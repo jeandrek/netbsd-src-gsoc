@@ -1199,3 +1199,5 @@ device	rge: ether, ifnet, arp, mii
 attach	rge at pci
 file	dev/pci/if_rge.c		rge
 
+# iwlwifi
+include "external/bsd/iwlwifi/pci/files.iwlwifi"

@@ -1,4 +1,4 @@
-/*	$NetBSD: tree.c,v 1.573 2023/07/15 15:51:22 rillig Exp $	*/
+/*	$NetBSD: tree.c,v 1.577 2023/08/08 20:15:10 rillig Exp $	*/
 
 /*
  * Copyright (c) 1994, 1995 Jochen Pohl
@@ -37,7 +37,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: tree.c,v 1.573 2023/07/15 15:51:22 rillig Exp $");
+__RCSID("$NetBSD: tree.c,v 1.577 2023/08/08 20:15:10 rillig Exp $");
 #endif
 
 #include <float.h>
@@ -1491,7 +1491,7 @@ fold_bool(tnode_t *tn)
 	switch (tn->tn_op) {
 	case NOT:
 		if (hflag && !suppress_constcond)
-			/* constant argument to '!' */
+			/* constant operand to '!' */
 			warning(239);
 		v->u.integer = !l ? 1 : 0;
 		break;
@@ -1920,8 +1920,8 @@ remove_unknown_member(tnode_t *tn, sym_t *msym)
 }
 
 /*
- * Returns a symbol which has the same name as the msym argument and is a
- * member of the struct or union specified by the tn argument.
+ * Returns a symbol which has the same name as 'msym' and is a member of the
+ * struct or union specified by 'tn'.
  */
 static sym_t *
 struct_or_union_member(tnode_t *tn, op_t op, sym_t *msym)
@@ -3386,6 +3386,27 @@ can_represent(const type_t *tp, const tnode_t *tn)
 	return false;
 }
 
+static bool
+should_warn_about_integer_conversion(const type_t *ntp, tspec_t nt,
+				     const tnode_t *otn, tspec_t ot)
+{
+
+	// XXX: The portable_rank_cmp aims at portable mode, independent of the
+	// current platform, while can_represent acts on the actual type sizes
+	// from the current platform.  This mix is inconsistent, but anything
+	// else would make the exact conditions too complicated to grasp.
+	if (aflag > 0 && portable_rank_cmp(nt, ot) < 0) {
+		if (ot == LONG || ot == ULONG
+		    || ot == LLONG || ot == ULLONG
+#ifdef INT128_SIZE
+		    || ot == INT128 || ot == UINT128
+#endif
+		    || aflag > 1)
+			return !can_represent(ntp, otn);
+	}
+	return false;
+}
+
 static void
 convert_integer_from_integer(op_t op, int arg, tspec_t nt, tspec_t ot,
 			     type_t *tp, tnode_t *tn)
@@ -3417,15 +3438,7 @@ convert_integer_from_integer(op_t op, int arg, tspec_t nt, tspec_t ot,
 		    op_name(tn->tn_op));
 	}
 
-	if (aflag > 0 &&
-	    portable_rank_cmp(nt, ot) < 0 &&
-	    (portable_rank_cmp(ot, LONG) >= 0 || aflag > 1) &&
-	     // XXX: The portable_rank_cmp above aims at portable mode,
-	     // independent of the current platform, while can_represent acts
-	     // on the actual type sizes from the current platform.  This mix
-	     // is inconsistent, but anything else would make the exact
-	     // conditions too complicated to grasp.
-	    !can_represent(tp, tn)) {
+	if (should_warn_about_integer_conversion(tp, nt, tn, ot)) {
 		if (op == FARG) {
 			/* conversion from '%s' to '%s' may lose ... */
 			warning(298,
@@ -3601,7 +3614,7 @@ convert_pointer_from_pointer(type_t *ntp, tnode_t *tn)
  *	binary	integer promotion for one of the operands, or a usual
  *		arithmetic conversion
  *	binary	plain or compound assignments to bit-fields
- *	FARG	'arg' is the number of the argument (used for warnings)
+ *	FARG	'arg' is the number of the parameter (used for warnings)
  *	NOOP	several other implicit conversions
  *	...
  */
@@ -3893,11 +3906,11 @@ convert_constant_check_range(tspec_t ot, const type_t *tp, tspec_t nt,
 		warn_constant_check_range_loss(op, arg, tp, ot);
 }
 
-/*
+/*-
  * Converts a typed constant to a constant of another type.
  *
  * op		operator which requires conversion
- * arg		if op is FARG, # of argument
+ * arg		if op is FARG, # of parameter
  * tp		type to which to convert the constant
  * nv		new constant
  * v		old constant
@@ -3960,17 +3973,26 @@ build_sizeof(const type_t *tp)
 /*
  * Create a constant node for offsetof.
  */
-/* ARGSUSED */ /* FIXME: See implementation comments. */
 tnode_t *
 build_offsetof(const type_t *tp, const sym_t *sym)
 {
+	unsigned int offset_in_bits = 0;
 
-	if (!is_struct_or_union(tp->t_tspec))
+	if (!is_struct_or_union(tp->t_tspec)) {
 		/* unacceptable operand of '%s' */
 		error(111, "offsetof");
+		goto proceed;
+	}
+	sym_t *mem = find_member(tp->t_sou, sym->s_name);
+	if (mem == NULL) {
+		/* type '%s' does not have member '%s' */
+		error(101, sym->s_name, type_name(tp));
+		goto proceed;
+	}
+	offset_in_bits = mem->u.s_member.sm_offset_in_bits;
 
-	/* FIXME: Don't wrongly use the size of the whole type, use sym. */
-	unsigned int offset_in_bytes = type_size_in_bits(tp) / CHAR_SIZE;
+proceed:;
+	unsigned int offset_in_bytes = offset_in_bits / CHAR_SIZE;
 	tnode_t *tn = build_integer_constant(SIZEOF_TSPEC, offset_in_bytes);
 	tn->tn_system_dependent = true;
 	return tn;
@@ -4162,7 +4184,7 @@ invalid_cast:
  * Create the node for a function argument.
  * All necessary conversions and type checks are done in
  * build_function_call because build_function_argument has no
- * information about expected argument types.
+ * information about the expected parameter types.
  */
 tnode_t *
 build_function_argument(tnode_t *args, tnode_t *arg)
@@ -4212,27 +4234,24 @@ check_function_arguments(type_t *ftp, tnode_t *args)
 {
 	/* get # of parameters in the prototype */
 	int npar = 0;
-	for (sym_t *asym = ftp->t_args; asym != NULL; asym = asym->s_next)
+	for (const sym_t *p = ftp->t_params; p != NULL; p = p->s_next)
 		npar++;
 
 	/* get # of arguments in the function call */
 	int narg = 0;
-	for (tnode_t *arg = args; arg != NULL; arg = arg->tn_right)
+	for (const tnode_t *arg = args; arg != NULL; arg = arg->tn_right)
 		narg++;
 
-	sym_t *asym = ftp->t_args;
+	const sym_t *param = ftp->t_params;
 	if (ftp->t_proto && npar != narg && !(ftp->t_vararg && npar < narg)) {
 		/* argument mismatch: %d %s passed, %d expected */
-		error(150, narg, narg > 1 ? "arguments" : "argument", npar);
-		asym = NULL;
+		error(150, narg, narg != 1 ? "arguments" : "argument", npar);
+		param = NULL;
 	}
 
 	for (int n = 1; n <= narg; n++) {
 
-		/*
-		 * The rightmost argument is at the top of the argument
-		 * subtree.
-		 */
+		// The rightmost argument starts the argument list.
 		tnode_t *arg = args;
 		for (int i = narg; i > n; i--, arg = arg->tn_right)
 			continue;
@@ -4243,12 +4262,14 @@ check_function_arguments(type_t *ftp, tnode_t *args)
 			/* void expressions may not be arguments, arg #%d */
 			error(151, n);
 			return NULL;
-		} else if (is_struct_or_union(at) &&
+		}
+		if (is_struct_or_union(at) &&
 			   is_incomplete(arg->tn_left->tn_type)) {
 			/* argument cannot have unknown size, arg #%d */
 			error(152, n);
 			return NULL;
-		} else if (is_integer(at) &&
+		}
+		if (is_integer(at) &&
 			   arg->tn_left->tn_type->t_is_enum &&
 			   is_incomplete(arg->tn_left->tn_type)) {
 			/* argument cannot have unknown size, arg #%d */
@@ -4258,15 +4279,15 @@ check_function_arguments(type_t *ftp, tnode_t *args)
 		/* class conversions (arg in value context) */
 		arg->tn_left = cconv(arg->tn_left);
 
-		if (asym != NULL) {
+		if (param != NULL) {
 			arg->tn_left = check_prototype_argument(
-			    n, asym->s_type, arg->tn_left);
+			    n, param->s_type, arg->tn_left);
 		} else
 			arg->tn_left = promote(NOOP, true, arg->tn_left);
 		arg->tn_type = arg->tn_left->tn_type;
 
-		if (asym != NULL)
-			asym = asym->s_next;
+		if (param != NULL)
+			param = param->s_next;
 	}
 
 	return args;

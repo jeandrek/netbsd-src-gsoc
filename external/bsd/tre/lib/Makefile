@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.3 2017/11/21 03:09:41 rin Exp $
+#	$NetBSD: Makefile,v 1.5 2023/08/03 14:56:36 rin Exp $
 
 # for information:
 # the configure script is run as:

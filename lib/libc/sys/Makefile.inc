@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.inc,v 1.251 2023/07/10 02:31:54 christos Exp $
+#	$NetBSD: Makefile.inc,v 1.253 2023/08/03 12:24:46 nia Exp $
 #	@(#)Makefile.inc	8.3 (Berkeley) 10/24/94
 
 # sys sources
@@ -7,10 +7,10 @@
 # other sources shared with the kernel, used in syscalls
 SRCS+=	cpuset.c
 # glue to offer userland wrappers for some syscalls
-SRCS+=	accept4.c clock_getcpuclockid.c eventfd_read.c eventfd_write.c \
-	posix_fadvise.c posix_madvise.c ppoll.c sched.c sigqueue.c \
-	sigtimedwait.c sigwait.c sigwaitinfo.c statvfs.c swapon.c semctl.c \
-	vadvise.c
+SRCS+=	accept4.c clock_getcpuclockid.c eventfd_read.c \
+	eventfd_write.c posix_fadvise.c posix_madvise.c ppoll.c sched.c \
+	sigqueue.c sigtimedwait.c sigwait.c sigwaitinfo.c statvfs.c swapon.c \
+	semctl.c vadvise.c
 
 .if ${RUMPRUN} != "yes"
 # modules with non-default implementations on at least one architecture:
@@ -180,7 +180,7 @@ ASM_MD=	_lwp_getprivate.S mremap.S
 WEAKASM= accept.S __aio_suspend50.S clock_nanosleep.S close.S connect.S \
 	execve.S \
 	fcntl.S fdatasync.S fsync.S \
-	fsync_range.S __kevent50.S \
+	fsync_range.S __kevent100.S \
 	kill.S mq_receive.S mq_send.S __mq_timedreceive50.S __mq_timedsend50.S \
 	msgrcv.S msgsnd.S __msync13.S  __nanosleep50.S open.S openat.S \
 	paccept.S poll.S \

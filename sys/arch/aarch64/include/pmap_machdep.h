@@ -1,4 +1,4 @@
-/*	$NetBSD: pmap_machdep.h,v 1.3 2023/04/20 08:28:03 skrll Exp $	*/
+/*	$NetBSD: pmap_machdep.h,v 1.8 2023/07/26 07:00:31 skrll Exp $	*/
 
 /*-
  * Copyright (c) 2022 The NetBSD Foundation, Inc.
@@ -64,9 +64,9 @@
 #define	NSEGPG		(1 << SEGLENGTH)
 
 
-#ifndef __BSD_PTENTRY_T__
+#ifndef	__BSD_PTENTRY_T__
 #define	__BSD_PTENTRY_T__
-#define	PRIxPTE         PRIx64
+#define	PRIxPTE		PRIx64
 #endif /* __BSD_PTENTRY_T__ */
 
 #define	KERNEL_PID	0
@@ -92,15 +92,15 @@ struct pmap_md {
 
 #define	pm_l0_pa	pm_md.pmd_l0_pa
 
-void pmap_md_pdetab_init(struct pmap *);
-void pmap_md_pdetab_fini(struct pmap *);
+void	pmap_md_pdetab_init(struct pmap *);
+void	pmap_md_pdetab_fini(struct pmap *);
 
-vaddr_t pmap_md_map_poolpage(paddr_t, size_t);
-paddr_t pmap_md_unmap_poolpage(vaddr_t, size_t);
-struct vm_page *pmap_md_alloc_poolpage(int);
+vaddr_t	pmap_md_map_poolpage(paddr_t, size_t);
+paddr_t	pmap_md_unmap_poolpage(vaddr_t, size_t);
 
-bool	pmap_md_kernel_vaddr_p(vaddr_t);
-paddr_t	pmap_md_kernel_vaddr_to_paddr(vaddr_t);
+struct vm_page *
+	pmap_md_alloc_poolpage(int);
+
 bool	pmap_md_direct_mapped_vaddr_p(vaddr_t);
 paddr_t	pmap_md_direct_mapped_vaddr_to_paddr(vaddr_t);
 vaddr_t	pmap_md_direct_map_paddr(paddr_t);
@@ -140,7 +140,7 @@ struct pmap_page {
 static inline paddr_t
 pmap_l0pa(struct pmap *pm)
 {
-        return pm->pm_l0_pa;
+	return pm->pm_l0_pa;
 }
 
 #if defined(__PMAP_PRIVATE)
@@ -159,7 +159,7 @@ bool	pmap_md_ok_to_steal_p(const uvm_physseg_t, size_t);
 void	pmap_md_xtab_activate(pmap_t, struct lwp *);
 void	pmap_md_xtab_deactivate(pmap_t);
 
-vaddr_t pmap_md_direct_map_paddr(paddr_t);
+vaddr_t	pmap_md_direct_map_paddr(paddr_t);
 
 
 #ifdef MULTIPROCESSOR
@@ -202,9 +202,7 @@ pmap_md_nptep(pt_entry_t *ptep)
 	return ptep + 1;
 }
 
-#endif	/* __PMAP_PRIVATE */
 
-#ifdef __PMAP_PRIVATE
 static __inline paddr_t
 pte_to_paddr(pt_entry_t pte)
 {
@@ -239,7 +237,7 @@ static inline bool
 pte_wired_p(pt_entry_t pte)
 {
 
-        return (pte & LX_BLKPAG_OS_WIRED) != 0;
+	return (pte & LX_BLKPAG_OS_WIRED) != 0;
 }
 
 
@@ -247,7 +245,7 @@ static inline pt_entry_t
 pte_wire_entry(pt_entry_t pte)
 {
 
-        return pte | LX_BLKPAG_OS_WIRED;
+	return pte | LX_BLKPAG_OS_WIRED;
 }
 
 
@@ -255,7 +253,7 @@ static inline pt_entry_t
 pte_unwire_entry(pt_entry_t pte)
 {
 
-        return pte & ~LX_BLKPAG_OS_WIRED;
+	return pte & ~LX_BLKPAG_OS_WIRED;
 }
 
 
@@ -319,11 +317,11 @@ pte_set(pt_entry_t *ptep, pt_entry_t pte)
 	*ptep = pte;
 	dsb(ishst);
 	/*
-	 * if this mapping is going to be used by userland then the eret *can* act
-	 * as the isb, but might not (apple m1).
+	 * if this mapping is going to be used by userland then the eret *can*
+	 * act as the isb, but might not (apple m1).
 	 *
-	 * if this mapping is kernel then the isb is always needed (for some micro-
-	 * architectures)
+	 * if this mapping is kernel then the isb is always needed (for some
+	 * micro-architectures)
 	 */
 
 	isb();
@@ -390,7 +388,6 @@ pte_pde_set(pd_entry_t *pdep, pd_entry_t npde)
 }
 
 
-
 static inline pt_entry_t
 pte_memattr(u_int flags)
 {
@@ -441,6 +438,7 @@ pte_make_kenter_pa(paddr_t pa, struct vm_page_md *mdpg, vm_prot_t prot,
 	return pte;
 }
 
+
 static inline pt_entry_t
 pte_make_enter_efirt(paddr_t pa, vm_prot_t prot, u_int flags)
 {
@@ -465,6 +463,7 @@ pte_make_enter_efirt(paddr_t pa, vm_prot_t prot, u_int flags)
 
 	return npte;
 }
+
 
 static inline pt_entry_t
 pte_make_enter(paddr_t pa, const struct vm_page_md *mdpg, vm_prot_t prot,

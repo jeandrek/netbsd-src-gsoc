@@ -1,4 +1,4 @@
-/*	$NetBSD: xen_clock.c,v 1.12 2023/07/17 10:12:54 bouyer Exp $	*/
+/*	$NetBSD: xen_clock.c,v 1.17 2023/08/01 20:11:13 riastradh Exp $	*/
 
 /*-
  * Copyright (c) 2017, 2018 The NetBSD Foundation, Inc.
@@ -36,7 +36,7 @@
 #endif
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: xen_clock.c,v 1.12 2023/07/17 10:12:54 bouyer Exp $");
+__KERNEL_RCSID(0, "$NetBSD: xen_clock.c,v 1.17 2023/08/01 20:11:13 riastradh Exp $");
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -120,6 +120,13 @@ SDT_PROBE_DEFINE3(sdt, xen, timecounter, backward,
 SDT_PROBE_DEFINE2(sdt, xen, hardclock, systime__backward,
     "uint64_t"/*last_systime_ns*/,
     "uint64_t"/*this_systime_ns*/);
+SDT_PROBE_DEFINE2(sdt, xen, hardclock, tick,
+    "uint64_t"/*last_systime_ns*/,
+    "uint64_t"/*this_systime_ns*/);
+SDT_PROBE_DEFINE3(sdt, xen, hardclock, jump,
+    "uint64_t"/*last_systime_ns*/,
+    "uint64_t"/*this_systime_ns*/,
+    "uint64_t"/*nticks*/);
 SDT_PROBE_DEFINE3(sdt, xen, hardclock, missed,
     "uint64_t"/*last_systime_ns*/,
     "uint64_t"/*this_systime_ns*/,
@@ -673,11 +680,31 @@ xen_suspendclocks(struct cpu_info *ci)
 	KASSERT(ci == curcpu());
 	KASSERT(kpreempt_disabled());
 
+	/*
+	 * Find the VIRQ_TIMER event channel and close it so new timer
+	 * interrupt events stop getting delivered to it.
+	 *
+	 * XXX Should this happen later?  This is not the reverse order
+	 * of xen_resumeclocks.  It is apparently necessary in this
+	 * order only because we don't stash evtchn anywhere, but we
+	 * could stash it.
+	 */
 	evtch = unbind_virq_from_evtch(VIRQ_TIMER);
 	KASSERT(evtch != -1);
 
+	/*
+	 * Mask the event channel so we stop getting new interrupts on
+	 * it.
+	 */
 	hypervisor_mask_event(evtch);
-	event_remove_handler(evtch, 
+
+	/*
+	 * Now that we are no longer getting new interrupts, remove the
+	 * handler and wait for any existing calls to the handler to
+	 * complete.  After this point, there can be no concurrent
+	 * calls to xen_timer_handler.
+	 */
+	event_remove_handler(evtch,
 	    __FPTRCAST(int (*)(void *), xen_timer_handler), ci);
 
 	aprint_verbose("Xen clock: removed event channel %d\n", evtch);
@@ -705,9 +732,16 @@ xen_resumeclocks(struct cpu_info *ci)
 	KASSERT(ci == curcpu());
 	KASSERT(kpreempt_disabled());
 
+	/*
+	 * Allocate an event channel to receive VIRQ_TIMER events.
+	 */
 	evtch = bind_virq_to_evtch(VIRQ_TIMER);
 	KASSERT(evtch != -1);
 
+	/*
+	 * Set an event handler for VIRQ_TIMER events to call
+	 * xen_timer_handler.
+	 */
 	snprintf(intr_xname, sizeof(intr_xname), "%s clock",
 	    device_xname(ci->ci_dev));
 	/* XXX sketchy function pointer cast -- fix the API, please */
@@ -715,7 +749,6 @@ xen_resumeclocks(struct cpu_info *ci)
 	    __FPTRCAST(int (*)(void *), xen_timer_handler),
 	    ci, IPL_CLOCK, NULL, intr_xname, true, ci) == NULL)
 		panic("failed to establish timer interrupt handler");
-
 
 	aprint_verbose("Xen %s: using event channel %d\n", intr_xname, evtch);
 
@@ -729,11 +762,15 @@ xen_resumeclocks(struct cpu_info *ci)
 	/* Pretend the last hardclock happened right now.  */
 	ci->ci_xen_hardclock_systime_ns = xen_vcputime_systime_ns();
 
-
 	/* Arm the one-shot timer.  */
 	error = HYPERVISOR_set_timer_op(ci->ci_xen_hardclock_systime_ns +
 	    NS_PER_TICK);
 	KASSERT(error == 0);
+
+	/*
+	 * Ready to go.  Unmask the event.  After this point, Xen may
+	 * start calling xen_timer_handler.
+	 */
 	hypervisor_unmask_event(evtch);
 
 	/* We'd better not have switched CPUs.  */
@@ -752,6 +789,7 @@ xen_resumeclocks(struct cpu_info *ci)
 static int
 xen_timer_handler(void *cookie, struct clockframe *frame)
 {
+	const uint64_t ns_per_tick = NS_PER_TICK;
 	struct cpu_info *ci = curcpu();
 	uint64_t last, now, delta, next;
 	int error;
@@ -769,7 +807,8 @@ again:
 	 */
 	last = ci->ci_xen_hardclock_systime_ns;
 	now = xen_vcputime_systime_ns();
-	if (now < last) {
+	SDT_PROBE2(sdt, xen, hardclock, tick,  last, now);
+	if (__predict_false(now < last)) {
 		SDT_PROBE2(sdt, xen, hardclock, systime__backward,
 		    last, now);
 #if XEN_CLOCK_DEBUG
@@ -787,11 +826,31 @@ again:
 	 * times as appears necessary based on how much time has
 	 * passed.
 	 */
-	while (delta >= NS_PER_TICK) {
-		ci->ci_xen_hardclock_systime_ns += NS_PER_TICK;
-		delta -= NS_PER_TICK;
+	if (__predict_false(delta >= 2*ns_per_tick)) {
+		SDT_PROBE3(sdt, xen, hardclock, jump,
+		    last, now, delta/ns_per_tick);
+
+		/*
+		 * Warn if we violate timecounter(9) contract: with a
+		 * k-bit timeocunter (here k = 32), and timecounter
+		 * frequency f (here f = 1 GHz), the maximum period
+		 * between hardclock calls is 2^k / f.
+		 */
+		if (delta > xen_timecounter.tc_counter_mask) {
+			printf("WARNING: hardclock skipped %"PRIu64"ns"
+			    " (%"PRIu64" -> %"PRIu64"),"
+			    " exceeding maximum of %"PRIu32"ns"
+			    " for timecounter(9)\n",
+			    last, now, delta,
+			    xen_timecounter.tc_counter_mask);
+			ci->ci_xen_timecounter_jump_evcnt.ev_count++;
+		}
+	}
+	while (delta >= ns_per_tick) {
+		ci->ci_xen_hardclock_systime_ns += ns_per_tick;
+		delta -= ns_per_tick;
 		hardclock(frame);
-		if (__predict_false(delta >= NS_PER_TICK)) {
+		if (__predict_false(delta >= ns_per_tick)) {
 			SDT_PROBE3(sdt, xen, hardclock, missed,
 			    last, now, delta);
 			ci->ci_xen_missed_hardclock_evcnt.ev_count++;
@@ -803,7 +862,7 @@ again:
 	 * time is in the past, so update our idea of what the Xen
 	 * system time is and try again.
 	 */
-	next = ci->ci_xen_hardclock_systime_ns + NS_PER_TICK;
+	next = ci->ci_xen_hardclock_systime_ns + ns_per_tick;
 	error = HYPERVISOR_set_timer_op(next);
 	if (error)
 		goto again;
@@ -850,6 +909,9 @@ xen_initclocks(void)
 	evcnt_attach_dynamic(&ci->ci_xen_timecounter_backwards_evcnt,
 	    EVCNT_TYPE_INTR, NULL, device_xname(ci->ci_dev),
 	    "timecounter went backwards");
+	evcnt_attach_dynamic(&ci->ci_xen_timecounter_jump_evcnt,
+	    EVCNT_TYPE_INTR, NULL, device_xname(ci->ci_dev),
+	    "hardclock jumped past timecounter max");
 
 	/* Fire up the clocks.  */
 	xen_resumeclocks(ci);

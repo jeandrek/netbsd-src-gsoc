@@ -1,5 +1,4 @@
-/*	$NetBSD: ieee80211_node.h,v 1.30.2.2 2018/06/28 21:23:01 phil Exp $ */
-
+/*	$NetBSD: ieee80211_node.h,v 1.32 2023/08/01 07:04:16 mrg Exp $	*/
 /*-
  * SPDX-License-Identifier: BSD-2-Clause
  *

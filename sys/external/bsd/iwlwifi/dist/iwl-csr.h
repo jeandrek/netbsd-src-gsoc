@@ -6,6 +6,11 @@
  */
 #ifndef __iwl_csr_h__
 #define __iwl_csr_h__
+
+#ifdef __NetBSD__
+#include <linux/bitops.h>
+#endif
+
 /*
  * CSR (control and status registers)
  *

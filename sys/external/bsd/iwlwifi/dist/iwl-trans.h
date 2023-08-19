@@ -11,6 +11,9 @@
 #include <linux/mm.h> /* for page_address */
 #include <linux/lockdep.h>
 #include <linux/kernel.h>
+#if defined(__NetBSD__)
+#include <asm/bug.h>
+#endif
 
 #include "iwl-debug.h"
 #include "iwl-config.h"
@@ -21,10 +24,8 @@
 #include "fw/api/txq.h"
 #include "fw/api/dbg-tlv.h"
 #include "iwl-dbg-tlv.h"
-#if defined(__FreeBSD__)
 #include <linux/skbuff.h>
 #include "iwl-modparams.h"
-#endif
 
 /**
  * DOC: Transport layer - what is it ?

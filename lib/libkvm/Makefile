@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.52 2023/04/01 09:08:11 rillig Exp $
+#	$NetBSD: Makefile,v 1.54 2023/08/03 14:56:36 rin Exp $
 #	from: @(#)Makefile	8.1 (Berkeley) 6/4/93
 
 WARNS=	3

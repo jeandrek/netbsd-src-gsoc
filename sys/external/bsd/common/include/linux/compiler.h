@@ -41,6 +41,14 @@
 
 #define	__printf	__printflike
 #define	__user
+#define __bitwise
+#define __force
+#define __percpu
+#define	____cacheline_aligned_in_smp	/* __aligned(CACHE_LINE_SIZE) FreeBSD */
+
+#define	fallthrough			/* FALLTHROUGH */ do { } while(0)
+
+
 #if __GNUC_PREREQ__(4,0)	/* not sure when but this will work */
 #define	__must_check	__attribute__((warn_unused_result))
 #else
@@ -60,6 +68,8 @@
 	__builtin_types_compatible_p(__typeof__(X), __typeof__(Y))
 #define	__must_be_array(X)						      \
 	BUILD_BUG_ON_ZERO(__same_type((X), &(X)[0]))
+
+#define __cond_lock(x,c)		(c)
 
 #define	READ_ONCE(X)	({						      \
 	__insn_barrier();						      \

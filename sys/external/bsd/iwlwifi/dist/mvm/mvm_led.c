@@ -8,6 +8,8 @@
 #include "iwl-csr.h"
 #include "mvm.h"
 
+#ifdef CONFIG_IWLWIFI_LEDS
+
 static void iwl_mvm_send_led_fw_cmd(struct iwl_mvm *mvm, bool on)
 {
 	struct iwl_led_cmd led_cmd = {
@@ -117,3 +119,4 @@ void iwl_mvm_leds_exit(struct iwl_mvm *mvm)
 	kfree(mvm->led.name);
 	mvm->init_status &= ~IWL_MVM_INIT_STATUS_LEDS_INIT_COMPLETE;
 }
+#endif

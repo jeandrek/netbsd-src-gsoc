@@ -1,9 +1,9 @@
-/*	$NetBSD: msg_204.c,v 1.9 2023/07/09 11:18:55 rillig Exp $	*/
+/*	$NetBSD: msg_204.c,v 1.11 2023/08/06 19:44:50 rillig Exp $	*/
 # 3 "msg_204.c"
 
 // Test for message: controlling expressions must have scalar type [204]
 
-/* Suppress messages for unused arguments and for 'extern' declarations. */
+/* Suppress messages for unused parameters and for 'extern' declarations. */
 /* lint1-extra-flags: -X 231 -X 351 */
 
 extern void
@@ -108,5 +108,5 @@ void do_while_struct(struct s s)	{ do { return; } while (s); }
  * controlling expression must have a scalar type, curiously.
  */
 /* expect+2: error: first operand of '?' must have scalar type [170] */
-/* expect+1: warning: function 'conditional_struct' expects to return value [214] */
+/* expect+1: error: function 'conditional_struct' expects to return value [214] */
 int conditional_struct(struct s s)	{ return s ? 1 : 2; }

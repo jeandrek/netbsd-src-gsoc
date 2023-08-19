@@ -1044,8 +1044,8 @@ hwmp_recv_preq(struct ieee80211vap *vap, struct ieee80211_node *ni,
 	    !IEEE80211_ADDR_EQ(vap->iv_myaddr, PREQ_TADDR(0))) {
 		IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_HWMP,
 		    preq->preq_origaddr, NULL,
-		    "unicast addressed PREQ of unknown target %6D",
-		    PREQ_TADDR(0), ":");
+		    "unicast addressed PREQ of unknown target %s",
+		    ether_sprintf(PREQ_TADDR(0)));
 		return;
 	}
 
@@ -1887,8 +1887,8 @@ hwmp_recv_rann(struct ieee80211vap *vap, struct ieee80211_node *ni,
 		rt = ieee80211_mesh_rt_add(vap, rann->rann_addr);
 		if (rt == NULL) {
 			IEEE80211_DISCARD(vap, IEEE80211_MSG_HWMP, wh, NULL,
-			    "unable to add mac for RANN root %6D",
-			    rann->rann_addr, ":");
+			    "unable to add mac for RANN root %s",
+			    ether_sprintf(rann->rann_addr));
 			    vap->iv_stats.is_mesh_rtaddfailed++;
 			return;
 		}
@@ -2040,8 +2040,8 @@ hwmp_discover(struct ieee80211vap *vap,
 			if (rt == NULL) {
 #ifdef IEEE80211_DEBUG
 				IEEE80211_DPRINTF(vap, IEEE80211_MSG_HWMP,
-				    "unable to add discovery path to %6D",
-                                     dest, ":");
+				    "unable to add discovery path to %s",
+                                     ether_sprintf(dest));
 #endif
 				vap->iv_stats.is_mesh_rtaddfailed++;
 				goto done;

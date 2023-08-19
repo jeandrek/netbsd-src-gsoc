@@ -1,4 +1,4 @@
-/*	$NetBSD: netbsd32_conv.h,v 1.46 2021/09/07 11:43:05 riastradh Exp $	*/
+/*	$NetBSD: netbsd32_conv.h,v 1.48 2023/07/30 06:52:20 rin Exp $	*/
 
 /*
  * Copyright (c) 1998, 2001 Matthew R. Green
@@ -43,6 +43,7 @@
 #include <sys/time.h>
 #include <sys/timex.h>
 #include <sys/event.h>
+#include <sys/epoll.h>
 
 #include <compat/sys/dirent.h>
 
@@ -812,6 +813,7 @@ netbsd32_to_kevent(struct netbsd32_kevent *ke32, struct kevent *ke)
 	ke->fflags = ke32->fflags;
 	ke->data = ke32->data;
 	ke->udata = NETBSD32PTR64(ke32->udata);
+	memcpy(&ke->ext, &ke32->ext, sizeof(ke->ext));
 }
 
 static __inline void
@@ -825,6 +827,7 @@ netbsd32_from_kevent(struct kevent *ke, struct netbsd32_kevent *ke32)
 	ke32->fflags = ke->fflags;
 	ke32->data = ke->data;
 	NETBSD32PTR32(ke32->udata, ke->udata);
+	memcpy(&ke32->ext, &ke->ext, sizeof(ke32->ext));
 }
 
 static __inline void
@@ -952,6 +955,26 @@ netbsd32_from_mq_attr(const struct mq_attr *attr,
 	a32->mq_maxmsg = attr->mq_maxmsg;
 	a32->mq_msgsize = attr->mq_msgsize;
 	a32->mq_curmsgs = attr->mq_curmsgs;
+}
+
+static __inline void
+netbsd32_to_epoll_event(const struct netbsd32_epoll_event *ee32,
+    struct epoll_event *ee)
+{
+
+	memset(ee, 0, sizeof(*ee));
+	ee->events = ee32->events;
+	ee->data = ee32->data;
+}
+
+static __inline void
+netbsd32_from_epoll_event(const struct epoll_event *ee,
+    struct netbsd32_epoll_event *ee32)
+{
+
+	memset(ee32, 0, sizeof(*ee32));
+	ee32->events = ee->events;
+	ee32->data = ee->data;
 }
 
 #endif /* _COMPAT_NETBSD32_NETBSD32_CONV_H_ */

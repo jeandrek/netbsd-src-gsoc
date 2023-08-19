@@ -1,4 +1,4 @@
-/* $NetBSD: hd44780_subr.c,v 1.21 2010/11/13 13:52:01 uebayasi Exp $ */
+/* $NetBSD: hd44780_subr.c,v 1.24 2023/08/08 17:31:13 nat Exp $ */
 
 /*
  * Copyright (c) 2002 Dennis I. Chernoivanov
@@ -32,7 +32,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: hd44780_subr.c,v 1.21 2010/11/13 13:52:01 uebayasi Exp $");
+__KERNEL_RCSID(0, "$NetBSD: hd44780_subr.c,v 1.24 2023/08/08 17:31:13 nat Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -393,6 +393,15 @@ hd44780_attach_subr(struct hd44780_chip *sc)
 	callout_setfunc(&sc->redraw, hlcd_redraw, sc);
 }
 
+void hd44780_detach(struct hd44780_chip *sc)
+{
+	callout_stop(&sc->redraw);
+	callout_destroy(&sc->redraw);
+
+	if (sc->sc_screen.image)
+		free(sc->sc_screen.image, M_DEVBUF);
+}
+
 int hd44780_init(struct hd44780_chip *sc)
 {
 	int ret;
@@ -449,7 +458,8 @@ hd44780_chipinit(struct hd44780_chip *sc, uint32_t en)
 	hd44780_ir_write(sc, en, cmd_ddramset(0x5));
 	hd44780_ir_write(sc, en, cmd_shift(0, 1));
 	hd44780_busy_wait(sc, en);
-	if ((dat = hd44780_ir_read(sc, en) & 0x7f) != 0x6) {
+	if (!(sc->sc_flags & HD_WRITEONLY) &&
+	    (dat = hd44780_ir_read(sc, en) & 0x7f) != 0x6) {
 		sc->sc_dev_ok = 0;
 		sc->sc_flags &= ~HD_UP;
 		return EIO;

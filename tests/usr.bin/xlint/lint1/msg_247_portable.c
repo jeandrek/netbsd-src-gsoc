@@ -1,15 +1,18 @@
-/*	$NetBSD: msg_247_portable.c,v 1.4 2023/07/08 16:13:00 rillig Exp $	*/
+/*	$NetBSD: msg_247_portable.c,v 1.5 2023/08/07 22:30:39 rillig Exp $	*/
 # 3 "msg_247_portable.c"
 
 // Test for message: pointer cast from '%s' to '%s' may be troublesome [247]
 
-// In portable mode, lint assumes that the sizes of the integer types are
-// _Bool < char < short < int < long < long long < int128_t.
-// Analogous for the floating point types and the complex types.
+// In portable mode on platforms where 'ptrdiff_t' is 'long', lint defines the
+// rank of the integer types such that _Bool < char < short < int < long <
+// long long < int128_t.  The rank of the floating points is float < double <
+// long double, analogous for the complex types.
 //
 // See also:
+//	msg_247.c
 //	msg_247_ilp32_ldbl64.c
 //	msg_247_lp64_ldbl128.c
+//	msg_247_portable_int.c
 
 /* lint1-only-if: long */
 /* lint1-extra-flags: -c -p -X 351 */

@@ -48,10 +48,12 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 
+#define U8_MAX  UINT8_MAX
 #define U16_MAX UINT16_MAX
 #define U32_MAX UINT32_MAX
 #define U64_MAX UINT64_MAX
 
+#define S8_MIN  INT8_MIN
 #define	S16_MAX	INT16_MAX
 #define	S16_MIN	INT16_MIN
 #define	S32_MAX	INT32_MAX
@@ -124,6 +126,9 @@
 
 #define	ALIGN_DOWN(X, N)	round_down(X, N)
 
+#undef ALIGN
+#define ALIGN(X,N)		round_up(X,N)
+
 /*
  * These select 32-bit halves of what may be 32- or 64-bit quantities,
  * for which straight 32-bit shifts may be undefined behaviour (and do
@@ -134,6 +139,9 @@
 #define	lower_32_bits(X)	((uint32_t) ((X) & 0xffffffffUL))
 
 #define	ARRAY_SIZE(ARRAY)	__arraycount(ARRAY)
+
+#define	DECLARE_FLEX_ARRAY(_t, _n)					\
+	struct { struct { } __dummy_ ## _n; _t _n[0]; }
 
 #define	__is_constexpr(x)	__builtin_constant_p(x)
 

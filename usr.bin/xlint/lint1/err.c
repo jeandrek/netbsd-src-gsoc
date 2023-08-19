@@ -1,4 +1,4 @@
-/*	$NetBSD: err.c,v 1.212 2023/07/13 08:40:38 rillig Exp $	*/
+/*	$NetBSD: err.c,v 1.216 2023/08/03 18:48:42 rillig Exp $	*/
 
 /*
  * Copyright (c) 1994, 1995 Jochen Pohl
@@ -37,7 +37,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: err.c,v 1.212 2023/07/13 08:40:38 rillig Exp $");
+__RCSID("$NetBSD: err.c,v 1.216 2023/08/03 18:48:42 rillig Exp $");
 #endif
 
 #include <limits.h>
@@ -58,7 +58,7 @@ static const char *const msgs[] = {
 	"empty declaration",					      /* 0 */
 	"old-style declaration; add 'int'",			      /* 1 */
 	"empty declaration",					      /* 2 */
-	"'%s' declared in argument declaration list",		      /* 3 */
+	"'%s' declared in parameter declaration list",		      /* 3 */
 	"illegal type combination",				      /* 4 */
 	"modifying typedef with '%s'; only qualifiers allowed",	      /* 5 */
 	"use 'double' instead of 'long float'",			      /* 6 */
@@ -87,7 +87,7 @@ static const char *const msgs[] = {
 	"'%s' was previously declared extern, becomes static",	      /* 29 */
 	"redeclaration of '%s'; ANSI C requires static",	      /* 30 */
 	"'%s' has incomplete type '%s'",			      /* 31 */
-	"type of argument '%s' defaults to 'int'",		      /* 32 */
+	"type of parameter '%s' defaults to 'int'",		      /* 32 */
 	"duplicate member name '%s'",				      /* 33 */
 	"nonportable bit-field type '%s'",			      /* 34 */
 	"illegal bit-field type '%s'",				      /* 35 */
@@ -108,7 +108,7 @@ static const char *const msgs[] = {
 	"parameter '%s' has function type, should be pointer",	      /* 50 */
 	"parameter mismatch: %d declared, %d defined",		      /* 51 */
 	"cannot initialize parameter '%s'",			      /* 52 */
-	"declared argument '%s' is missing",			      /* 53 */
+	"declared parameter '%s' is missing",			      /* 53 */
 	"trailing ',' in enum declaration requires C99 or later",     /* 54 */
 	"integral constant expression expected",		      /* 55 */
 	"integral constant too large",				      /* 56 */
@@ -236,7 +236,7 @@ static const char *const msgs[] = {
 	"initializer does not fit",				      /* 178 */
 	"cannot initialize struct/union with no named member",	      /* 179 */
 	"bit-field initializer does not fit",			      /* 180 */
-	"{}-enclosed initializer required",			      /* 181 */
+	"{}-enclosed or constant initializer of type '%s' required",  /* 181 */
 	"incompatible pointer types to '%s' and '%s'",		      /* 182 */
 	"illegal combination of %s '%s' and %s '%s'",		      /* 183 */
 	"illegal combination of '%s' and '%s'",			      /* 184 */
@@ -294,7 +294,7 @@ static const char *const msgs[] = {
 	"static function '%s' unused",				      /* 236 */
 	"redeclaration of formal parameter '%s'",		      /* 237 */
 	"initialization of union is illegal in traditional C",	      /* 238 */
-	"constant argument to '!'",				      /* 239 */
+	"constant operand to '!'",				      /* 239 */
 	"",			/* unused */			      /* 240 */
 	"dubious operation '%s' on enum",			      /* 241 */
 	"combination of '%s' and '%s', op '%s'",		      /* 242 */
@@ -338,7 +338,7 @@ static const char *const msgs[] = {
 	"comment /* %s */ must be outside function",		      /* 280 */
 	"duplicate comment /* %s */",				      /* 281 */
 	"comment /* %s */ must precede function definition",	      /* 282 */
-	"argument number mismatch in comment /* %s */",		      /* 283 */
+	"parameter number mismatch in comment /* %s */",	      /* 283 */
 	"fallthrough on default statement",			      /* 284 */
 	"prototype declaration",				      /* 285 */
 	"function definition is not a prototype",		      /* 286 */
@@ -348,7 +348,7 @@ static const char *const msgs[] = {
 	"static function '%s' declared but not defined",	      /* 290 */
 	"invalid multibyte character",				      /* 291 */
 	"cannot concatenate wide and regular string literals",	      /* 292 */
-	"argument %d must be 'char *' for PRINTFLIKE/SCANFLIKE",      /* 293 */
+	"parameter %d must be 'char *' for PRINTFLIKE/SCANFLIKE",     /* 293 */
 	"multi-character character constant",			      /* 294 */
 	"conversion of '%s' to '%s' is out of range, arg #%d",	      /* 295 */
 	"conversion of negative constant to unsigned type, arg #%d",  /* 296 */
@@ -365,7 +365,7 @@ static const char *const msgs[] = {
 	"static variable '%s' set but not used",		      /* 307 */
 	"invalid type for _Complex",				      /* 308 */
 	"extra bits set to 0 in conversion of '%s' to '%s', op '%s'", /* 309 */
-	"symbol renaming can't be used on function arguments",	      /* 310 */
+	"symbol renaming can't be used on function parameters",	      /* 310 */
 	"symbol renaming can't be used on automatic variables",	      /* 311 */
 	"%s does not support '//' comments",			      /* 312 */
 	"struct or union member name in initializer is a C99 feature",/* 313 */
@@ -389,7 +389,7 @@ static const char *const msgs[] = {
 	"left operand of '%s' must be bool, not '%s'",		      /* 331 */
 	"right operand of '%s' must be bool, not '%s'",		      /* 332 */
 	"controlling expression must be bool, not '%s'",	      /* 333 */
-	"argument %d expects '%s', gets passed '%s'",		      /* 334 */
+	"parameter %d expects '%s', gets passed '%s'",		      /* 334 */
 	"operand of '%s' must not be bool",			      /* 335 */
 	"left operand of '%s' must not be bool",		      /* 336 */
 	"right operand of '%s' must not be bool",		      /* 337 */
@@ -409,6 +409,8 @@ static const char *const msgs[] = {
 	"missing%s header declaration for '%s'",		      /* 351 */
 	"nested 'extern' declaration of '%s'",			      /* 352 */
 	"empty initializer braces require C23 or later",	      /* 353 */
+	"'_Static_assert' requires C11 or later",		      /* 354 */
+	"'_Static_assert' without message requires C23 or later",     /* 355 */
 };
 
 static bool	is_suppressed[sizeof(msgs) / sizeof(msgs[0])];
@@ -481,22 +483,6 @@ print_stack_trace(void)
 	 */
 	for (top = top->by; top != NULL; top = top->by)
 		printf("\tincluded from %s(%d)\n", top->filename, top->lineno);
-}
-
-/*
- * print a list of the messages with their ids
- */
-void
-msglist(void)
-{
-	size_t i;
-
-	for (i = 0; i < sizeof(msgs) / sizeof(msgs[0]); i++) {
-		if (msgs[i][0] != '\0')
-			printf("%zu\t%s\n", i, msgs[i]);
-		else
-			printf("---\t(no longer used)\n");
-	}
 }
 
 /*

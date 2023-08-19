@@ -1,5 +1,5 @@
 %{
-/* $NetBSD: cgram.y,v 1.465 2023/07/15 21:47:35 rillig Exp $ */
+/* $NetBSD: cgram.y,v 1.470 2023/08/03 18:48:42 rillig Exp $ */
 
 /*
  * Copyright (c) 1996 Christopher G. Demetriou.  All Rights Reserved.
@@ -35,7 +35,7 @@
 
 #include <sys/cdefs.h>
 #if defined(__RCSID)
-__RCSID("$NetBSD: cgram.y,v 1.465 2023/07/15 21:47:35 rillig Exp $");
+__RCSID("$NetBSD: cgram.y,v 1.470 2023/08/03 18:48:42 rillig Exp $");
 #endif
 
 #include <limits.h>
@@ -54,7 +54,7 @@ int	block_level;
 
 /*
  * level for memory allocation. Normally the same as block_level.
- * An exception is the declaration of arguments in prototypes. Memory
+ * An exception is the declaration of parameters in prototypes. Memory
  * for these can't be freed after the declaration, but symbols must
  * be removed from the symbol table after the declaration.
  */
@@ -143,6 +143,7 @@ is_either(const char *s, const char *a, const char *b)
 	tspec_t	y_tspec;
 	type_qualifiers y_type_qualifiers;
 	function_specifier y_function_specifier;
+	struct parameter_list y_parameter_list;
 	type_t	*y_type;
 	tnode_t	*y_tnode;
 	range_t	y_range;
@@ -162,7 +163,11 @@ is_either(const char *s, const char *a, const char *b)
 		fprintf(yyo, "%Lg", $$->u.floating);
 } <y_val>
 %printer { fprintf(yyo, "'%s'", $$ != NULL ? $$->sb_name : "<null>"); } <y_name>
-%printer { debug_sym("", $$, ""); } <y_sym>
+%printer {
+	bool indented = debug_push_indented(true);
+	debug_sym("", $$, "");
+	debug_pop_indented(indented);
+} <y_sym>
 %printer { fprintf(yyo, "%s", op_name($$)); } <y_op>
 %printer { fprintf(yyo, "%s", scl_name($$)); } <y_scl>
 %printer { fprintf(yyo, "%s", tspec_name($$)); } <y_tspec>
@@ -351,7 +356,7 @@ is_either(const char *s, const char *a, const char *b)
 %type	<y_sym>		notype_param_declarator
 %type	<y_sym>		direct_param_declarator
 %type	<y_sym>		direct_notype_param_declarator
-%type	<y_sym>		param_list
+%type	<y_parameter_list>	param_list
 /* No type for id_list_lparen. */
 /* No type for abstract_decl_lparen. */
 %type	<y_array_size>	array_size_opt
@@ -361,10 +366,10 @@ is_either(const char *s, const char *a, const char *b)
 %type	<y_sym>		abstract_declaration
 %type	<y_sym>		abstract_declarator
 %type	<y_sym>		direct_abstract_declarator
-%type	<y_sym>		abstract_decl_param_list
+%type	<y_parameter_list>	abstract_decl_param_list
 /* No type for abstract_decl_lparen. */
-%type	<y_sym>		vararg_parameter_type_list
-%type	<y_sym>		parameter_type_list
+%type	<y_parameter_list>	vararg_parameter_type_list
+%type	<y_parameter_list>	parameter_type_list
 %type	<y_sym>		parameter_declaration
 /* No type for braced_initializer. */
 /* No type for initializer. */
@@ -1352,7 +1357,7 @@ type_direct_declarator:
 
 /*
  * The two distinct rules type_param_declarator and notype_param_declarator
- * avoid a conflict in argument lists. A typename enclosed in parentheses is
+ * avoid a conflict in parameter lists. A typename enclosed in parentheses is
  * always treated as a typename, not an argument name. For example, after
  * "typedef double a;", the declaration "f(int (a));" is interpreted as
  * "f(int (double));", not "f(int a);".
@@ -1411,7 +1416,7 @@ direct_notype_param_declarator:
 
 param_list:
 	id_list_lparen identifier_list T_RPAREN {
-		$$ = $2;
+		$$ = (struct parameter_list){ .first = $2 };
 	}
 |	abstract_decl_param_list
 ;
@@ -1524,7 +1529,8 @@ direct_abstract_declarator:
 		$$ = add_array($1, $3.has_dim, $3.dim);
 	}
 |	abstract_decl_param_list asm_or_symbolrename_opt {
-		$$ = add_function(symbolrename(abstract_name(), $2), $1);
+		sym_t *name = abstract_enclosing_name();
+		$$ = add_function(symbolrename(name, $2), $1);
 		end_declaration_level();
 		block_level--;
 	}
@@ -1539,15 +1545,15 @@ direct_abstract_declarator:
 
 abstract_decl_param_list:	/* specific to lint */
 	abstract_decl_lparen T_RPAREN type_attribute_opt {
-		$$ = NULL;
+		$$ = (struct parameter_list){ .first = NULL };
 	}
 |	abstract_decl_lparen vararg_parameter_type_list T_RPAREN
 	    type_attribute_opt {
-		dcs->d_prototype = true;
 		$$ = $2;
+		$$.prototype = true;
 	}
 |	abstract_decl_lparen error T_RPAREN type_attribute_opt {
-		$$ = NULL;
+		$$ = (struct parameter_list){ .first = NULL };
 	}
 ;
 
@@ -1561,8 +1567,8 @@ abstract_decl_lparen:		/* specific to lint */
 vararg_parameter_type_list:	/* specific to lint */
 	parameter_type_list
 |	parameter_type_list T_COMMA T_ELLIPSIS {
-		dcs->d_vararg = true;
 		$$ = $1;
+		$$.vararg = true;
 	}
 |	T_ELLIPSIS {
 		/* TODO: C99 6.7.5 makes this an error as well. */
@@ -1573,16 +1579,18 @@ vararg_parameter_type_list:	/* specific to lint */
 			/* ANSI C requires formal parameter before '...' */
 			warning(84);
 		}
-		dcs->d_vararg = true;
-		$$ = NULL;
+		$$ = (struct parameter_list){ .vararg = true };
 	}
 ;
 
 /* XXX: C99 6.7.5 defines the same name, but it looks different. */
 parameter_type_list:
-	parameter_declaration
+	parameter_declaration {
+		$$ = (struct parameter_list){ .first = $1 };
+	}
 |	parameter_type_list T_COMMA parameter_declaration {
-		$$ = concat_symbols($1, $3);
+		$$ = $1;
+		$$.first = concat_symbols($1.first, $3);
 	}
 ;
 
@@ -1590,31 +1598,31 @@ parameter_type_list:
 parameter_declaration:
 	begin_type_declmods end_type {
 		/* ^^ There is no check for the missing type-specifier. */
-		$$ = declare_argument(abstract_name(), false);
+		$$ = declare_parameter(abstract_name(), false);
 	}
 |	begin_type_declaration_specifiers end_type {
-		$$ = declare_argument(abstract_name(), false);
+		$$ = declare_parameter(abstract_name(), false);
 	}
 |	begin_type_declmods end_type notype_param_declarator {
 		/* ^^ There is no check for the missing type-specifier. */
-		$$ = declare_argument($3, false);
+		$$ = declare_parameter($3, false);
 	}
 	/*
 	 * type_param_declarator is needed because of following conflict:
 	 * "typedef int a; f(int (a));" could be parsed as
 	 * "function with argument a of type int", or
-	 * "function with an abstract argument of type function".
+	 * "function with an unnamed (abstract) argument of type function".
 	 * This grammar realizes the second case.
 	 */
 |	begin_type_declaration_specifiers end_type type_param_declarator {
-		$$ = declare_argument($3, false);
+		$$ = declare_parameter($3, false);
 	}
 |	begin_type_declmods end_type abstract_declarator {
 		/* ^^ There is no check for the missing type-specifier. */
-		$$ = declare_argument($3, false);
+		$$ = declare_parameter($3, false);
 	}
 |	begin_type_declaration_specifiers end_type abstract_declarator {
-		$$ = declare_argument($3, false);
+		$$ = declare_parameter($3, false);
 	}
 ;
 
@@ -1687,9 +1695,15 @@ designator:			/* C99 6.7.8 "Initialization" */
 ;
 
 static_assert_declaration:
-	T_STATIC_ASSERT T_LPAREN
-	    constant_expression T_COMMA T_STRING T_RPAREN T_SEMI /* C11 */
-|	T_STATIC_ASSERT T_LPAREN constant_expression T_RPAREN T_SEMI /* C23 */
+	T_STATIC_ASSERT T_LPAREN constant_expression T_COMMA T_STRING
+	    T_RPAREN T_SEMI {
+		/* '_Static_assert' requires C11 or later */
+		c11ism(354);
+	}
+|	T_STATIC_ASSERT T_LPAREN constant_expression T_RPAREN T_SEMI {
+		/* '_Static_assert' without message requires C23 or later */
+		c23ism(355);
+	}
 ;
 
 range:
@@ -2079,14 +2093,14 @@ function_definition:		/* C99 6.9.1 */
 		check_extern_declaration($1);
 		begin_function($1);
 		block_level++;
-		begin_declaration_level(DLK_OLD_STYLE_ARGS);
+		begin_declaration_level(DLK_OLD_STYLE_PARAMS);
 		if (lwarn == LWARN_NONE)
 			$1->s_used = true;
 	} arg_declaration_list_opt {
 		end_declaration_level();
 		block_level--;
 		check_func_lint_directives();
-		check_func_old_style_arguments();
+		check_func_old_style_parameters();
 		begin_control_statement(CS_FUNCTION_BODY);
 	} compound_statement {
 		end_function();
@@ -2141,14 +2155,14 @@ arg_declaration:
 			/* empty declaration */
 			warning(2);
 		} else {
-			/* '%s' declared in argument declaration list */
+			/* '%s' declared in parameter declaration list */
 			warning(3, type_name(dcs->d_type));
 		}
 	}
 |	begin_type_declaration_specifiers end_type
 	    type_init_declarators T_SEMI {
 		if (dcs->d_nonempty_decl) {
-			/* '%s' declared in argument declaration list */
+			/* '%s' declared in parameter declaration list */
 			warning(3, type_name(dcs->d_type));
 		}
 	}

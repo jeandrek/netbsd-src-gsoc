@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.5 2023/07/10 21:08:26 christos Exp $
+	$NetBSD: syscalls.master,v 1.9 2023/07/29 15:04:28 christos Exp $
 
 ;	@(#)syscalls.master	8.1 (Berkeley) 7/19/93
 
@@ -53,15 +53,15 @@
 #include <compat/sys/time.h>
 
 #include <compat/linux/common/linux_types.h>
-#include <compat/linux/common/linux_machdep.h>
-#include <compat/linux/common/linux_mmap.h>
 #include <compat/linux/common/linux_ipc.h>
+#include <compat/linux/common/linux_machdep.h>
+#include <compat/linux/common/linux_misc.h>
+#include <compat/linux/common/linux_mmap.h>
 #include <compat/linux/common/linux_msg.h>
 #include <compat/linux/common/linux_sem.h>
 #include <compat/linux/common/linux_shm.h>
-#include <compat/linux/common/linux_signal.h>
 #include <compat/linux/common/linux_siginfo.h>
-#include <compat/linux/common/linux_machdep.h>
+#include <compat/linux/common/linux_signal.h>
 
 #include <compat/linux/linux_syscallargs.h>
 
@@ -97,9 +97,12 @@
 18	UNIMPL		lookup_dcookie
 19	STD		{ int|linux_sys||eventfd2(unsigned int initval, \
 			    int flags); }
-20	UNIMPL		epoll_create1
-21	UNIMPL		epoll_ctl
-22	UNIMPL		epoll_pwait
+20	STD		{ int|linux_sys||epoll_create1(int flags); }
+21	STD		{ int|linux_sys||epoll_ctl(int epfd, int op, int fd, \
+			    struct linux_epoll_event *event); }
+22	STD		{ int|linux_sys||epoll_pwait(int epfd, \
+			    struct linux_epoll_event *events, int maxevents, \
+			    int timeout, const linux_sigset_t *sigmask); }
 23	NOARGS		{ int|sys||dup(int fd); }
 24	STD		{ int|linux_sys||dup3(int from, int to, int flags); }
 25	STD		{ int|linux_sys||fcntl(int fd, int cmd, void *arg); }
@@ -430,7 +433,8 @@
 			    const struct linux_msghdr *msg, int flags); }
 212	STD		{ ssize_t|linux_sys||recvmsg(int s, \
 			    struct linux_msghdr *msg, int flags); }
-213	UNIMPL		readahead
+213	STD		{ ssize_t|linux_sys||readahead(int fd, off_t offset, \
+			    size_t count); }
 214	STD		{ int|linux_sys||brk(char *nsize); }
 215	NOARGS		{ int|sys||munmap(void *addr, size_t len); }
 216	STD		{ void *|linux_sys||mremap(void *old_address, \
@@ -672,10 +676,15 @@
 433	UNIMPL		fspick
 434	UNIMPL		pidfd_open
 435	UNIMPL		clone3
-436	UNIMPL
+436	STD		{ int|linux_sys||close_range(unsigned int first, \
+			    unsigned int last, unsigned int flags); }
 437	UNIMPL		openat2
 438	UNIMPL		pidfd_getfd
 439	UNIMPL		faccessat2
 
 ; we want a "nosys" syscall, we'll just add an extra entry for it.
 440	STD		{ int|linux_sys||nosys(void); }
+441	STD		{ int|linux_sys||epoll_pwait2(int epfd, \
+			    struct linux_epoll_event *events, int maxevents, \
+			    const struct linux_timespec *timeout, \
+			    const linux_sigset_t *sigmask); }

@@ -1,4 +1,4 @@
-/*	$NetBSD: pmap.c,v 1.120 2022/06/16 06:25:42 skrll Exp $	*/
+/*	$NetBSD: pmap.c,v 1.122 2023/08/02 09:18:14 macallan Exp $	*/
 
 /*-
  * Copyright (c) 2001, 2002, 2020 The NetBSD Foundation, Inc.
@@ -65,7 +65,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: pmap.c,v 1.120 2022/06/16 06:25:42 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: pmap.c,v 1.122 2023/08/02 09:18:14 macallan Exp $");
 
 #include "opt_cputype.h"
 
@@ -766,6 +766,9 @@ pmap_pv_remove(struct vm_page *pg, pmap_t pmap, vaddr_t va)
 static void
 pmap_page_physload(paddr_t spa, paddr_t epa)
 {
+
+	if (spa == epa)
+		return;
 
 	if (spa < FIRST_16M && epa <= FIRST_16M) {
 		uvm_page_physload(spa, epa, spa, epa, VM_FREELIST_ISADMA);

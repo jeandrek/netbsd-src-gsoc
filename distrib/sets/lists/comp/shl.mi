@@ -1,4 +1,4 @@
-# $NetBSD: shl.mi,v 1.351 2022/12/25 15:02:29 jakllsch Exp $
+# $NetBSD: shl.mi,v 1.353 2023/08/04 08:54:00 mrg Exp $
 #
 # Note: don't delete entries from here - mark them as "obsolete" instead.
 #

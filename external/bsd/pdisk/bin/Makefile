@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.6 2023/06/03 21:30:21 lukem Exp $	
+#	$NetBSD: Makefile,v 1.8 2023/08/03 14:56:36 rin Exp $	
 
 .include <bsd.own.mk>
 WARNS=5

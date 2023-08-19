@@ -6,9 +6,7 @@
  */
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-#if defined(__FreeBSD__)
 #include <net/ieee80211_radiotap.h>
-#endif
 #include "iwl-trans.h"
 #include "mvm.h"
 #include "fw-api.h"

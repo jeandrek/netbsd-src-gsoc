@@ -1,0 +1,81 @@
+#	$NetBSD: $
+
+device  iwlwifi
+attach	iwlwifi at pci with iwlwifi_pci: linux
+file	external/bsd/iwlwifi/pci/if_iwlwifi_pci.c       iwlwifi_pci
+
+makeoptions     iwlwifi_pci         "CPPFLAGS.iwlwifi_pci"+="-I$S/external/bsd/iwlwifi/dist -I$S/external/bsd/iwlwifi/include -I$S/external/bsd/common/include -I$S/external/bsd/drm2/include -I$S -DCONFIG_IWLDVM=1 -DCONFIG_IWLMVM=1"
+
+file	external/bsd/iwlwifi/dist/iwl-drv.c             iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-dbg-tlv.c         iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-debug.c           iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-eeprom-parse.c    iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-eeprom-read.c     iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-io.c              iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-nvm-parse.c       iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-phy-db.c          iwlwifi_pci
+file	external/bsd/iwlwifi/dist/iwl-trans.c           iwlwifi_pci
+
+#file	external/bsd/iwlwifi/dist/iwl-devtrace.c        iwlwifi_pci
+
+file    external/bsd/iwlwifi/dist/cfg/cfg_22000.c       iwlwifi_pci
+file    external/bsd/iwlwifi/dist/cfg/cfg_7000.c        iwlwifi_pci
+file    external/bsd/iwlwifi/dist/cfg/cfg_8000.c        iwlwifi_pci
+file    external/bsd/iwlwifi/dist/cfg/cfg_9000.c        iwlwifi_pci
+
+#file    external/bsd/iwlwifi/dist/fw/fw_acpi.c         iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_dbg.c           iwlwifi_pci
+#file    external/bsd/iwlwifi/dist/fw/fw_debugfs.c      iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_dump.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_img.c           iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_init.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_notif-wait.c    iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_paging.c        iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_pnvm.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_rs.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_smem.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/fw/fw_uefi.c          iwlwifi_pci
+
+file    external/bsd/iwlwifi/dist/mvm/mvm_binding.c       iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_coex.c          iwlwifi_pci
+#file    external/bsd/iwlwifi/dist/mvm/mvm_d3.c           iwlwifi_pci
+#file    external/bsd/iwlwifi/dist/mvm/mvm_debugfs-vif.c  iwlwifi_pci
+#file    external/bsd/iwlwifi/dist/mvm/mvm_debugfs.c      iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_ftm-initiator.c iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_ftm-responder.c iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_fw.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_led.c           iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_mac-ctxt.c      iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_mac80211.c      iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_nvm.c           iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_offloading.c    iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_ops.c           iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_phy-ctxt.c      iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_power.c         iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_quota.c         iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_rfi.c           iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_rs-fw.c         iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_rs.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_rx.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_rxmq.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_scan.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_sf.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_sta.c           iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_tdls.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_time-event.c    iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_tt.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_tx.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/mvm/mvm_utils.c         iwlwifi_pci
+
+file    external/bsd/iwlwifi/dist/pcie/pcie_ctxt-info-gen3.c iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_ctxt-info.c      iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_drv.c            iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_rx.c             iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_trans-gen2.c     iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_trans.c          iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_tx-gen2.c        iwlwifi_pci
+file    external/bsd/iwlwifi/dist/pcie/pcie_tx.c             iwlwifi_pci
+
+file    external/bsd/iwlwifi/dist/queue/queue_tx.c           iwlwifi_pci
+
+# bsd/common/* files ... if needed?

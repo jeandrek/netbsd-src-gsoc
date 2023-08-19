@@ -1,4 +1,4 @@
-/*	$NetBSD: output_cdb.c,v 1.1 2010/04/25 00:54:46 joerg Exp $	*/
+/*	$NetBSD: output_cdb.c,v 1.3 2023/08/08 10:35:21 riastradh Exp $	*/
 
 /*-
  * Copyright (c) 2010 The NetBSD Foundation, Inc.

@@ -1,4 +1,4 @@
-/*      $NetBSD: hijack.c,v 1.136 2022/04/16 18:15:20 andvar Exp $	*/
+/*      $NetBSD: hijack.c,v 1.139 2023/08/01 07:04:15 mrg Exp $	*/
 
 /*-
  * Copyright (c) 2011 Antti Kantee.  All Rights Reserved.
@@ -34,7 +34,7 @@
 #include <rump/rumpuser_port.h>
 
 #if !defined(lint)
-__RCSID("$NetBSD: hijack.c,v 1.136 2022/04/16 18:15:20 andvar Exp $");
+__RCSID("$NetBSD: hijack.c,v 1.139 2023/08/01 07:04:15 mrg Exp $");
 #endif
 
 #include <sys/param.h>
@@ -190,7 +190,6 @@ enum dualcall {
 #define REALPSELECT pselect
 #define REALSELECT select
 #define REALPOLLTS pollts
-#define REALKEVENT kevent
 #define REALSTAT __stat30
 #define REALLSTAT __lstat30
 #define REALFSTAT __fstat30
@@ -203,7 +202,6 @@ enum dualcall {
 #define REALPSELECT _sys___pselect50
 #define REALSELECT _sys___select50
 #define REALPOLLTS _sys___pollts50
-#define REALKEVENT _sys___kevent50
 #define REALSTAT __stat50
 #define REALLSTAT __lstat50
 #define REALFSTAT __fstat50
@@ -213,6 +211,14 @@ enum dualcall {
 #define REALMKNOD __mknod50
 #define REALFHSTAT __fhstat50
 #endif /* < 5.99.7 */
+
+#if !__NetBSD_Prereq__(5,99,7)
+#define REALKEVENT kevent
+#elif !__NetBSD_Prereq__(10,99,7)
+#define REALKEVENT _sys___kevent50
+#else
+#define REALKEVENT _sys___kevent100
+#endif
 
 #define REALREAD _sys_read
 #define REALPREAD _sys_pread
@@ -2622,13 +2628,13 @@ FDCALL(int, fsync_range, DUALCALL_FSYNC_RANGE,				\
 #endif
 
 FDCALL(int, futimes, DUALCALL_FUTIMES,					\
-	(int fd, const struct timeval *tv),				\
-	(int, const struct timeval *),					\
+	(int fd, const struct timeval tv[2]),				\
+	(int, const struct timeval[2]),					\
 	(fd, tv))
 
 FDCALL(int, futimens, DUALCALL_FUTIMENS,				\
-	(int fd, const struct timespec *ts),				\
-	(int, const struct timespec *),					\
+	(int fd, const struct timespec ts[2]),				\
+	(int, const struct timespec[2]),				\
 	(fd, ts))
 
 #ifdef HAVE_CHFLAGS
@@ -2728,13 +2734,13 @@ PATHCALL(int, rmdir, DUALCALL_RMDIR,					\
 	(path))
 
 PATHCALL(int, utimes, DUALCALL_UTIMES,					\
-	(const char *path, const struct timeval *tv),			\
-	(const char *, const struct timeval *),				\
+	(const char *path, const struct timeval tv[2]),			\
+	(const char *, const struct timeval[2]),			\
 	(path, tv))
 
 PATHCALL(int, lutimes, DUALCALL_LUTIMES,				\
-	(const char *path, const struct timeval *tv),			\
-	(const char *, const struct timeval *),				\
+	(const char *path, const struct timeval tv[2]),			\
+	(const char *, const struct timeval[2]),			\
 	(path, tv))
 
 #ifdef HAVE_CHFLAGS

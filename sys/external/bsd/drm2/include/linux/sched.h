@@ -55,6 +55,7 @@ struct seq_file;
 
 #define	TASK_UNINTERRUPTIBLE	__BIT(0)
 #define	TASK_INTERRUPTIBLE	__BIT(1)
+#define	TASK_NORMAL		(TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE)
 
 #define	current	curproc
 

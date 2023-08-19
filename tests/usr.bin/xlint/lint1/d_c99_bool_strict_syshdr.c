@@ -1,4 +1,4 @@
-/*	$NetBSD: d_c99_bool_strict_syshdr.c,v 1.20 2023/07/09 10:42:07 rillig Exp $	*/
+/*	$NetBSD: d_c99_bool_strict_syshdr.c,v 1.22 2023/08/06 19:44:50 rillig Exp $	*/
 # 3 "d_c99_bool_strict_syshdr.c"
 
 /*
@@ -168,7 +168,7 @@ _Bool
 str_equal_bad(const char *s1, const char *s2)
 {
 	/* expect+2: error: operand of '!' must be bool, not 'int' [330] */
-	/* expect+1: warning: function 'str_equal_bad' expects to return value [214] */
+	/* expect+1: error: function 'str_equal_bad' expects to return value [214] */
 	return !strcmp(s1, s2);
 }
 
@@ -221,7 +221,7 @@ void
 pass_bool_to_function(void)
 {
 
-	/* expect+5: error: argument 1 expects '_Bool', gets passed 'int' [334] */
+	/* expect+5: error: parameter 1 expects '_Bool', gets passed 'int' [334] */
 	take_bool(
 # 227 "d_c99_bool_strict_syshdr.c" 3 4
 	    (/*CONSTCOND*/1)
@@ -234,7 +234,7 @@ pass_bool_to_function(void)
 # 235 "d_c99_bool_strict_syshdr.c"
 	);
 
-	/* expect+5: error: argument 1 expects '_Bool', gets passed 'int' [334] */
+	/* expect+5: error: parameter 1 expects '_Bool', gets passed 'int' [334] */
 	take_bool(
 # 240 "d_c99_bool_strict_syshdr.c" 3 4
 	    (/*CONSTCOND*/0)

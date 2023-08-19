@@ -90,6 +90,11 @@ typedef unsigned long long cycles_t;
 /* XXX Not sure this is correct.  */
 typedef off_t loff_t;
 
+/* For iwlwifi */
+typedef uint16_t __sum16;
+
+typedef const char * acpi_string;
+
 #define DECLARE_BITMAP(NAME, BITS)					      \
 	unsigned long NAME[((BITS) + ((NBBY*sizeof(unsigned long)) - 1)) /    \
 		(NBBY*sizeof(unsigned long))]

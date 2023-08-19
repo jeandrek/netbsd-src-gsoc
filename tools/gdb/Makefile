@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.41 2023/05/08 09:47:20 skrll Exp $
+#	$NetBSD: Makefile,v 1.43 2023/08/09 18:57:04 christos Exp $
 
 .include <bsd.hostinit.mk>
 
@@ -10,7 +10,7 @@ FIND_ARGS=	\! \( -type d -name sim -prune \)
 
 CONFIGURE_ARGS=	--target=${MACHINE_GNU_PLATFORM} --disable-nls \
 		--program-transform-name="s,^,${MACHINE_GNU_PLATFORM}-," \
-		--without-mpfr
+		--without-mpfr --with-libgmp-prefix=${TOOLDIR}
 
 MAKE_ARGS=	MACHINE= MAKEINFO=${TOOL_MAKEINFO:Q}
 
@@ -25,6 +25,7 @@ BUILD_MAKE=${TOOL_GMAKE}
 
 BINENV=		/usr/bin/env -i
 
+.include "${.CURDIR}/../gcc/lgpl3.mk"
 
 MKNATIVE_ENV=	${BINENV} ${CONFIGURE_ENV:NC*:NLD*:Nam_cv_func_iconv*} \
 			CC_FOR_BUILD=${HOST_CC:Q} \
@@ -33,7 +34,8 @@ MKNATIVE_ENV=	${BINENV} ${CONFIGURE_ENV:NC*:NLD*:Nam_cv_func_iconv*} \
 			CC=${CC:Q}' '${CCADDFLAGS:Q} \
 			CXX=${CXX:Q}' '${CCADDFLAGS:Q}' '${CXXADDFLAGS:Q} \
 			CPP=${CPP:Q}' '-I${DESTDIR}/usr/include \
-			CFLAGS= CPPFLAGS= CXXFLAGS= LDFLAGS= \
+			CFLAGS= CPPFLAGS=-I${.OBJDIR}/.native/include \
+			CXXFLAGS= LDFLAGS=-L${GMPOBJ} \
 			AS=${AS:Q} AWK=${TOOL_AWK:Q} LD=${LD:Q} \
 			MSGFMT=${TOOLDIR}/bin/${_TOOL_PREFIX}msgfmt \
 			NM=${NM:Q} OBJDUMP=${OBJDUMP:Q} \
@@ -94,6 +96,7 @@ CONFIGURE_ARGS_GDBSERVER=
 CONFIGURE_ARGS_GDBSERVER+= --enable-gdbserver
 .endif
 
+
 native-gdb: .native/.configure_done
 	@echo 'Extracting GDB configury for a native toolchain.'
 	MAKE=${BUILD_MAKE:Q} ${HOST_SH} ${MKNATIVE} gdb \
@@ -101,7 +104,9 @@ native-gdb: .native/.configure_done
 		${GDB_MACHINE_ARCH}
 
 .native/.configure_done: ${_GNU_CFGSRC} ${.CURDIR}/Makefile
-	mkdir ${.OBJDIR}/.native 2>/dev/null || true
+	mkdir -p ${.OBJDIR}/.native/include
+	# we need to make a copy because ${GMPINC} has a config.h
+	cp -p ${GMPINC}/gmp.h ${.OBJDIR}/.native/include
 	PATH=${TOOLDIR}/bin:$$PATH; export PATH; \
 		(cd ${.OBJDIR}/.native && \
 			${MKNATIVE_ENV} ${HOST_SH} ${GNUHOSTDIST}/configure \
@@ -118,7 +123,9 @@ native-gdb: .native/.configure_done
 		(cd ${.OBJDIR}/.native/bfd && \
 			${MKENV_BUILD_MAKE} bfd.h bfdver.h) && \
 		(cd ${.OBJDIR}/.native/gdb && \
-			${MKENV_BUILD_MAKE} init.c version.c) && \
+			${MKENV_BUILD_MAKE} xml-builtin.c init.c version.c) && \
+		(cd ${.OBJDIR}/.native/libbacktrace && \
+			${MKENV_BUILD_MAKE} backtrace-supported.h) && \
 		(if [ -d ${.OBJDIR}/.native/gdbserver ]; then \
 			cd ${.OBJDIR}/.native/gdbserver && \
 			${MKENV_BUILD_MAKE} version-generated.cc; fi)

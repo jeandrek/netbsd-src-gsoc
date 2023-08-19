@@ -42,9 +42,9 @@ static inline u8 iwl_cmd_version(u32 cmdid)
 	return ((cmdid & 0xFF0000) >> 16);
 }
 
-static inline u32 iwl_cmd_id(u8 opcode, u8 groupid, u8 version)
+static inline u32 iwl_cmd_id(u8 opcode, u8 groupid, u8 versionid)
 {
-	return opcode + (groupid << 8) + (version << 16);
+	return opcode + (groupid << 8) + (versionid << 16);
 }
 
 /* make u16 wide id out of u8 group and opcode */

@@ -1,4 +1,4 @@
-/*      $NetBSD: xennetback_xenbus.c,v 1.112 2023/02/25 00:37:47 riastradh Exp $      */
+/*      $NetBSD: xennetback_xenbus.c,v 1.123 2023/08/09 08:38:57 riastradh Exp $      */
 
 /*
  * Copyright (c) 2006 Manuel Bouyer.
@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: xennetback_xenbus.c,v 1.112 2023/02/25 00:37:47 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: xennetback_xenbus.c,v 1.123 2023/08/09 08:38:57 riastradh Exp $");
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -803,23 +803,27 @@ xennetback_evthandler(void *arg)
 	netif_tx_request_t txreq;
 	struct mbuf *m, *m0 = NULL, *mlast = NULL;
 	int receive_pending;
-	RING_IDX req_cons, req_prod;
 	int queued = 0, m0_len = 0;
 	struct xnetback_xstate *xst;
 	const bool discard = ((ifp->if_flags & (IFF_UP | IFF_RUNNING)) !=
 	    (IFF_UP | IFF_RUNNING));
 
 	XENPRINTF(("xennetback_evthandler "));
-	req_cons = xneti->xni_txring.req_cons;
 again:
-	req_prod = xneti->xni_txring.sring->req_prod;
-	xen_rmb();
-	while (req_cons != req_prod) {
-		RING_COPY_REQUEST(&xneti->xni_txring, req_cons,
+	while (RING_HAS_UNCONSUMED_REQUESTS(&xneti->xni_txring)) {
+		/*
+		 * Ensure we have read the producer's queue index in
+		 * RING_FINAL_CHECK_FOR_REQUESTS before we read the
+		 * content of the producer's next request in
+		 * RING_COPY_REQUEST.
+		 */
+		xen_rmb();
+		RING_COPY_REQUEST(&xneti->xni_txring,
+		    xneti->xni_txring.req_cons,
 		    &txreq);
 		XENPRINTF(("%s pkt size %d\n", xneti->xni_if.if_xname,
 		    txreq.size));
-		req_cons++;
+		xneti->xni_txring.req_cons++;
 		if (__predict_false(discard)) {
 			/* interface not up, drop all requests */
 			if_statinc(ifp, if_iqdrops);
@@ -868,7 +872,7 @@ mbuf_fail:
 			 */
 			int cnt;
 			m0_len = xennetback_tx_m0len_fragment(xneti,
-			    txreq.size, req_cons, &cnt);
+			    txreq.size, xneti->xni_txring.req_cons, &cnt);
 			m->m_len = m0_len;
 			KASSERT(cnt <= XEN_NETIF_NR_SLOTS_MIN);
 
@@ -934,7 +938,8 @@ mbuf_fail:
 
 		XENPRINTF(("%s pkt offset %d size %d id %d req_cons %d\n",
 		    xneti->xni_if.if_xname, txreq.offset,
-		    txreq.size, txreq.id, req_cons & (RING_SIZE(&xneti->xni_txring) - 1)));
+		    txreq.size, txreq.id,
+		    xneti->xni_txring.req_cons & (RING_SIZE(&xneti->xni_txring) - 1)));
 
 		xst = &xneti->xni_xstate[queued];
 		xst->xs_m = (m0 == NULL || m == m0) ? m : NULL;
@@ -955,12 +960,9 @@ mbuf_fail:
 			queued = 0;
 		}
 	}
-	xen_wmb();
 	RING_FINAL_CHECK_FOR_REQUESTS(&xneti->xni_txring, receive_pending);
 	if (receive_pending)
 		goto again;
-	xneti->xni_txring.req_cons = req_cons;
-
 	if (m0) {
 		/* Queue empty, and still unfinished multi-fragment request */
 		printf("%s: dropped unfinished multi-fragment\n",
@@ -1026,7 +1028,6 @@ xennetback_rx_copy_process(struct ifnet *ifp, struct xnetback_instance *xneti,
 
 	/* send event */
 	if (notify) {
-		xen_wmb();
 		XENPRINTF(("%s receive event\n",
 		    xneti->xni_if.if_xname));
 		hypervisor_notify_via_evtchn(xneti->xni_evtchn);

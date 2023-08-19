@@ -1,4 +1,4 @@
-/*	$NetBSD: decl.c,v 1.23 2023/07/13 22:44:10 rillig Exp $	*/
+/*	$NetBSD: decl.c,v 1.26 2023/08/01 19:52:15 rillig Exp $	*/
 # 3 "decl.c"
 
 /*
@@ -190,3 +190,54 @@ const volatile int
 /* expect+1: warning: duplicate 'volatile' [10] */
     *volatile const volatile
     *duplicate_ptr;
+
+
+/*
+ * Since tree.c 1.573 from 2023-07-15 and before decl.c 1.370 from 2023-07-31,
+ * lint crashed due to a failed assertion in find_member.  The assertion states
+ * that every member of a struct or union must link back to its containing
+ * type, which had not been the case for unnamed bit-fields.
+ */
+struct bit_and_data {
+	unsigned int :0;
+	unsigned int bit:1;
+	unsigned int :0;
+
+	void *data;
+};
+
+static inline void *
+bit_and_data(struct bit_and_data *node)
+{
+	return node->data;
+}
+
+
+// See cgram.y, rule 'notype_member_declarator'.
+void
+symbol_type_in_unnamed_bit_field_member(void)
+{
+	enum {
+		bits = 4,
+	};
+
+	struct s {
+		// Since there is no name in the declarator, the next symbol
+		// after the ':' must not be interpreted as a member name, but
+		// instead as a variable, type or function (FVFT).
+		unsigned int :bits;
+		int named_member;
+	};
+}
+
+// Symbols that are defined in the parameter list of a function definition can
+// be accessed in the body of the function, even if they are nested.
+int
+get_x(struct point3d { struct point3d_number { int v; } x, y, z; } arg)
+{
+/* expect-1: warning: dubious tag declaration 'struct point3d' [85] */
+/* expect-2: warning: dubious tag declaration 'struct point3d_number' [85] */
+	static struct point3d local;
+	static struct point3d_number z;
+	return arg.x.v + local.x.v + z.v;
+}

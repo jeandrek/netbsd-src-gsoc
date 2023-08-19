@@ -1113,6 +1113,8 @@ int ieee80211_activate(struct ieee80211com *, enum devact act);
  */
 void ieee80211_rx_enqueue(struct ieee80211com *ic, struct mbuf *m, int rssi);
 
+#define	ieee80211_get_vap_ifname(IV)	((IV)->iv_ifp->if_xname)
+
 #endif /* _KERNEL */
 
 #endif /* _NET80211_IEEE80211_NETBSD_H_ */

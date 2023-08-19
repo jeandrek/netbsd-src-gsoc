@@ -671,9 +671,13 @@ sta_input(struct ieee80211_node *ni, struct mbuf *m,
 		 */
 		if ((! IEEE80211_IS_MULTICAST(wh->i_addr1))
 		    && (! IEEE80211_ADDR_EQ(wh->i_addr1, IF_LLADDR(ifp)))) {
+			char lladr[IEEE80211_ADDR_PRINT_LEN],
+			   addr1[IEEE80211_ADDR_PRINT_LEN];
+			ether_snprintf(lladr, sizeof lladr, IF_LLADDR(ifp));
+			ether_snprintf(addr1, sizeof addr1, wh->i_addr1);
 			IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_INPUT,
-			    bssid, NULL, "not to cur sta: lladdr=%6D, addr1=%6D",
-			    IF_LLADDR(ifp), ":", wh->i_addr1, ":");
+			    bssid, NULL, "not to cur sta: lladdr=%s, addr1=%s",
+			    lladr, addr1);
 
 			vap->iv_stats.is_rx_wrongbss++;
 			goto out;
@@ -1099,7 +1103,7 @@ sta_auth_shared(struct ieee80211_node *ni, struct ieee80211_frame *wh,
 		if ((frm[1] + 2) > (efrm - frm)) {
 			IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_AUTH,
 			    ni->ni_macaddr, "shared key auth",
-			    "ie %d/%d too long",
+			    "ie %d/%td too long",
 			    frm[0], (frm[1] + 2) - (efrm - frm));
 			vap->iv_stats.is_rx_bad_auth++;
 			goto bad;

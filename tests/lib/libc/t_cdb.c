@@ -1,4 +1,4 @@
-/*	$NetBSD: t_cdb.c,v 1.2 2017/01/10 22:24:29 christos Exp $	*/
+/*	$NetBSD: t_cdb.c,v 1.4 2023/08/08 10:36:17 riastradh Exp $	*/
 /*-
  * Copyright (c) 2012 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -32,7 +32,7 @@
  */
 
 #include <sys/cdefs.h>
-__RCSID("$NetBSD: t_cdb.c,v 1.2 2017/01/10 22:24:29 christos Exp $");
+__RCSID("$NetBSD: t_cdb.c,v 1.4 2023/08/08 10:36:17 riastradh Exp $");
 
 #include <atf-c.h>
 

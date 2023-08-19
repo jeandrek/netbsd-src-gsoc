@@ -1,4 +1,4 @@
-/* $NetBSD: kern_tc.c,v 1.73 2023/07/17 21:51:45 riastradh Exp $ */
+/* $NetBSD: kern_tc.c,v 1.76 2023/07/30 12:39:18 riastradh Exp $ */
 
 /*-
  * Copyright (c) 2008, 2009 The NetBSD Foundation, Inc.
@@ -38,9 +38,13 @@
  * ---------------------------------------------------------------------------
  */
 
+/*
+ * https://papers.freebsd.org/2002/phk-timecounters.files/timecounter.pdf
+ */
+
 #include <sys/cdefs.h>
 /* __FBSDID("$FreeBSD: src/sys/kern/kern_tc.c,v 1.166 2005/09/19 22:16:31 andre Exp $"); */
-__KERNEL_RCSID(0, "$NetBSD: kern_tc.c,v 1.73 2023/07/17 21:51:45 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_tc.c,v 1.76 2023/07/30 12:39:18 riastradh Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_ntp.h"
@@ -133,6 +137,9 @@ static struct timehands *volatile timehands = &th0;
 struct timecounter *timecounter = &dummy_timecounter;
 static struct timecounter *timecounters = &dummy_timecounter;
 
+/* used by savecore(8) */
+time_t time_second_legacy asm("time_second");
+
 #ifdef __HAVE_ATOMIC64_LOADSTORE
 volatile time_t time__second __cacheline_aligned = 1;
 volatile time_t time__uptime __cacheline_aligned = 1;
@@ -164,6 +171,8 @@ static inline void
 setrealuptime(time_t second, time_t uptime)
 {
 
+	time_second_legacy = second;
+
 	atomic_store_relaxed(&time__second, second);
 	atomic_store_relaxed(&time__uptime, uptime);
 }
@@ -177,6 +186,8 @@ setrealuptime(time_t second, time_t uptime)
 	uint32_t uplo = uptime & 0xffffffff, uphi = uptime >> 32;
 
 	KDASSERT(mutex_owned(&timecounter_lock));
+
+	time_second_legacy = second;
 
 	/*
 	 * Fast path -- no wraparound, just updating the low bits, so
@@ -281,7 +292,7 @@ sysctl_kern_timecounter_hardware(SYSCTLFN_ARGS)
 	    strncmp(newname, tc->tc_name, sizeof(newname)) == 0)
 		return error;
 
-	if (l != NULL && (error = kauth_authorize_system(l->l_cred, 
+	if (l != NULL && (error = kauth_authorize_system(l->l_cred,
 	    KAUTH_SYSTEM_TIME, KAUTH_REQ_SYSTEM_TIME_TIMECOUNTERS, newname,
 	    NULL, NULL)) != 0)
 		return error;
@@ -1160,7 +1171,7 @@ pps_event(struct pps_state *pps, int event)
  * a second but do not need to be exactly in phase
  * with the UTC second but should be close to it.
  * this relaxation of requirements allows callout
- * driven timestamping mechanisms to feed to pps 
+ * driven timestamping mechanisms to feed to pps
  * capture/kernel pll logic.
  *
  * calling pattern is:
@@ -1233,7 +1244,7 @@ pps_ref_event(struct pps_state *pps,
 #ifdef PPS_DEBUG
 	if (ppsdebug & 0x1) {
 		struct timespec tmsp;
-	
+
 		if (ref_ts == NULL) {
 			tmsp.tv_sec = 0;
 			tmsp.tv_nsec = 0;
@@ -1326,7 +1337,7 @@ pps_ref_event(struct pps_state *pps,
 		btd = bt;
 		bintime_sub(&btd, &bt_ref);
 
-		/* 
+		/*
 		 * simulate a PPS timestamp by dropping the fraction
 		 * and applying the offset
 		 */
@@ -1336,7 +1347,7 @@ pps_ref_event(struct pps_state *pps,
 		bintime_add(&bt, &btd);
 	} else {
 		/*
-		 * create ref_ts from current time - 
+		 * create ref_ts from current time -
 		 * we are supposed to be called on
 		 * the second mark
 		 */
@@ -1411,7 +1422,7 @@ pps_ref_event(struct pps_state *pps,
 		tcount = pps->capcount - pps->ppscount[2];
 		pps->ppscount[2] = pps->capcount;
 		tcount &= pps->capth->th_counter->tc_counter_mask;
-		
+
 		/* calculate elapsed ref time */
 		btd = bt_ref;
 		bintime_sub(&btd, &pps->ref_time);
@@ -1430,7 +1441,7 @@ pps_ref_event(struct pps_state *pps,
 		 * the frequency with the elapsed period
 		 * we pick a fraction of 30 bits
 		 * ~1ns resolution for elapsed time
-		 */ 
+		 */
 		div   = (uint64_t)btd.sec << 30;
 		div  |= (btd.frac >> 34) & (((uint64_t)1 << 30) - 1);
 		div  *= pps->capth->th_counter->tc_frequency;

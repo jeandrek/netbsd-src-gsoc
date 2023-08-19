@@ -1,4 +1,4 @@
-/*	$NetBSD: netbsd32_netbsd.c,v 1.233 2021/09/20 01:07:45 thorpej Exp $	*/
+/*	$NetBSD: netbsd32_netbsd.c,v 1.235 2023/07/30 05:30:45 rin Exp $	*/
 
 /*
  * Copyright (c) 1998, 2001, 2008, 2018 Matthew R. Green
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: netbsd32_netbsd.c,v 1.233 2021/09/20 01:07:45 thorpej Exp $");
+__KERNEL_RCSID(0, "$NetBSD: netbsd32_netbsd.c,v 1.235 2023/07/30 05:30:45 rin Exp $");
 
 /*
  * below are all the standard NetBSD system calls, in the 32bit
@@ -57,45 +57,44 @@ __KERNEL_RCSID(0, "$NetBSD: netbsd32_netbsd.c,v 1.233 2021/09/20 01:07:45 thorpe
 #endif
 
 #include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/kernel.h>
-#include <sys/mount.h>
-#include <sys/socket.h>
-#include <sys/sockio.h>
-#include <sys/socketvar.h>
-#include <sys/mbuf.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/swap.h>
-#include <sys/time.h>
-#include <sys/signalvar.h>
-#include <sys/ptrace.h>
-#include <sys/ktrace.h>
-#include <sys/trace.h>
-#include <sys/resourcevar.h>
-#include <sys/pool.h>
+#include <sys/acct.h>
+#include <sys/dirent.h>
+#include <sys/exec.h>
 #include <sys/file.h>
 #include <sys/filedesc.h>
+#include <sys/kernel.h>
+#include <sys/ktrace.h>
+#include <sys/mbuf.h>
+#include <sys/mman.h>
+#include <sys/mount.h>
 #include <sys/namei.h>
-#include <sys/dirent.h>
+#include <sys/pool.h>
+#include <sys/proc.h>
+#include <sys/ptrace.h>
 #include <sys/quotactl.h>
+#include <sys/resourcevar.h>
+#include <sys/signalvar.h>
+#include <sys/socket.h>
+#include <sys/socketvar.h>
+#include <sys/sockio.h>
+#include <sys/stat.h>
+#include <sys/swap.h>
+#include <sys/syscallargs.h>
+#include <sys/systm.h>
+#include <sys/time.h>
+#include <sys/trace.h>
 #include <sys/vfs_syscalls.h>
 
 #include <uvm/uvm_extern.h>
 #include <uvm/uvm_swap.h>
 
-#include <sys/syscallargs.h>
-#include <sys/proc.h>
-#include <sys/acct.h>
-#include <sys/exec.h>
-
 #include <net/if.h>
 
 #include <compat/netbsd32/netbsd32.h>
+#include <compat/netbsd32/netbsd32_conv.h>
 #include <compat/netbsd32/netbsd32_exec.h>
 #include <compat/netbsd32/netbsd32_syscall.h>
 #include <compat/netbsd32/netbsd32_syscallargs.h>
-#include <compat/netbsd32/netbsd32_conv.h>
 
 #include <compat/sys/mman.h>
 
@@ -2647,6 +2646,21 @@ netbsd32_eventfd(struct lwp *l,
 	NETBSD32TO64_UAP(val);
 	NETBSD32TO64_UAP(flags);
 	return sys_eventfd(l, &ua, retval);
+}
+
+int
+netbsd32_memfd_create(struct lwp *l,
+    const struct netbsd32_memfd_create_args *uap, register_t *retval)
+{
+	/* {
+		syscallarg(const netbsd32_charp)	name;
+		syscallarg(unsigned int)		flags;
+	} */
+	struct sys_memfd_create_args ua;
+
+	NETBSD32TOP_UAP(name, const char);
+	NETBSD32TO64_UAP(flags);
+	return sys_memfd_create(l, &ua, retval);
 }
 
 /*

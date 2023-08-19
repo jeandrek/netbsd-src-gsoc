@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.5 2021/09/18 01:47:09 christos Exp $
+#	$NetBSD: Makefile,v 1.7 2023/08/09 14:56:41 christos Exp $
 
 NOCTF=
 NOMAN=
@@ -7,8 +7,9 @@ NOMAN=
 
 PROG=		gdbserver
 
-SERVER_SRCS+=	ax.cc debug.cc dll.cc hostio.cc hostio-errno.cc inferiors.cc mem-break.cc notif.cc
-SERVER_SRCS+=	regcache.cc remote-utils.cc server.cc symbol.cc target.cc
+SERVER_SRCS+=	ax.cc debug.cc dll.cc hostio.cc inferiors.cc
+SERVER_SRCS+=	notif.cc mem-break.cc
+SERVER_SRCS+=	regcache.cc remote-utils.cc server.cc symbol.cc target-ser.cc
 SERVER_SRCS+=	tdesc.cc tracepoint.cc utils.cc waitstatus.c version.cc
 
 NETBSD_SRCS=		netbsd-low.cc fork-child.cc fork-inferior.c netbsd-nat.c
@@ -60,6 +61,6 @@ HOST_CFLAGS+=		${HOST_CXXFLAGS}
 CC:=			${CXX}
 CFLAGS:=		${CXXFLAGS} -std=gnu++11 -Wno-error=stack-protector -pthread
 
-.PATH: ${DIST}/gdbserver ${DIST}/gdb/nat ${DIST}/gdb/arch ${DIST}/gdb/target \
-	${.CURDIR}/arch/${GDB_MACHINE_ARCH} \
+.PATH: ${DIST}/gdbserver ${DIST}/gdb/nat ${DIST}/gdb/arch  \
+	${.CURDIR}/arch/${GDB_MACHINE_ARCH} ${DIST}/gdb/target \
 	${DIST}/../lib/libgdbsupport/arch/${GDB_MACHINE_ARCH}

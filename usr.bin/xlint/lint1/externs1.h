@@ -1,4 +1,4 @@
-/*	$NetBSD: externs1.h,v 1.198 2023/07/15 15:51:22 rillig Exp $	*/
+/*	$NetBSD: externs1.h,v 1.207 2023/08/02 21:58:11 rillig Exp $	*/
 
 /*
  * Copyright (c) 1994, 1995 Jochen Pohl
@@ -136,15 +136,18 @@ const char *scl_name(scl_t);
 const char *symt_name(symt_t);
 const char *type_qualifiers_string(type_qualifiers);
 const char *function_specifier_name(function_specifier);
-void	debug_dcs(bool);
+void	debug_dcs(void);
+void	debug_dcs_all(void);
 void	debug_node(const tnode_t *);
 void	debug_type(const type_t *);
 void	debug_sym(const char *, const sym_t *, const char *);
 void	debug_symtab(void);
 void	debug_printf(const char *fmt, ...) __printflike(1, 2);
-void	debug_print_indent(void);
+void	debug_skip_indent(void);
 void	debug_indent_inc(void);
 void	debug_indent_dec(void);
+bool	debug_push_indented(bool);
+void	debug_pop_indented(bool);
 void	debug_enter_func(const char *);
 void	debug_step(const char *fmt, ...) __printflike(1, 2);
 void	debug_leave_func(const char *);
@@ -152,15 +155,18 @@ void	debug_leave_func(const char *);
 #define	debug_leave()		debug_leave_func(__func__)
 #else
 #define	debug_noop()		do { } while (false)
-#define	debug_dcs(all)		debug_noop()
+#define	debug_dcs()		debug_noop()
+#define	debug_dcs_all()		debug_noop()
 #define	debug_sym(p, sym, s)	debug_noop()
 #define	debug_symtab()		debug_noop()
 #define	debug_node(tn)		debug_noop()
 #define	debug_type(tp)		debug_noop()
 #define	debug_printf(...)	debug_noop()
-#define	debug_print_indent()	debug_noop()
+#define	debug_skip_indent()	debug_noop()
 #define	debug_indent_inc()	debug_noop()
 #define	debug_indent_dec()	debug_noop()
+#define debug_push_indented(c)	true
+#define debug_pop_indented(c)	(void)(c)
 #define	debug_enter()		debug_noop()
 #define	debug_step(...)		debug_noop()
 #define	debug_leave()		debug_noop()
@@ -184,8 +190,7 @@ bool	gnuism(int, ...);
 void	c99ism(int, ...);
 void	c11ism(int, ...);
 void	c23ism(int, ...);
-void	assert_failed(const char *, int, const char *, const char *)
-		__attribute__((__noreturn__));
+void	assert_failed(const char *, int, const char *, const char *) __dead;
 void	update_location(const char *, int, bool, bool);
 void	suppress_messages(const char *);
 
@@ -227,13 +232,12 @@ void	add_type_qualifiers(type_qualifiers *, type_qualifiers);
 qual_ptr *append_qualified_pointer(qual_ptr *, qual_ptr *);
 sym_t	*add_pointer(sym_t *, qual_ptr *);
 sym_t	*add_array(sym_t *, bool, int);
-sym_t	*add_function(sym_t *, sym_t *);
+sym_t	*add_function(sym_t *, struct parameter_list);
 void	check_extern_declaration(const sym_t *);
 void	check_function_definition(sym_t *, bool);
 sym_t	*declarator_name(sym_t *);
 sym_t	*old_style_function_parameter_name(sym_t *);
 type_t	*make_tag_type(sym_t *, tspec_t, bool, bool);
-const	char *storage_class_name(scl_t);
 type_t	*complete_struct_or_union(sym_t *);
 type_t	*complete_enum(sym_t *);
 sym_t	*enumeration_constant(sym_t *, int, bool);
@@ -243,20 +247,21 @@ bool	check_redeclaration(sym_t *, bool *);
 bool	pointer_types_are_compatible(const type_t *, const type_t *, bool);
 bool	types_compatible(const type_t *, const type_t *, bool, bool, bool *);
 void	complete_type(sym_t *, sym_t *);
-sym_t	*declare_argument(sym_t *, bool);
+sym_t	*declare_parameter(sym_t *, bool);
 void	check_func_lint_directives(void);
-void	check_func_old_style_arguments(void);
+void	check_func_old_style_parameters(void);
 
 void	declare_local(sym_t *, bool);
 sym_t	*abstract_name(void);
+sym_t	*abstract_enclosing_name(void);
 void	global_clean_up(void);
 sym_t	*declare_abstract_type(sym_t *);
-void	check_size(sym_t *);
+void	check_size(const sym_t *);
 void	mark_as_set(sym_t *);
 void	mark_as_used(sym_t *, bool, bool);
-void	check_usage(decl_level *);
-void	check_usage_sym(bool, sym_t *);
-void	check_global_symbols(void);
+void	check_usage(const decl_level *);
+void	check_usage_sym(bool, const sym_t *);
+void	end_translation_unit(void);
 void	print_previous_declaration(const sym_t *);
 int	to_int_constant(tnode_t *, bool);
 
