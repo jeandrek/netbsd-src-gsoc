@@ -145,12 +145,6 @@ Static void	athn_ani_restart(struct athn_softc *);
 #endif /* notyet */
 Static void	athn_set_multi(struct ieee80211com *);
 
-struct athn_vap {
-	struct ieee80211vap vap;
-	int (*newstate)(struct ieee80211vap *, enum ieee80211_state, int);
-	callout_t av_scan_to;
-};
-
 PUBLIC int
 athn_attach(struct athn_softc *sc)
 {
@@ -919,7 +913,7 @@ athn_config_nonpcie(struct athn_common *ac)
 }
 
 PUBLIC int
-athn_set_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
+athn_set_chan(struct athn_common *ac, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan)
 {
 	struct athn_ops *ops = &ac->ac_ops;
@@ -950,7 +944,7 @@ athn_set_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	ops->rf_bus_release(ac);
 
 	/* Write delta slope coeffs for modes where OFDM may be used. */
-	if (sc->sc_ic.ic_curmode != IEEE80211_MODE_11B)
+	if (ac->ac_ic->ic_curmode != IEEE80211_MODE_11B)
 		ops->set_delta_slope(ac, curchan, extchan);
 
 	ops->spur_mitigate(ac, curchan, extchan);
@@ -963,6 +957,7 @@ Static int
 athn_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan)
 {
+	struct athn_common *ac = &sc->sc_ac;
 	int error, qid;
 
 	/* Disable interrupts. */
@@ -1037,7 +1032,7 @@ athn_get_delta_slope(uint32_t coeff, uint32_t *exponent, uint32_t *mantissa)
 }
 
 PUBLIC void
-athn_reset_key(struct athn_softc *sc, int entry)
+athn_reset_key(struct athn_common *ac, int entry)
 {
 
 	/*
@@ -1828,7 +1823,7 @@ Static void
 athn_tx_reclaim(struct athn_softc *sc, int qid)
 {
 	struct athn_txq *txq = &sc->sc_txq[qid];
-	struct athn_common *ac = sc->sc_ac; /* Could be done away with. */
+	struct athn_common *ac = &sc->sc_ac; /* Could be done away with. */
 	struct athn_tx_buf *bf;
 
 	/* Reclaim all buffers queued in the specified Tx queue. */
@@ -1923,7 +1918,7 @@ athn_txtime(struct athn_common *ac, int len, int ridx, u_int flags)
 PUBLIC void
 athn_init_tx_queues(struct athn_softc *sc)
 {
-	struct athn_common *ac = sc->sc_ac;
+	struct athn_common *ac = &sc->sc_ac;
 	int qid;
 
 	for (qid = 0; qid < ATHN_QID_COUNT; qid++) {
@@ -1985,9 +1980,8 @@ athn_init_tx_queues(struct athn_softc *sc)
 }
 
 PUBLIC void
-athn_set_sta_timers(struct ieee80211vap *vap)
+athn_set_sta_timers(struct ieee80211vap *vap, struct athn_common *ac)
 {
-	struct athn_softc *sc = vap->iv_ic->ic_softc;
 	uint32_t tsfhi, tsflo, tsftu, reg;
 	uint32_t intval, next_tbtt, next_dtim;
 	int dtim_period, rem_dtim_count;
@@ -2054,9 +2048,8 @@ athn_set_sta_timers(struct ieee80211vap *vap)
 
 #ifndef IEEE80211_STA_ONLY
 PUBLIC void
-athn_set_hostap_timers(struct ieee80211vap *vap)
+athn_set_hostap_timers(struct ieee80211vap *vap, struct athn_common *ac)
 {
-	struct athn_softc *sc = vap->iv_ic->ic_softc;
 	uint32_t intval, next_tbtt;
 
 	/* Beacon interval in TU. */
@@ -2082,11 +2075,11 @@ athn_set_hostap_timers(struct ieee80211vap *vap)
 #endif
 
 PUBLIC void
-athn_set_opmode(struct athn_softc *sc)
+athn_set_opmode(struct athn_common *ac)
 {
 	uint32_t reg;
 
-	switch (sc->sc_ic.ic_opmode) {
+	switch (ac->ac_ic->ic_opmode) {
 #ifndef IEEE80211_STA_ONLY
 	case IEEE80211_M_HOSTAP:
 		reg = AR_READ(ac, AR_STA_ID1);
@@ -2535,6 +2528,7 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	struct ieee80211com *ic = vap->iv_ic;
 	struct athn_vap *avap = (struct athn_vap *)vap;
 	struct athn_softc *sc = ic->ic_softc;
+	struct athn_common *ac = &sc->sc_ac;
 	uint32_t reg;
 	int error;
 
@@ -2573,13 +2567,13 @@ athn_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		athn_disable_interrupts(ac);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
-			athn_set_hostap_timers(vap);
+			athn_set_hostap_timers(vap, ac);
 			/* Enable software beacon alert interrupts. */
 			ac->ac_imask |= AR_IMR_SWBA;
 		} else
 #endif
 		{
-			athn_set_sta_timers(vap);
+			athn_set_sta_timers(vap, ac);
 			/* Enable beacon miss interrupts. */
 			ac->ac_imask |= AR_IMR_BMISS;
 
@@ -2644,6 +2638,7 @@ athn_updateedca(struct ieee80211com *ic)
 Static int
 athn_clock_rate(struct athn_softc *sc)
 {
+	struct athn_common *ac = &sc->sc_ac;
 	struct ieee80211com *ic = &sc->sc_ic;
 	int clockrate;	/* MHz. */
 
@@ -2748,11 +2743,18 @@ athn_watchdog(void *arg)
 }
 
 
-/* XXX what do we do with the ethercom stuff??? */
 Static void
 athn_set_multi(struct ieee80211com *ic)
 {
 	struct athn_softc *sc = ic->ic_softc;
+
+	athn_set_multi_common(&sc->sc_ac);
+}
+
+/* XXX what do we do with the ethercom stuff??? */
+PUBLIC void
+athn_set_multi_common(struct athn_common *ac)
+{
 #if 0
 	struct ethercom *ec = &sc->sc_ec;
 	struct ifnet *ifp = &ec->ec_if;
@@ -2921,9 +2923,9 @@ athn_init(struct athn_softc *sc)
 	}
 #endif
 	if (!(ac->ac_flags & ATHN_FLAG_PCIE))
-		athn_config_nonpcie(sc);
+		athn_config_nonpcie(ac);
 	else
-		athn_config_pcie(sc);
+		athn_config_pcie(ac);
 
 	/* Reset HW key cache entries. */
 	for (i = 0; i < ac->ac_kc_entries; i++)
@@ -2989,6 +2991,7 @@ PUBLIC void
 athn_stop(struct athn_softc *sc, int disable)
 {
 	struct ieee80211com *ic = &sc->sc_ic;
+	struct athn_common *ac = &sc->sc_ac;
 	struct ieee80211vap *nvap;
 	int qid;
 

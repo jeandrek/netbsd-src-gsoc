@@ -318,6 +318,12 @@ static const uint16_t ar_mcs_ndbps[][2] = {
 #define ATHN_POWER_OFDM_EXT	67
 #define ATHN_POWER_COUNT	68
 
+struct athn_vap {
+	struct ieee80211vap vap;
+	int (*newstate)(struct ieee80211vap *, enum ieee80211_state, int);
+	callout_t av_scan_to;
+};
+
 struct athn_node {
 	struct ieee80211_node	ni;
 	uint8_t		ridx[IEEE80211_RATE_MAXSIZE];
@@ -649,13 +655,13 @@ void	athn_rx_start(struct athn_common *);
 void	athn_set_bss(struct athn_common *, struct ieee80211_node *);
 int	athn_set_chan(struct athn_common *, struct ieee80211_channel *,
 	    struct ieee80211_channel *);
-void	athn_set_hostap_timers(struct ieee80211vap *);
+void	athn_set_hostap_timers(struct ieee80211vap *, struct athn_common *);
 void	athn_set_led(struct athn_common *, int);
 void	athn_set_opmode(struct athn_common *);
 int	athn_set_power_awake(struct athn_common *);
 void	athn_set_power_sleep(struct athn_common *);
 void	athn_set_rxfilter(struct athn_common *, uint32_t);
-void	athn_set_sta_timers(struct ieee80211vap *);
+void	athn_set_sta_timers(struct ieee80211vap *, struct athn_common *);
 void	athn_updateslot(struct ieee80211com *);
 void	athn_get_radiocaps_common(struct athn_common *,
 	    struct ieee80211com *, int, int *,
@@ -666,6 +672,7 @@ struct ieee80211vap *
 	    int, enum ieee80211_opmode, int,
 	    const uint8_t [IEEE80211_ADDR_LEN],
 	    const uint8_t [IEEE80211_ADDR_LEN]);
+void	athn_set_multi_common(struct athn_common *);
 
 #ifdef notyet_edca
 void	athn_updateedca(struct ieee80211com *);

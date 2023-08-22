@@ -180,7 +180,7 @@ athn_cardbus_attach(device_t parent, device_t self, void *aux)
 	if (pmf_device_register(self,
 	    athn_cardbus_suspend, athn_cardbus_resume)) {
 		/* pmf_class_network_register(self, &sc->sc_if); */
-		pmf_device_suspend(self, &sc->sc_qual);
+		pmf_device_suspend(self, &sc->sc_ac.ac_qual);
 	} else
 		aprint_error_dev(self, "couldn't establish power handler\n");
 
