@@ -318,6 +318,12 @@ static const uint16_t ar_mcs_ndbps[][2] = {
 #define ATHN_POWER_OFDM_EXT	67
 #define ATHN_POWER_COUNT	68
 
+struct athn_vap {
+	struct ieee80211vap vap;
+	int (*newstate)(struct ieee80211vap *, enum ieee80211_state, int);
+	callout_t av_scan_to;
+};
+
 struct athn_node {
 	struct ieee80211_node	ni;
 	uint8_t		ridx[IEEE80211_RATE_MAXSIZE];
@@ -646,6 +652,11 @@ void	athn_set_power_sleep(struct athn_softc *);
 void	athn_set_rxfilter(struct athn_softc *, uint32_t);
 void	athn_set_sta_timers(struct ieee80211vap *);
 void	athn_updateslot(struct ieee80211com *);
+struct ieee80211vap *
+	athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
+	    int, enum ieee80211_opmode, int,
+	    const uint8_t [IEEE80211_ADDR_LEN],
+	    const uint8_t [IEEE80211_ADDR_LEN]);
 
 #ifdef notyet_edca
 void	athn_updateedca(struct ieee80211com *);

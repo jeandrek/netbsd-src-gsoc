@@ -94,6 +94,11 @@ Static int	athn_usb_alloc_tx_cmd(struct athn_usb_softc *);
 Static int	athn_usb_alloc_tx_msg(struct athn_usb_softc *);
 Static int	athn_usb_alloc_tx_list(struct athn_usb_softc *);
 Static void	athn_usb_attachhook(device_t);
+Static struct ieee80211vap *
+		athn_usb_vap_create(struct ieee80211com *, const char [IFNAMSIZ],
+		    int, enum ieee80211_opmode, int,
+		    const uint8_t [IEEE80211_ADDR_LEN],
+		    const uint8_t [IEEE80211_ADDR_LEN]);
 Static void	athn_usb_bcneof(struct usbd_xfer *, void *,
 		    usbd_status);
 Static void	athn_usb_abort_pipes(struct athn_usb_softc *);
@@ -124,9 +129,9 @@ Static const struct athn_usb_type *
 //Static int	athn_usb_media_change(struct ifnet *);
 Static void	athn_usb_newassoc(struct ieee80211_node *, int);
 Static void	athn_usb_newassoc_cb(struct athn_usb_softc *, void *);
-//Static int	athn_usb_newstate(struct ieee80211com *, enum ieee80211_state,
-//		    int);
-//Static void	athn_usb_newstate_cb(struct athn_usb_softc *, void *);
+Static int	athn_usb_newstate(struct ieee80211vap *, enum ieee80211_state,
+		    int);
+Static void	athn_usb_newstate_cb(struct athn_usb_softc *, void *);
 Static void	athn_usb_node_cleanup(struct ieee80211_node *);
 Static void	athn_usb_node_cleanup_cb(struct athn_usb_softc *, void *);
 Static int	athn_usb_open_pipes(struct athn_usb_softc *);
@@ -143,13 +148,14 @@ Static void	athn_usb_parent(struct ieee80211com *);
 Static int	athn_usb_transmit(struct ieee80211com *, struct mbuf *);
 Static int	athn_usb_raw_xmit(struct ieee80211_node *, struct mbuf *,
 		    const struct ieee80211_bpf_params *);
+Static void	athn_usb_set_channel(struct ieee80211com *);
 Static void	athn_usb_start(struct athn_usb_softc *);
 //Static void	athn_usb_start_locked(struct ifnet *);
 Static void	athn_usb_stop(struct athn_usb_softc *, int disable);
 Static void	athn_usb_stop_locked(struct athn_usb_softc *);
 Static void	athn_usb_swba(struct athn_usb_softc *);
-//Static int	athn_usb_switch_chan(struct athn_softc *,
-//		    struct ieee80211_channel *, struct ieee80211_channel *);
+Static int	athn_usb_switch_chan(struct athn_softc *,
+		    struct ieee80211_channel *, struct ieee80211_channel *);
 Static void	athn_usb_task(void *);
 Static int	athn_usb_tx(struct athn_softc *, struct mbuf *,
 		    struct ieee80211_node *, struct athn_usb_tx_data *);
@@ -427,9 +433,11 @@ athn_usb_attachhook(device_t arg)
 	usc->usc_athn_attached = 1;
 
 	/* Override some operations for USB. */
+	ic->ic_vap_create = athn_usb_vap_create;
 	ic->ic_parent = athn_usb_parent;
 	ic->ic_transmit = athn_usb_transmit;
 	ic->ic_raw_xmit = athn_usb_raw_xmit;
+	ic->ic_set_channel = athn_usb_set_channel;
 
 	callout_setfunc(&sc->sc_watchdog_to, athn_usb_watchdog, sc);
 
@@ -446,7 +454,6 @@ athn_usb_attachhook(device_t arg)
 	ic->ic_delete_key = athn_usb_delete_key;
 	ic->ic_ampdu_tx_start = athn_usb_ampdu_tx_start;
 	ic->ic_ampdu_tx_stop = athn_usb_ampdu_tx_stop;
-	ic->ic_newstate = athn_usb_newstate;   /* XXX should we have this one? */ 
 #endif
 
 	ops->rx_enable = athn_usb_rx_enable;
@@ -556,6 +563,19 @@ athn_usb_activate(device_t self, enum devact act)
 	DPRINTFN(DBG_FN, usc, "\n");
 
 	return ieee80211_activate(&sc->sc_ic, act);
+}
+
+Static struct ieee80211vap *
+athn_usb_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ],
+    int unit, enum ieee80211_opmode opmode, int flags,
+    const uint8_t bssid[IEEE80211_ADDR_LEN],
+    const uint8_t macaddr[IEEE80211_ADDR_LEN])
+{
+	struct ieee80211vap *vap;
+
+	vap = athn_vap_create(ic, name, unit, opmode, flags, bssid, macaddr);
+	vap->iv_newstate = athn_usb_newstate;
+	return vap;
 }
 
 Static int
@@ -1398,18 +1418,18 @@ athn_usb_media_change(struct ifnet *ifp)
 }
 #endif
 
-#if 0
 Static int
-athn_usb_newstate(struct ieee80211com *ic, enum ieee80211_state nstate,
+athn_usb_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate,
     int arg)
 {
-	struct athn_softc *sc = ic->ic_softc;
+	struct athn_softc *sc = vap->iv_ic->ic_softc;
 	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
 	struct athn_usb_cmd_newstate cmd;
 
 	DPRINTFN(DBG_FN, sc, "\n");
 
 	/* Do it in a process context. */
+	cmd.vap = vap;
 	cmd.state = nstate;
 	cmd.arg = arg;
 	athn_usb_do_async(usc, athn_usb_newstate_cb, &cmd, sizeof(cmd));
@@ -1422,6 +1442,8 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 	struct athn_usb_cmd_newstate *cmd = arg;
 	struct athn_softc *sc = &usc->usc_sc;
 	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211vap *vap = cmd->vap;
+	struct athn_vap *avap = (struct athn_vap *)vap;
 	enum ieee80211_state ostate, nstate;
 	uint32_t reg, intr_mask;
 	int s;
@@ -1430,9 +1452,10 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 
 	callout_stop(&sc->sc_calib_to);
 
-	s = splnet();
+	s = splnet(); /* XXX needed? */
+	IEEE80211_LOCK(ic);
 
-	ostate = TAILQ_FIRST(&(ic->ic_vaps))->iv_state;
+	ostate = vap->iv_state;
 	nstate = cmd->state;
 	DPRINTFN(DBG_STM, usc, "newstate %s(%d) -> %s(%d)\n",
 		    ieee80211_state_name[ostate], ostate,
@@ -1441,7 +1464,7 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 	if (ostate == IEEE80211_S_RUN) {
 		uint8_t sta_index;
 
-		sta_index = ATHN_NODE(TAILQ_FIRST(&(ic->ic_vaps))->iv_bss)->sta_index;
+		sta_index = ATHN_NODE(vap->iv_bss)->sta_index;
 		DPRINTFN(DBG_NODES, usc, "removing node %u\n", sta_index);
 		athn_usb_remove_hw_node(usc, &sta_index);
 	}
@@ -1455,7 +1478,7 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 		athn_set_led(sc, !sc->sc_led_state);
 		(void)athn_usb_switch_chan(sc, ic->ic_curchan, NULL);
 		if (!usc->usc_dying)
-			callout_schedule(&sc->sc_scan_to, hz / 5);
+			callout_schedule(&avap->av_scan_to, hz / 5);
 		break;
 	case IEEE80211_S_AUTH:
 		athn_set_led(sc, 0);
@@ -1471,20 +1494,20 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 
 		/* Create node entry for our BSS. */
 		DPRINTFN(DBG_NODES, sc, "create node for AID=%#x\n",
-		    ic->ic_bss->ni_associd);
-		athn_usb_create_node(usc, TAILQ_FIRST(&(ic->ic_vaps))->iv_bss);	/* XXX: handle error? */
+		    vap->iv_bss->ni_associd);
+		athn_usb_create_node(usc, vap->iv_bss);	/* XXX: handle error? */
 
-		athn_set_bss(sc, TAILQ_FIRST(&(ic->ic_vaps))->iv_bss);
+		athn_set_bss(sc, vap->iv_bss);
 		athn_usb_wmi_cmd(usc, AR_WMI_CMD_DISABLE_INTR);
 #ifndef IEEE80211_STA_ONLY
 		if (ic->ic_opmode == IEEE80211_M_HOSTAP) {
-			athn_set_hostap_timers(sc);
+			athn_set_hostap_timers(vap);
 			/* Enable software beacon alert interrupts. */
 			intr_mask = htobe32(AR_IMR_SWBA);
 		} else
 #endif
 		{
-			athn_set_sta_timers(sc);
+			athn_set_sta_timers(vap);
 			/* Enable beacon miss interrupts. */
 			intr_mask = htobe32(AR_IMR_BMISS);
 
@@ -1505,10 +1528,10 @@ athn_usb_newstate_cb(struct athn_usb_softc *usc, void *arg)
 		break;
 	}
 	if (!usc->usc_dying)
-		(void)sc->sc_newstate(ic, nstate, cmd->arg);
+		(void)avap->newstate(vap, nstate, cmd->arg);
+	IEEE80211_UNLOCK(ic);
 	splx(s);
 }
-#endif
 
 Static void
 athn_usb_newassoc(struct ieee80211_node *ni, int isnew)
@@ -1727,7 +1750,6 @@ athn_usb_rx_enable(struct athn_softc *sc)
 	AR_WRITE_BARRIER(sc);
 }
 
-#if 0
 Static int
 athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
     struct ieee80211_channel *extchan)
@@ -1785,7 +1807,6 @@ athn_usb_switch_chan(struct athn_softc *sc, struct ieee80211_channel *curchan,
 	error = athn_usb_wmi_cmd(usc, AR_WMI_CMD_ENABLE_INTR);
 	return error;
 }
-#endif
 
 #ifdef notyet_edca
 Static void
@@ -2277,10 +2298,11 @@ athn_usb_rx_frame(struct athn_usb_softc *usc, struct mbuf *m)
 	m_adj(m, -IEEE80211_CRC_LEN);
 
 	/* Send the frame to the 802.11 layer. */
-	ieee80211_input(ni, m, rs->rs_rssi + AR_USB_DEFAULT_NF, 0);
+	ieee80211_rx_enqueue(ic, m, rs->rs_rssi + AR_USB_DEFAULT_NF);
 
 	/* Node is no longer needed. */
-	ieee80211_free_node(ni);
+	if (ni)
+		ieee80211_free_node(ni);
 	splx(s);
 	return;
  skip:
@@ -2544,7 +2566,8 @@ athn_usb_tx(struct athn_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 
 	s = splnet();
 	usbd_setup_xfer(data->xfer, data, data->buf, xferlen,
-	    USBD_FORCE_SHORT_XFER, ATHN_USB_TX_TIMEOUT, athn_usb_txeof);
+	    USBD_FORCE_SHORT_XFER, ATHN_USB_TX_TIMEOUT,
+	    athn_usb_txeof);
 	error = usbd_transfer(data->xfer);
 	if (__predict_false(error != USBD_IN_PROGRESS && error != 0)) {
 		splx(s);
@@ -2590,21 +2613,30 @@ athn_usb_transmit(struct ieee80211com *ic, struct mbuf *m)
 Static int
 athn_usb_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
     const struct ieee80211_bpf_params *params)
-
 {
 	struct ieee80211com *ic = ni->ni_ic;
 	struct athn_softc *sc = ic->ic_softc;
 	struct athn_usb_softc *usc = ATHN_USB_SOFTC(sc);
-	struct athn_usb_tx_data *data;
+	struct athn_usb_tx_data *data = NULL;
 
 	mutex_enter(&usc->usc_tx_mtx);
-	if (TAILQ_EMPTY(&usc->usc_tx_free_list))
-		return -1;
-	data = TAILQ_FIRST(&usc->usc_tx_free_list);
-	TAILQ_REMOVE(&usc->usc_tx_free_list, data, next);
+	if (!TAILQ_EMPTY(&usc->usc_tx_free_list)) {
+		data = TAILQ_FIRST(&usc->usc_tx_free_list);
+		TAILQ_REMOVE(&usc->usc_tx_free_list, data, next);
+	}
 	mutex_exit(&usc->usc_tx_mtx);
+	if (data == NULL)
+		return -1;
 
 	return athn_usb_tx(sc, m, ni, data);
+}
+
+Static void
+athn_usb_set_channel(struct ieee80211com *ic)
+{
+	struct athn_softc *sc = ic->ic_softc;
+
+	athn_usb_switch_chan(sc, ic->ic_curchan, NULL); /* XXX extchan? */
 }
 
 Static void
@@ -2846,7 +2878,7 @@ athn_usb_init_locked(struct athn_usb_softc *usc)
 
 	athn_rx_start(sc);
 
-	/* Create main interface on target. */
+	/* Create main interface on target.  XXX Probably wrong place. */
 	memset(&hvif, 0, sizeof(hvif));
 	hvif.index = 0;
 	IEEE80211_ADDR_COPY(hvif.myaddr, ic->ic_macaddr);
@@ -2871,7 +2903,7 @@ athn_usb_init_locked(struct athn_usb_softc *usc)
 	default:
 		break;
 	}
-	/* hvif.rtsthreshold = htobe16(ic->ic_rtsthreshold); */
+	hvif.rtsthreshold = htobe16(TAILQ_FIRST(&(ic->ic_vaps))->iv_rtsthreshold);
 	DPRINTFN(DBG_INIT, sc, "creating VAP\n");
 	error = athn_usb_wmi_xcmd(usc, AR_WMI_CMD_VAP_CREATE,
 	    &hvif, sizeof(hvif), NULL);
@@ -2975,7 +3007,6 @@ athn_usb_stop_locked(struct athn_usb_softc *usc)
 	sc->sc_tx_timer = 0;
 	sc->sc_flags &= ~ATHN_FLAG_TX_BUSY;
 
-	callout_stop(&sc->sc_scan_to);
 	callout_stop(&sc->sc_calib_to);
 	callout_stop(&sc->sc_watchdog_to);
 

@@ -411,6 +411,7 @@ struct athn_usb_host_cmd {
 };
 
 struct athn_usb_cmd_newstate {
+	struct ieee80211vap	*vap;
 	enum ieee80211_state	state;
 	int			arg;
 };

@@ -119,11 +119,6 @@ Static void	athn_parent(struct ieee80211com *);
 Static int	athn_transmit(struct ieee80211com *, struct mbuf *);
 Static void	athn_get_radiocaps(struct ieee80211com *,
 		    int, int *, struct ieee80211_channel []);
-Static struct ieee80211vap *
-		athn_vap_create(struct ieee80211com *,  const char [IFNAMSIZ],
-		    int, enum ieee80211_opmode, int,
-		    const uint8_t [IEEE80211_ADDR_LEN],
-		    const uint8_t [IEEE80211_ADDR_LEN]);
 Static void athn_vap_delete(struct ieee80211vap *);
 
 #ifdef ATHN_BT_COEXISTENCE
@@ -144,12 +139,6 @@ Static void	athn_ani_ofdm_err_trigger(struct athn_softc *);
 Static void	athn_ani_restart(struct athn_softc *);
 #endif /* notyet */
 Static void	athn_set_multi(struct ieee80211com *);
-
-struct athn_vap {
-	struct ieee80211vap vap;
-	int (*newstate)(struct ieee80211vap *, enum ieee80211_state, int);
-	callout_t av_scan_to;
-};
 
 PUBLIC int
 athn_attach(struct athn_softc *sc)
@@ -2403,6 +2392,7 @@ athn_newassoc(struct ieee80211_node *ni, int isnew)
 {
 	struct athn_node *an = (void *)ni;
 	struct ieee80211_rateset *rs = &ni->ni_rates;
+	struct athn_softc *sc = ni->ni_ic->ic_softc;
 	uint8_t rate;
 	int ridx, i, j;
 
@@ -3053,7 +3043,7 @@ athn_transmit(struct ieee80211com *ic, struct mbuf *m)
 	struct athn_softc *sc = ic->ic_softc;
 	int s;
 
-	DPRINTFN(5, ("%s: %s\n",ic->ic_name, __func__));
+	/* DPRINTFN(5, ("%s: %s\n",ic->ic_name, __func__)); */
 
 	s = splnet();
 	IF_ENQUEUE(&sc->sc_sendq, m);
@@ -3106,7 +3096,7 @@ athn_parent(struct ieee80211com *ic)
 		ieee80211_start_all(ic);
 }
 
-static struct ieee80211vap *
+struct ieee80211vap *
 athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
     int unit, enum ieee80211_opmode opmode, int flags,
     const uint8_t bssid[IEEE80211_ADDR_LEN],
@@ -3137,7 +3127,8 @@ athn_vap_create(struct ieee80211com *ic,  const char name[IFNAMSIZ],
 	ifp = vap->vap.iv_ifp;
 
 	/* Use common softint-based if_input */
-	ifp->if_percpuq = if_percpuq_create(ifp);
+	if (!(sc->sc_flags & ATHN_FLAG_USB))
+		ifp->if_percpuq = if_percpuq_create(ifp);
 
 	/* Override state transition machine. */
 	vap->newstate = vap->vap.iv_newstate;
@@ -3169,7 +3160,7 @@ athn_vap_delete(struct ieee80211vap *arg)
 	struct ifnet *ifp = arg->iv_ifp;
 	struct athn_vap *vap = (struct athn_vap *)arg;
 
-	DPRINTFN(5, ("%s: %s\n", ifp->if_xname, __func__));
+	/* DPRINTFN(5, ("%s: %s\n", ifp->if_xname, __func__)); */
 
 	callout_halt(&vap->av_scan_to, NULL);
 	callout_destroy(&vap->av_scan_to);
